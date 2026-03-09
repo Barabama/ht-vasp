@@ -447,38 +447,36 @@ class Modeler:
 def main():
     api_key = "bqqHJQWs8wPyDZnrTgtsWNLevLmIq4MU"
 
-    # names = [
-    #     # "BCC-Fe-Fe",
-    #     "BCC-Fe-Mn",
-    #     "BCC-Fe-Ni",
-    #     "BCC-Mn-Mn",
-    #     "BCC-Mn-Ni",
-    #     # "BCC-Ni-Ni",
-    #     # "FCC-Fe-Fe",
-    #     "FCC-Fe-Mn",
-    #     "FCC-Fe-Ni",
-    #     "FCC-Mn-Fe",
-    #     "FCC-Mn-Mn",
-    #     "FCC-Mn-Ni",
-    #     "FCC-Ni-Fe",
-    #     "FCC-Ni-Mn",
-    #     # "FCC-Ni-Ni",
-    #     # "HCP-Fe-Fe",
-    #     # "HCP-Fe-Mn",
-    #     # "HCP-Fe-Ni",
-    #     # "HCP-Mn-Fe",
-    #     "HCP-Mn-Mn",
-    #     "HCP-Mn-Ni",
-    #     # "HCP-Ni-Fe",
-    #     # "HCP-Ni-Mn",
-    #     # "HCP-Ni-Ni",
-    #     # "SER-Fe",
-    #     "SER-Mn",
-    #     "SER-Ni",
-    # ]
     names = [
+        "BCC-Fe-Fe",
+        "BCC-Fe-Mn",
+        "BCC-Fe-Ni",
+        "BCC-Mn-Mn",
+        "BCC-Mn-Ni",
+        "BCC-Ni-Ni",
         "FCC-Fe-Fe",
+        "FCC-Fe-Mn",
+        "FCC-Fe-Ni",
+        "FCC-Mn-Fe",
+        "FCC-Mn-Mn",
+        "FCC-Mn-Ni",
+        "FCC-Ni-Fe",
+        "FCC-Ni-Mn",
+        "FCC-Ni-Ni",
+        "HCP-Fe-Fe",
+        "HCP-Fe-Mn",
+        "HCP-Fe-Ni",
+        "HCP-Mn-Fe",
+        "HCP-Mn-Mn",
+        "HCP-Mn-Ni",
+        "HCP-Ni-Fe",
+        "HCP-Ni-Mn",
+        "HCP-Ni-Ni",
+        "SER-Fe",
+        "SER-Mn",
+        "SER-Ni",
     ]
+
     modeler = Modeler(api_key)
 
     vasp_args = {
@@ -500,13 +498,13 @@ def main():
         json_path = workdir.joinpath(f"{name}-qha.json")
         workdir.mkdir(parents=True, exist_ok=True)
 
-        # # Skip if already done
-        # if json_path.exists():
-        #     with open(json_path, "r", encoding="utf-8") as jf:
-        #         result = json.load(jf)
-        #     if result.get("state") == "successful":
-        #         log.info(f"System {name} already done")
-        #         continue
+        # Skip if already done
+        if json_path.exists():
+            with open(json_path, "r", encoding="utf-8") as jf:
+                result = json.load(jf)
+            if result.get("state") == "successful":
+                log.info(f"System {name} already done")
+                continue
         
         log.info(f"System {name} started")
 
