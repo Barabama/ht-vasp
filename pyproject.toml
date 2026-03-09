@@ -1,0 +1,33 @@
+[project]
+name = "mpea-tdb"
+version = "0.1.0"
+description = "A High-throughput VASP Workflow for Multi-Principal Element Alloys End-Member Thermodynamics Database."
+authors = [
+    {name = "Barabama", email = "barabama@qq.com"},
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "pymatgen",
+    "mp-api",
+    "seekpath",
+    "atomate2",
+    "phonopy",
+]
+
+
+[build-system]
+requires = ["setuptools>=60", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.optional-dependencies]
+dev = [
+    # Add development dependencies here if needed
+    "pytest>=6.0",
+    "black",
+]
+
+[project.urls]
+Homepage = "https://gitee.com/wubo-movers/ht-vasp"
+Repository = "https://gitee.com/wubo-movers/ht-vasp.git"
