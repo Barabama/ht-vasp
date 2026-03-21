@@ -1,9 +1,23 @@
-"""Custom run_locally with custom directory naming."""
+"""
+HT-VASP - Custom run_locally implementation
+
+Custom run_locally with flexible directory naming and job control.
+"""
 
 from __future__ import annotations
 
 import typing
 from pathlib import Path
+from collections import defaultdict
+from datetime import datetime, timezone
+from random import randint
+
+from monty.os import cd
+
+from jobflow import SETTINGS, initialize_logger
+from jobflow.core.flow import get_flow
+from jobflow.core.reference import OnMissing
+from jobflow.managers.local import logger
 
 if typing.TYPE_CHECKING:
     import jobflow
@@ -13,7 +27,7 @@ def run_locally_custom(
     flow: jobflow.Flow | jobflow.Job | list[jobflow.Job],
     log: bool | str = True,
     store: jobflow.JobStore | None = None,
-    root_dir: str | Path | None = None,
+    root_dir: Path | str = "",
     ensure_success: bool = False,
     allow_external_references: bool = False,
     raise_immediately: bool = False,
@@ -24,68 +38,48 @@ def run_locally_custom(
     """
     Run a Job or Flow locally with custom directory naming.
 
-    Parameters
-    ----------
-    flow : Flow | Job | list[Job]
-        A job or flow.
-    log : bool | str
-        Controls logging. Defaults to True.
-    store : JobStore
-        A job store. If not specified, uses default JobStore.
-    root_dir : str | Path | None
-        The root directory to run the jobs in. If None, uses current directory.
-    ensure_success : bool
-        Raise an error if the flow was not executed successfully.
-    allow_external_references : bool
-        If False all references to other outputs should be from other Jobs
-        of the same Flow.
-    raise_immediately : bool
-        If True, raise an exception immediately if a job fails.
-    dir_format : str
-        Format string for directory names. Available placeholders:
-        - {name}: job name
-        - {uuid}: job uuid (first 8 chars)
-        - {index}: job index
-        Default is "{name}".
-    dir_prefix : str
-        Prefix to add to directory names.
-    dir_suffix : str
-        Suffix to add to directory names.
+    This is an enhanced version of jobflow's run_locally that supports:
+    - Custom directory naming patterns
+    - Prefix/suffix for job directories
+    - Better control over job execution
 
-    Returns
-    -------
-    dict[str, dict[int, Response]]
-        The responses of the jobs.
+    Args:
+        flow: A job or flow
+        log: Controls logging. Defaults to True
+        store: A job store. If not specified, uses default JobStore
+        root_dir: The root directory to run the jobs in. If None, uses current directory
+        ensure_success: Raise an error if the flow was not executed successfully
+        allow_external_references: If False all references to other outputs
+            should be from other Jobs of the same Flow
+        raise_immediately: If True, raise an exception immediately if a job fails
+        dir_format: Format string for directory names. Available placeholders:
+            - {name}: job name
+            - {uuid}: job uuid (first 8 chars)
+            - {index}: job index
+            Default is "{name}"
+        dir_prefix: Prefix to add to directory names
+        dir_suffix: Suffix to add to directory names
+
+    Returns:
+        dict[str, dict[int, Response]]: The responses of the jobs.
 
     Examples
-    --------
     >>> # Use job name as directory name
-    >>> run_locally_custom(job, root_dir="./runs", dir_format="{name}")
+    >>> run_locally_custom(job, store=store, root_dir="./runs", dir_format="{name}")
 
     >>> # Use job name with prefix and suffix
-    >>> run_locally_custom(job, root_dir="./runs", dir_prefix="calc_", dir_suffix="_v1")
+    >>> run_locally_custom(job, store=store, root_dir="./runs", dir_prefix="calc_", dir_suffix="_v1")
 
     >>> # Use uuid as directory name
-    >>> run_locally_custom(job, root_dir="./runs", dir_format="{uuid}")
+    >>> run_locally_custom(job, store=store, root_dir="./runs", dir_format="{uuid}")
 
     >>> # Combined format
-    >>> run_locally_custom(job, root_dir="./runs", dir_format="{name}_{index}")
+    >>> run_locally_custom(job, store=store, root_dir="./runs", dir_format="{name}_{index}")
     """
-    from collections import defaultdict
-    from datetime import datetime, timezone
-    from random import randint
-
-    from monty.os import cd
-
-    from jobflow import SETTINGS, initialize_logger
-    from jobflow.core.flow import get_flow
-    from jobflow.core.reference import OnMissing
-    from jobflow.managers.local import logger
-
     if store is None:
         store = SETTINGS.JOB_STORE
 
-    root_dir = Path.cwd() if root_dir is None else Path(root_dir).resolve()
+    root_dir = Path(root_dir).resolve()
     root_dir.mkdir(exist_ok=True, parents=True)
 
     store.connect()
@@ -125,9 +119,7 @@ def run_locally_custom(
             return None, True
 
         if len(set(parents).intersection(stopped_parents)) > 0:
-            logger.info(
-                f"{job.name} is a child of a job with stop_children=True, skipping..."
-            )
+            logger.info(f"{job.name} is a child of a job with stop_children=True, skipping...")
             stopped_parents.add(job.uuid)
             return None, False
 
@@ -146,9 +138,7 @@ def run_locally_custom(
             except Exception:
                 import traceback
 
-                logger.info(
-                    f"{job.name} failed with exception:\n{traceback.format_exc()}"
-                )
+                logger.info(f"{job.name} failed with exception:\n{traceback.format_exc()}")
                 errored.add(job.uuid)
                 return None, False
 

@@ -1,33 +1,44 @@
 [project]
-name = "mpea-tdb"
+name = "ht-vasp"
 version = "0.1.0"
-description = "A High-throughput VASP Workflow for Multi-Principal Element Alloys End-Member Thermodynamics Database."
-authors = [
-    {name = "Barabama", email = "barabama@qq.com"},
-]
+description = "High-throughput VASP workflows for Multi-Principal Element Alloys"
+authors = [{ name = "Barabama", email = "barabama@qq.com" }]
 readme = "README.md"
-license = {text = "MIT"}
+license = { text = "MIT" }
 requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Materials Science",
+]
 dependencies = [
-    "pymatgen",
-    "mp-api",
-    "seekpath",
-    "atomate2",
-    "phonopy",
+    "pymatgen>=2022.0",
+    "mp-api>=0.30",
+    "seekpath>=2.0",
+    "atomate2>=0.0.20",
+    "phonopy>=2.13",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=6.0", "black"]
+
+[project.urls]
+Homepage = "https://gitee.com/wubo-movers/ht-vasp"
+Repository = "https://gitee.com/wubo-movers/ht-vasp.git"
 
 [build-system]
 requires = ["setuptools>=60", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[project.optional-dependencies]
-dev = [
-    # Add development dependencies here if needed
-    "pytest>=6.0",
-    "black",
-]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["htvasp*"]
 
-[project.urls]
-Homepage = "https://gitee.com/wubo-movers/ht-vasp"
-Repository = "https://gitee.com/wubo-movers/ht-vasp.git"
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

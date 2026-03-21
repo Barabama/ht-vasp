@@ -47,7 +47,6 @@ Thumbs.db
 *.backup
 
 # Job directories
-test*/
 runs/
 jobs/
 calc_*/
@@ -61,5 +60,5 @@ data/
 datasets/
 
 # Temporary files
-*.tmp
-*.temp
+*tmp*
+*temp*
