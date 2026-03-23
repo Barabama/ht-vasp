@@ -51,6 +51,7 @@ runs/
 jobs/
 calc_*/
 job_*/
+vasprun
 
 # JSON store files
 *store*.json
