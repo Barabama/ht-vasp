@@ -3,8 +3,8 @@
 #SBATCH --output=job_gpu.log
 ##SBATCH --error=job.err
 #SBATCH --mem=10G
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=1
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
 #SBATCH --gpus-per-task=1
 #SBATCH --partition=partGPU
 #SBATCH --time=100:00:00
@@ -26,6 +26,7 @@ cd $WORKDIR
 echo -e "102\n1\n0.04\n" | vaspkit
 echo -e "108\n" | vaspkit
 
+# export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 srun stdbuf -oL vasp_std
 
 # Echo job done

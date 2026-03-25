@@ -25,7 +25,7 @@ ISPIN = 2
 # BMIX_MAG = 0.0001
 # Precision
 KPAR = 2
-NCORE = 1
+NCORE = 2
 ISYM = 0 # 2
 LREAL = Auto
 PREC = Normal

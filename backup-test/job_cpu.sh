@@ -3,8 +3,9 @@
 #SBATCH --output=job_cpu.log
 ##SBATCH --error=job.err
 #SBATCH --mem=20G
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=32
+#SBATCH --nodes=1
+#SBATCH --nodelist=429e
+#SBATCH --ntasks=32
 #SBATCH --cpus-per-task=1
 #SBATCH --partition=partCPU
 #SBATCH --time=100:00:00
@@ -18,6 +19,7 @@ ulimit -s unlimited
 module purge && module load vasp-cpu
 
 WORKDIR=$ROOTDIR/vasprun/cpu/
+# WORKDIR=/nfs_ssd/vasprun/cpu/
 mkdir -p $WORKDIR
 cp $ROOTDIR/POSCAR-16 $WORKDIR/POSCAR
 cp $ROOTDIR/INCAR $WORKDIR/INCAR
