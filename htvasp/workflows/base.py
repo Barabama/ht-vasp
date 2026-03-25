@@ -18,7 +18,7 @@ class Worker(ABC):
         self,
         worker_name: str,
         vasp_args: dict[str, Any],
-        potcar_functional: Literal["PBE", "PBE_54", "PBE_64"] = "PBE_54",
+        potcar_functional: Literal["PBE", "PBE_54", "PBE_64"] = "PBE_64",
         incar_settings: dict[str, Any] | None = None,
         **kwargs,
     ):
@@ -36,7 +36,7 @@ class Worker(ABC):
     @abstractmethod
     def run_flow(
         self,
-        struct_name: str,
+        name: str,
         structure: Structure,
         flowdir: Path | str,
         dir_format: str = "{name}",
@@ -46,7 +46,7 @@ class Worker(ABC):
         Run the worker.
 
         Args:
-            system_name: Name of the system
+            name: Name of the system
             structure: Structure to run the worker on
             flowdir: Flow directory
             dir_format: Directory format

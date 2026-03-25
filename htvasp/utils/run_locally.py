@@ -32,7 +32,7 @@ def run_locally_custom(
     allow_external_references: bool = False,
     raise_immediately: bool = False,
     dir_format: str = "{name}",
-    dir_prefix: str = "",
+    dir_prefix: str = None,  # Changed default to None for auto-numbering
     dir_suffix: str = "",
 ) -> dict[str, dict[int, jobflow.Response]]:
     """
@@ -57,7 +57,7 @@ def run_locally_custom(
             - {uuid}: job uuid (first 8 chars)
             - {index}: job index
             Default is "{name}"
-        dir_prefix: Prefix to add to directory names
+        dir_prefix: Prefix to add to directory names. If None, uses auto-numbering starting from 1. Defaults to None
         dir_suffix: Suffix to add to directory names
 
     Returns:
@@ -82,6 +82,31 @@ def run_locally_custom(
     root_dir = Path(root_dir).resolve()
     root_dir.mkdir(exist_ok=True, parents=True)
 
+    # Initialize auto-numbering if dir_prefix is None
+    if dir_prefix is None:
+        # Find the highest existing number prefix
+        existing_prefixes = []
+        for item in root_dir.iterdir():
+            if item.is_dir():
+                # Extract number from directory name
+                try:
+                    # Look for directories starting with number followed by hyphen
+                    parts = item.name.split("-", 1)
+                    if parts[0].isdigit():
+                        existing_prefixes.append(int(parts[0]))
+                except (ValueError, IndexError):
+                    pass
+        # Start from the next number
+        if existing_prefixes:
+            next_prefix = max(existing_prefixes) + 1
+        else:
+            next_prefix = 1
+        dir_prefix = f"{next_prefix}-"
+    else:
+        # Ensure dir_prefix ends with hyphen if it's not empty
+        if dir_prefix and not dir_prefix.endswith("-"):
+            dir_prefix += "-"
+
     store.connect()
 
     if log:
@@ -98,17 +123,19 @@ def run_locally_custom(
         """Generate custom directory name for a job."""
         # Build directory name from format
         dir_name = dir_format.format(
-            name=job.name,
+            name=job.name.replace(" ", "_"),
             uuid=job.uuid[:8],
             index=job.index,
         )
         # Add prefix and suffix
         dir_name = f"{dir_prefix}{dir_name}{dir_suffix}"
-        # Handle duplicates by adding a random suffix
+        # Handle duplicates by adding a sequential suffix
+        idx = 1
         job_dir = root_dir / dir_name
-        if job_dir.exists():
-            dir_name = f"{dir_name}_{randint(1000, 9999)}"
-            job_dir = root_dir / dir_name
+        while job_dir.exists():
+            tmp_dir_name = f"{dir_name}_{idx}"
+            job_dir = root_dir / tmp_dir_name
+            idx += 1
         job_dir.mkdir(parents=True, exist_ok=True)
         return job_dir
 
@@ -154,6 +181,18 @@ def run_locally_custom(
             stop_jobflow = True
             return None, True
 
+        diversion_responses = []
+        if response.replace is not None:
+            diversion_responses.append(_run(response.replace))
+
+        if response.detour is not None:
+            diversion_responses.append(_run(response.detour))
+
+        if response.addition is not None:
+            diversion_responses.append(_run(response.addition))
+
+        if not all(diversion_responses):
+            return None, False
         return response, False
 
     def _run(root_flow):

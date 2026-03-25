@@ -46,7 +46,7 @@ class SlurmConfig:
     error_log: str = ""  # Empty = don't use --error unless specified
     memory: str = "20G"
     nodes: int = 1
-    tasks_per_node: int = 1
+    ntasks: int = 1
     cpus_per_task: int = 1
     gpus_per_task: int = 0  # Only for GPU partition
     partition: Literal["partCPU", "partGPU"] = "partCPU"
@@ -57,7 +57,7 @@ class SlurmConfig:
     vasp_gam_cmd: str = "srun vasp_gam"
 
     # Environment settings
-    conda_path: str = "/opt/miniconda3"
+    conda_path: str = "/nfs_ssd/.conda"
 
     # Extra commands
     extra_commands: list[str] = field(default_factory=list)
@@ -83,9 +83,11 @@ class SlurmConfig:
         Returns:
             List of conda activation commands
         """
+        env_path = f"{self.conda_path}/envs/{conda_env}"
         return [
-            f". {self.conda_path}/etc/profile.d/conda.sh",
-            f"conda activate {conda_env}",
+            f"export PATH=$PATH:{env_path}/bin",
+            f"export PYTHONPATH=$PYTHONPATH:{env_path}/lib/python3.12/site-packages",
+            f"export CONDA_DEFAULT_ENV={conda_env}",
         ]
 
 
@@ -144,7 +146,7 @@ class SlurmJobManager:
             f"--output={config.output_log}",
             f"--mem={config.memory}",
             f"--nodes={config.nodes}",
-            f"--tasks-per-node={config.tasks_per_node}",
+            f"--ntasks={config.ntasks}",
             f"--cpus-per-task={config.cpus_per_task}",
             f"--partition={config.partition}",
             f"--time={config.time_limit}",
@@ -200,8 +202,8 @@ class SlurmJobManager:
     def get_cpu_config(
         self,
         job_name: str = "vasp-cpu",
-        tasks_per_node: int = 44,
-        memory: str = "80G",
+        ntasks: int = 48,
+        memory: str = "20G",
         **kwargs,
     ) -> SlurmConfig:
         """
@@ -209,36 +211,7 @@ class SlurmJobManager:
 
         Args:
             job_name: Job name (default: "vasp-cpu")
-            tasks_per_node: Number of tasks per node (default: 44)
-            memory: Memory per node (default: "80G")
-            **kwargs: Additional SlurmConfig parameters
-
-        Returns:
-            SlurmConfig instance
-        """
-        return SlurmConfig(
-            job_name=job_name,
-            tasks_per_node=tasks_per_node,
-            memory=memory,
-            partition="partCPU",
-            **kwargs,
-        )
-
-    def get_gpu_config(
-        self,
-        job_name: str = "vasp-gpu",
-        tasks_per_node: int = 1,
-        gpus_per_node: int = 1,
-        memory: str = "20G",
-        **kwargs,
-    ) -> SlurmConfig:
-        """
-        Get default GPU configuration.
-
-        Args:
-            job_name: Job name (default: "vasp-gpu")
-            tasks_per_node: Number of tasks per node (default: 1 CPU for GPU)
-            gpus_per_node: Number of GPUs per node (default: 1)
+            ntasks: Number of tasks (default: 48)
             memory: Memory per node (default: "20G")
             **kwargs: Additional SlurmConfig parameters
 
@@ -247,7 +220,36 @@ class SlurmJobManager:
         """
         return SlurmConfig(
             job_name=job_name,
-            tasks_per_node=tasks_per_node,
+            ntasks=ntasks,
+            memory=memory,
+            partition="partCPU",
+            **kwargs,
+        )
+
+    def get_gpu_config(
+        self,
+        job_name: str = "vasp-gpu",
+        ntasks: int = 1,
+        gpus_per_node: int = 1,
+        memory: str = "10G",
+        **kwargs,
+    ) -> SlurmConfig:
+        """
+        Get default GPU configuration.
+
+        Args:
+            job_name: Job name (default: "vasp-gpu")
+            ntasks: Number of tasks (default: 1 CPU for GPU)
+            gpus_per_node: Number of GPUs per node (default: 1)
+            memory: Memory per node (default: "10G")
+            **kwargs: Additional SlurmConfig parameters
+
+        Returns:
+            SlurmConfig instance
+        """
+        return SlurmConfig(
+            job_name=job_name,
+            ntasks=ntasks,
             gpus_per_task=gpus_per_node,
             memory=memory,
             partition="partGPU",

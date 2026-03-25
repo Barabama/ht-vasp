@@ -1,39 +1,48 @@
 """
-HT-VASP - Relax Workflows
+HT-VASP - Static Workflows
 
-Structural relax workflows using atomate2 DoubleRelaxMaker.
+Structural relax and static calculation.
 """
 
+import json
 import logging
 import traceback
 from pathlib import Path
+from datetime import datetime
 from typing import Any, Literal
 
 from pymatgen.core import Structure
 from atomate2.vasp.flows.core import DoubleRelaxMaker
-from atomate2.vasp.jobs.core import TightRelaxMaker
-from atomate2.vasp.sets.core import TightRelaxSetGenerator
+from atomate2.vasp.jobs.core import StaticMaker, TightRelaxMaker
+from atomate2.vasp.sets.core import StaticSetGenerator, TightRelaxSetGenerator
 from custodian.vasp.handlers import VaspErrorHandler
 from maggma.stores import JSONStore, MemoryStore
 from jobflow.core.store import JobStore
+from jobflow.core.flow import Flow
 
 from htvasp.workflows.base import Worker
-from htvasp.utils import run_locally_custom
+from htvasp.utils.run_locally import run_locally_custom
 
 log = logging.getLogger(__name__)
 
 
-class RelaxWorker(Worker):
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
+class StaticWorker(Worker):
     """
-    Worker for structural relaxation using atomate2 DoubleRelaxMaker。
-    Performs R7 volume relaxation (ISIF=7) and R3 full relaxation (ISIF=3).
+    Worker for static calculation.
     """
 
     def __init__(
         self,
         worker_name: str,
         vasp_args: dict[str, Any],
-        potcar_functional: Literal["PBE", "PBE_54", "PBE_64"] = "PBE_64",
+        potcar_functional: Literal["PBE", "PBE54", "PBE_64"] = "PBE_64",
         incar_settings: dict[str, Any] | None = None,
         **kwargs,
     ):
@@ -42,35 +51,35 @@ class RelaxWorker(Worker):
 
         # Default INCAR settings
         default_incar = {
-            "ENCUT": 400,
+            "ENCUT": 500,
             "ISTART": 0,
             "ICHARG": 2,
             # Electronic
             "ISMEAR": 1,
-            "SIGMA": 0.2,
-            "ALGO": "Fast",
+            "SIGMA": 0.1,
+            "ALGO": "Normal",
             "NELM": 100,
-            "NELMIN": 4,
-            "NELMDL": -12,
+            "NELMIN": 6,
+            "NELMDL": -6,
             # Ionic
             "IBRION": 2,
             "ISIF": 3,
-            "NSW": 10,
+            "NSW": 100,
             "POTIM": 0.2,
-            "EDIFF": 1e-5,
-            "EDIFFG": 1e-4,
+            "EDIFF": 1e-6,
+            "EDIFFG": -0.01,
             # Magnetic
             "ISPIN": 2,
-            "AMIX": 0.04,
-            "BMIX": 1e-4,
-            "AMIX_MAG": 0.8,
-            "BMIX_MAG": 1e-4,
+            "AMIX": 0.2,
+            "BMIX": 1e-3,
+            "AMIX_MAG": 0.2,
+            "BMIX_MAG": 1e-3,
             # Precision
             "KPAR": 2,
             "NCORE": 1,
-            "ISYM": 2,
+            "ISYM": 0,
             "LREAL": "Auto",
-            "PREC": "Normal",
+            "PREC": "Accurate",
             "SYMPREC": 1e-7,
             # Output
             "LWAVE": False,
@@ -81,27 +90,8 @@ class RelaxWorker(Worker):
             default_incar.update(incar_settings)
         incar_settings = default_incar
 
-        # R7 structural relaxation
-        relax_r7_maker = DoubleRelaxMaker.from_relax_maker(
-            TightRelaxMaker(
-                name="r7_relax",
-                run_vasp_kwargs={"handlers": [VaspErrorHandler()], **vasp_args},
-                stop_children_kwargs={"handle_unsuccessful": False},
-                input_set_generator=TightRelaxSetGenerator(
-                    user_potcar_functional=potcar_functional,
-                    user_incar_settings={
-                        **incar_settings,
-                        "NELM": 200,
-                        "ISIF": 7,
-                        "NSW": 20,
-                        "EDIFF": 1e-5,
-                        "EDIFFG": 1e-4,
-                    },
-                ),
-            ),
-        )
-        # R3 structural relaxation
-        relax_r3_maker = DoubleRelaxMaker.from_relax_maker(
+        # Structural relaxation
+        relax_maker = DoubleRelaxMaker.from_relax_maker(
             TightRelaxMaker(
                 name="r3_relax",
                 run_vasp_kwargs={"handlers": [VaspErrorHandler()], **vasp_args},
@@ -110,21 +100,36 @@ class RelaxWorker(Worker):
                     user_potcar_functional=potcar_functional,
                     user_incar_settings={
                         **incar_settings,
-                        "NELM": 300,
                         "ISIF": 3,
-                        "NSW": 50,
-                        "EDIFF": 1e-5,
-                        "EDIFFG": -0.05,
+                        "LWAVE": True,
+                        "LCHARG": True,
                     },
                 ),
             ),
         )
-
-        # Relax flow
-        self.relax_flow = DoubleRelaxMaker(
-            relax_maker1=relax_r7_maker,
-            relax_maker2=relax_r3_maker,
+        # Static calculation
+        static_maker = StaticMaker(
+            run_vasp_kwargs={"handlers": [VaspErrorHandler()], **vasp_args},
+            stop_children_kwargs={"handle_unsuccessful": False},
+            input_set_generator=StaticSetGenerator(
+                user_potcar_functional=potcar_functional,
+                user_incar_settings={
+                    **incar_settings,
+                    "ISTART": 1,
+                    "ICHARG": 11,
+                    "NELM": 200,
+                    "IBRION": -1,
+                    "ISIF": 2,
+                    "NSW": 0,
+                    "EDIFF": 1e-7,
+                    "EDIFFG": 1e-6,
+                    "LORBIT": 11,
+                },
+            ),
         )
+
+        # Static flow
+        self.flow_makers: tuple[DoubleRelaxMaker, StaticMaker] = (relax_maker, static_maker)
 
     def run_flow(
         self,
@@ -147,8 +152,18 @@ class RelaxWorker(Worker):
             additional_stores={"data": MemoryStore()},
         )
 
-        flow = self.relax_flow.make(structure)
-        log.info(f"Running relax flow for struct {name} in {flow_dir}")
+        relax_maker, static_maker = self.flow_makers
+        relax_job = relax_maker.make(structure)
+        static_job = static_maker.make(
+            relax_job.output.structure,
+            prev_dir=relax_job.output.dir_name,
+        )
+        flow = Flow(
+            [relax_job, static_job],
+            output=static_job.output,
+            name=name,
+        )
+        log.info(f"Running Static flow for struct {name} in {flow_dir}")
 
         try:
             run_locally_custom(
@@ -160,19 +175,19 @@ class RelaxWorker(Worker):
 
             self.store.connect()
             job = self.store.query_one(
-                criteria={"name": {"$regex": "r3_relax"}},
+                criteria={"name": {"$regex": "static"}},
                 properties=["uuid", "index", "name"],
                 sort={"index": -1},
             )
             if not job:
-                raise ValueError(f"No 'r3_relax' job found in the store {store_path}")
+                raise ValueError(f"No 'static' job found in store {store_path}")
 
             output = self.store.get_output(uuid=job["uuid"], which="last", load=True)
-            log.info(f"Relax flow for struct {name} completed successfully")
+            log.info(f"Static flow for sturct {name} completed successfully")
             return output
 
         except Exception as e:
-            log.error(f"Relax flow for struct {name} failed: {e}")
+            log.error(f"Static flow for struct {name} failed: {e}")
             log.error(traceback.format_exc())
             return None
 

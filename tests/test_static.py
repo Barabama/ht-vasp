@@ -1,6 +1,5 @@
-import os
-import sys
 import json
+import shutil
 import logging
 import argparse
 from datetime import datetime
@@ -8,7 +7,7 @@ from pathlib import Path
 
 from pymatgen.core import Structure
 
-from htvasp.workflows import RelaxWorker
+from htvasp.workflows import StaticWorker
 from htvasp.slurm import SlurmJobManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
@@ -24,43 +23,41 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
+vasp_args = {
+    "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
+    "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
+}
+
+incar_settings = {
+    "KPAR": 2,
+    "NCORE": 2,
+    "GGA": "PE",
+}
+
+
 def run_locally():
-    vasp_wrap = (
-        "/bin/bash -c '"
-        ". /etc/profile.d/modules.sh && "
-        "module load vasp-cpu && "
-        "srun vasp_std'"
-    )
-    vasp_gam_wrap = (
-        "/bin/bash -c '"
-        ". /etc/profile.d/modules.sh && "
-        "module load vasp-cpu && "
-        "srun vasp_gam'"
-    )
 
-    vasp_args = {
-        "handlers": [],
-        "vasp_cmd": vasp_wrap,
-        "vasp_gamma_cmd": vasp_gam_wrap,
-    }
-
-    si_structure = Structure(
-        lattice=[[0, 2.73, 2.73], [2.73, 0, 2.73], [2.73, 2.73, 0]],
-        species=["Si", "Si"],
-        coords=[[0, 0, 0], [0.25, 0.25, 0.25]],
+    struct = Structure(
+        lattice=[[2.73, 0, 0], [0, 2.73, 0], [0, 0, 2.73]],
+        species=["Al", "Al"],
+        coords=[[0, 0, 0], [0.5, 0.5, 0.5]],
     )
-    flow_dir = Path("temp", "relax-si")
-    json_path = flow_dir.joinpath("si_relax.json")
+    flow_dir = Path("temp", "static-Al")
+    json_path = flow_dir.joinpath("static_Al.json")
+    if flow_dir.exists():
+        shutil.rmtree(flow_dir)
 
-    worker = RelaxWorker(
-        worker_name="relax-si",
+    worker = StaticWorker(
+        worker_name="static-Al",
         vasp_args=vasp_args,
-        incar_settings={"GGA": "PE"},
+        incar_settings={
+            "GGA": "PE",
+        },
     )
 
     output = worker.run_flow(
-        struct_name="si",
-        structure=si_structure,
+        name="Al",
+        structure=struct,
         flow_dir=flow_dir,
     )
     if output:
@@ -68,16 +65,16 @@ def run_locally():
             json.dump(output, jf, indent=2, cls=DateTimeEncoder)
 
 
-def submit_to_slurm():
+def submit_job():
     manager = SlurmJobManager()
     config = manager.get_cpu_config(
-        tasks_per_node=4,
+        ntasks=32,
         memory="4G",
     )
     job_id = manager.submit_command(
         command=f"python {__file__} --local",
         config=config,
-        conda_env="ht-vasp",
+        conda_env="htvasp",
         workdir=".",
     )
 
@@ -91,6 +88,6 @@ if __name__ == "__main__":
     if args.local:
         run_locally()
     elif args.slurm:
-        submit_to_slurm()
+        submit_job()
     else:
         print("specify run mode: --local or --slurm")
