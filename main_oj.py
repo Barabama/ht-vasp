@@ -6,7 +6,8 @@ from pathlib import Path
 from datetime import datetime
 
 from htvasp.model import Endmember
-from htvasp.workflows import StaticWorker
+from htvasp.oj import OJConfig, OJResult
+from htvasp.workflows import OJWorker
 from htvasp.slurm import SlurmJobManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
@@ -25,11 +26,6 @@ vasp_args = {
     "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
 }
 
-incar_settings = {
-    "KPAR": 2,
-    "NCORE": 2,
-    "GGA": "PE",
-}
 
 struct_names = [
     "SER-Co",
@@ -46,22 +42,22 @@ struct_names = [
     "BCC-Mn-Mn",
     "BCC-Mn-Ni",
     "BCC-Ni-Ni",
-    "FCC-Co-Co",
-    "FCC-Co-Fe",
-    "FCC-Co-Mn",
-    "FCC-Co-Ni",
-    "FCC-Fe-Co",
-    "FCC-Fe-Fe",
-    "FCC-Fe-Mn",
-    "FCC-Fe-Ni",
-    "FCC-Mn-Co",
-    "FCC-Mn-Fe",
-    "FCC-Mn-Mn",
-    "FCC-Mn-Ni",
-    "FCC-Ni-Co",
-    "FCC-Ni-Fe",
-    "FCC-Ni-Mn",
-    "FCC-Ni-Ni",
+    # "FCC-Co-Co",
+    # "FCC-Co-Fe",
+    # "FCC-Co-Mn",
+    # "FCC-Co-Ni",
+    # "FCC-Fe-Co",
+    # "FCC-Fe-Fe",
+    # "FCC-Fe-Mn",
+    # "FCC-Fe-Ni",
+    # "FCC-Mn-Co",
+    # "FCC-Mn-Fe",
+    # "FCC-Mn-Mn",
+    # "FCC-Mn-Ni",
+    # "FCC-Ni-Co",
+    # "FCC-Ni-Fe",
+    # "FCC-Ni-Mn",
+    # "FCC-Ni-Ni",
 ]
 
 
@@ -71,8 +67,8 @@ def run_locally(force=False):
     for name in struct_names:
         workdir = Path("data/endmembers").joinpath(name)
         posdir = Path("data/poscars")
-        flowdir = workdir.joinpath("staticflow")
-        json_path = workdir.joinpath(f"{name}-static.json")
+        flowdir = workdir.joinpath("ojflow")
+        json_path = workdir.joinpath(f"{name}-oj.json")
         workdir.mkdir(parents=True, exist_ok=True)
         posdir.mkdir(parents=True, exist_ok=True)
 
@@ -86,41 +82,46 @@ def run_locally(force=False):
 
         log.info(f"Structure {name} start")
 
-        # Run StaticWorker
-        struct = endmember.get_poscar(name, posdir)
-        if flowdir.exists():
+        # Run OJWorker
+        if force and flowdir.exists():
             shutil.rmtree(flowdir)
         flowdir.mkdir(parents=True, exist_ok=True)
+        struct = endmember.get_poscar(name, posdir)
         try:
-            worker = StaticWorker(
-                worker_name=f"{name}-static",
+            worker = OJWorker(
+                worker_name=f"{name}-oj",
+                config=OJConfig(),
                 vasp_args=vasp_args,
-                global_incar=incar_settings,
             )
-            static_data = worker.run_flow(name, struct, flowdir)
-            if not static_data:
+
+            oj_data = worker.run_flow(name, struct, flowdir)
+            if not oj_data:
                 result = {"name": name, "state": "failed", "struct": struct.as_dict()}
-            result = {"name": name, "state": "successful", **static_data}
+            else:
+                oj_result = OJResult.from_solution(oj_data)
+                summary = oj_result.to_summary()
+                result = {"name": name, "state": "successful", **summary}
 
         except Exception as e:
-            log.error(f"Structure {name} failed: {e}")
+            log.error(f"System {name} failed: {e}")
             result = {"name": name, "state": "failed", "struct": struct.as_dict()}
 
         # Save result
         with open(json_path, "w", encoding="utf-8") as jf:
             json.dump(result, jf, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
 
-        log.info(f"Structure {name} done")
+        log.info(f"System {name} done")
 
 
 def submit_job(force=False):
     """Submit a single job to run all structures."""
     manager = SlurmJobManager()
     config = manager.get_cpu_config(
-        job_name="gml-mag",
-        output_log="em-mag.log",
+        job_name="gml-oj",
+        output_log="em-oj.log",
         nodes=1,
-        ntasks=16,
+        nodelist="429e",
+        ntasks=32,
     )
     job_id = manager.submit_command(
         command=f"python {__file__} --local {'--force' if force else ''}",

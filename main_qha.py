@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 
 from htvasp.model import Endmember
-from htvasp.workflows import StaticWorker
+from htvasp.workflows import QhaWorker
 from htvasp.slurm import SlurmJobManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
@@ -25,43 +25,55 @@ vasp_args = {
     "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
 }
 
-incar_settings = {
+global_incar = {
     "KPAR": 2,
     "NCORE": 2,
     "GGA": "PE",
+    # "AMIX": 0.4,
+    # "BMIX": 1e-4,
+    # "AMIX_MAG": 0.08,
+    # "BMIX_MAG": 1e-4,
+}
+relax_incar = {
+    "KPAR": 4,
+    "NCORE": 1,
+}
+phonon_incar = {
+    "KPAR": 1,
+    "NCORE": 4,
 }
 
 struct_names = [
     "SER-Co",
     "SER-Fe",
-    "SER-Mn",
-    "SER-Ni",
-    "BCC-Co-Co",
-    "BCC-Co-Fe",
-    "BCC-Co-Mn",
-    "BCC-Co-Ni",
-    "BCC-Fe-Fe",
-    "BCC-Fe-Mn",
-    "BCC-Fe-Ni",
-    "BCC-Mn-Mn",
-    "BCC-Mn-Ni",
-    "BCC-Ni-Ni",
-    "FCC-Co-Co",
-    "FCC-Co-Fe",
-    "FCC-Co-Mn",
-    "FCC-Co-Ni",
-    "FCC-Fe-Co",
-    "FCC-Fe-Fe",
-    "FCC-Fe-Mn",
-    "FCC-Fe-Ni",
-    "FCC-Mn-Co",
-    "FCC-Mn-Fe",
-    "FCC-Mn-Mn",
-    "FCC-Mn-Ni",
-    "FCC-Ni-Co",
-    "FCC-Ni-Fe",
-    "FCC-Ni-Mn",
-    "FCC-Ni-Ni",
+    # "SER-Mn",
+    # "SER-Ni",
+    # "BCC-Co-Co",
+    # "BCC-Co-Fe",
+    # "BCC-Co-Mn",
+    # "BCC-Co-Ni",
+    # "BCC-Fe-Fe",
+    # "BCC-Fe-Mn",
+    # "BCC-Fe-Ni",
+    # "BCC-Mn-Mn",
+    # "BCC-Mn-Ni",
+    # "BCC-Ni-Ni",
+    # "FCC-Co-Co",
+    # "FCC-Co-Fe",
+    # "FCC-Co-Mn",
+    # "FCC-Co-Ni",
+    # "FCC-Fe-Co",
+    # "FCC-Fe-Fe",
+    # "FCC-Fe-Mn",
+    # "FCC-Fe-Ni",
+    # "FCC-Mn-Co",
+    # "FCC-Mn-Fe",
+    # "FCC-Mn-Mn",
+    # "FCC-Mn-Ni",
+    # "FCC-Ni-Co",
+    # "FCC-Ni-Fe",
+    # "FCC-Ni-Mn",
+    # "FCC-Ni-Ni",
 ]
 
 
@@ -71,8 +83,8 @@ def run_locally(force=False):
     for name in struct_names:
         workdir = Path("data/endmembers").joinpath(name)
         posdir = Path("data/poscars")
-        flowdir = workdir.joinpath("staticflow")
-        json_path = workdir.joinpath(f"{name}-static.json")
+        flowdir = workdir.joinpath("qhaflow")
+        json_path = workdir.joinpath(f"{name}-qha.json")
         workdir.mkdir(parents=True, exist_ok=True)
         posdir.mkdir(parents=True, exist_ok=True)
 
@@ -86,21 +98,24 @@ def run_locally(force=False):
 
         log.info(f"Structure {name} start")
 
-        # Run StaticWorker
+        # Run QhaWorker
         struct = endmember.get_poscar(name, posdir)
-        if flowdir.exists():
+        if force and flowdir.exists():
             shutil.rmtree(flowdir)
         flowdir.mkdir(parents=True, exist_ok=True)
         try:
-            worker = StaticWorker(
-                worker_name=f"{name}-static",
+            worker = QhaWorker(
+                worker_name=f"{name}-qha",
                 vasp_args=vasp_args,
-                global_incar=incar_settings,
+                global_incar=global_incar,
+                relax_incar=relax_incar,
+                eos_incar=relax_incar,
+                phonon_incar=phonon_incar,
             )
-            static_data = worker.run_flow(name, struct, flowdir)
-            if not static_data:
+            qha_data = worker.run_flow(name, struct, flowdir)
+            if not qha_data:
                 result = {"name": name, "state": "failed", "struct": struct.as_dict()}
-            result = {"name": name, "state": "successful", **static_data}
+            result = {"name": name, "state": "successful", **qha_data}
 
         except Exception as e:
             log.error(f"Structure {name} failed: {e}")
@@ -117,10 +132,11 @@ def submit_job(force=False):
     """Submit a single job to run all structures."""
     manager = SlurmJobManager()
     config = manager.get_cpu_config(
-        job_name="gml-mag",
-        output_log="em-mag.log",
+        job_name="gml-qha",
+        output_log="em-qha.log",
         nodes=1,
-        ntasks=16,
+        nodelist="429pro",
+        ntasks=48,
     )
     job_id = manager.submit_command(
         command=f"python {__file__} --local {'--force' if force else ''}",
