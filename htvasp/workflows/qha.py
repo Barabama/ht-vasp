@@ -60,7 +60,10 @@ class QhaWorker(Worker):
         worker_name: str,
         vasp_args: dict[str, Any],
         potcar_functional: Literal["PBE", "PBE_54", "PBE_64"] = "PBE_64",
-        incar_settings: dict[str, Any] | None = None,
+        global_incar: dict[str, Any] | None = None,
+        relax_incar: dict[str, Any] | None = None,
+        eos_incar: dict[str, Any] | None = None,
+        phonon_incar: dict[str, Any] | None = None,
         temperature_range: tuple[int, int, int] = (0, 3000, 50),
         supercell_matrix: tuple = ((2, 0, 0), (0, 2, 0), (0, 0, 2)),
         **kwargs,
@@ -91,13 +94,7 @@ class QhaWorker(Worker):
             "EDIFFG": -0.01,
             # Magnetic
             "ISPIN": 2,
-            # "AMIX": 0.4,
-            # "BMIX": 1e-4,
-            # "AMIX_MAG": 0.08,
-            # "BMIX_MAG": 1e-4,
             # Precision
-            "KPAR": 2,
-            "NCORE": 1,
             "ISYM": 0,
             "LREAL": "Auto",
             "PREC": "Accurate",
@@ -110,9 +107,9 @@ class QhaWorker(Worker):
             "LVTOT": False,
         }
         # Override with custom settings
-        if incar_settings:
-            default_incar.update(incar_settings)
-        incar_settings = default_incar
+        if global_incar:
+            default_incar.update(global_incar)
+        global_incar = default_incar
 
         # R3 structural relaxation
         initial_relax_maker = DoubleRelaxMaker.from_relax_maker(
@@ -122,9 +119,10 @@ class QhaWorker(Worker):
                 input_set_generator=TightRelaxSetGenerator(
                     user_potcar_functional=potcar_functional,
                     user_incar_settings={
-                        **incar_settings,
+                        **global_incar,
                         "NELM": 100,
                         "ISIF": 3,
+                        **relax_incar,
                     },
                 ),
             )
@@ -138,8 +136,9 @@ class QhaWorker(Worker):
                 input_set_generator=TightRelaxSetGenerator(
                     user_potcar_functional=potcar_functional,
                     user_incar_settings={
-                        **incar_settings,
+                        **global_incar,
                         "ISIF": 2,
+                        **eos_incar,
                     },
                 ),
             )
@@ -152,11 +151,12 @@ class QhaWorker(Worker):
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=potcar_functional,
                 user_incar_settings={
-                    **incar_settings,
+                    **global_incar,
                     "IBRION": -1,
                     "ISIF": 2,
                     "NSW": 0,
                     "EDIFF": 1e-7,
+                    **phonon_incar,
                 },
             ),
         )
@@ -183,8 +183,7 @@ class QhaWorker(Worker):
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=potcar_functional,
                 user_incar_settings={
-                    **incar_settings,
-                    "ALGO": "Normal",
+                    **global_incar,
                     "IBRION": 6,
                     "NELM": 200,
                     "ISIF": 3,
@@ -203,6 +202,7 @@ class QhaWorker(Worker):
             eos_relax_maker=eos_relax_maker,
             phonon_maker=phonon_maker,
             min_length=None,
+            number_of_frames=8,
             ignore_imaginary_modes=True,
         )
 

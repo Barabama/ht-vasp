@@ -87,7 +87,7 @@ def test_incar_settings():
     worker = RelaxWorker(
         worker_name="test-relax",
         vasp_args=vasp_args,
-        incar_settings=custom_incar,
+        global_incar=custom_incar,
     )
 
     print(f"✓ Worker created with custom INCAR settings")
@@ -182,7 +182,7 @@ def run_locally():
     worker = RelaxWorker(
         worker_name="relax-Al",
         vasp_args=vasp_args,
-        incar_settings={
+        global_incar={
             "GGA": "PE",
         },
     )

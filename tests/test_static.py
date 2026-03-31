@@ -87,7 +87,7 @@ def test_incar_settings():
     worker = StaticWorker(
         worker_name="test-static",
         vasp_args=vasp_args,
-        incar_settings=custom_incar,
+        global_incar=custom_incar,
     )
 
     print(f"✓ Worker created with custom INCAR settings")
@@ -208,7 +208,7 @@ def run_locally():
     worker = StaticWorker(
         worker_name="static-Al",
         vasp_args=vasp_args,
-        incar_settings={
+        global_incar={
             "GGA": "PE",
         },
     )

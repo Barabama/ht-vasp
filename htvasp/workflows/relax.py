@@ -34,7 +34,9 @@ class RelaxWorker(Worker):
         worker_name: str,
         vasp_args: dict[str, Any],
         potcar_functional: Literal["PBE", "PBE_54", "PBE_64"] = "PBE_64",
-        incar_settings: dict[str, Any] | None = None,
+        global_incar: dict[str, Any] | None = None,
+        r7_incar: dict[str, Any] | None = None,
+        r3_incar: dict[str, Any] | None = None,
         **kwargs,
     ):
         # Store will be initialized in run_flow to allow custom paths
@@ -62,8 +64,6 @@ class RelaxWorker(Worker):
             # Magnetic
             "ISPIN": 2,
             # Precision
-            "KPAR": 2,
-            "NCORE": 1,
             "ISYM": 0,
             "LREAL": "Auto",
             "PREC": "Normal",
@@ -73,9 +73,9 @@ class RelaxWorker(Worker):
             "LCHARG": False,
         }
         # Override with custom settings
-        if incar_settings:
-            default_incar.update(incar_settings)
-        incar_settings = default_incar
+        if global_incar:
+            default_incar.update(global_incar)
+        global_incar = default_incar
 
         # R7 structural relaxation
         relax_r7_maker = DoubleRelaxMaker.from_relax_maker(
@@ -86,12 +86,13 @@ class RelaxWorker(Worker):
                 input_set_generator=TightRelaxSetGenerator(
                     user_potcar_functional=potcar_functional,
                     user_incar_settings={
-                        **incar_settings,
+                        **global_incar,
                         "NELM": 200,
                         "ISIF": 7,
                         "NSW": 20,
                         "EDIFF": 1e-5,
                         "EDIFFG": 1e-4,
+                        **r7_incar,
                     },
                 ),
             ),
@@ -105,12 +106,13 @@ class RelaxWorker(Worker):
                 input_set_generator=TightRelaxSetGenerator(
                     user_potcar_functional=potcar_functional,
                     user_incar_settings={
-                        **incar_settings,
+                        **global_incar,
                         "NELM": 300,
                         "ISIF": 3,
                         "NSW": 50,
                         "EDIFF": 1e-5,
                         "EDIFFG": -0.05,
+                        **r3_incar,
                     },
                 ),
             ),

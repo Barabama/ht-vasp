@@ -48,6 +48,7 @@ class SlurmConfig:
     memory: str = "20G"
     nodes: int = 1
     ntasks: int = 1
+    nodelist: str = ""
     cpus_per_task: int = 1
     gpus_per_task: int = 0  # Only for GPU partition
     partition: Literal["partCPU", "partGPU"] = "partCPU"
@@ -158,6 +159,10 @@ class SlurmJobManager:
         # Add --error if specified
         if config.error_log:
             cmd_parts.append(f"--error={config.error_log}")
+
+        # Add --nodelist if specified
+        if config.nodelist:
+            cmd_parts.append(f"--nodelist={config.nodelist}")
 
         # Add GPU-specific option
         if config.gpus_per_task > 0:

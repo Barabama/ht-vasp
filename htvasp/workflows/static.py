@@ -43,7 +43,9 @@ class StaticWorker(Worker):
         worker_name: str,
         vasp_args: dict[str, Any],
         potcar_functional: Literal["PBE", "PBE54", "PBE_64"] = "PBE_64",
-        incar_settings: dict[str, Any] | None = None,
+        global_incar: dict[str, Any] | None = None,
+        relax_incar: dict[str, Any] | None = None,
+        static_incar: dict[str, Any] | None = None,
         **kwargs,
     ):
         # Store will be initialized in run_flow to allow custom paths
@@ -71,8 +73,6 @@ class StaticWorker(Worker):
             # Magnetic
             "ISPIN": 2,
             # Precision
-            "KPAR": 2,
-            "NCORE": 1,
             "ISYM": 0,
             "LREAL": "Auto",
             "PREC": "Accurate",
@@ -82,9 +82,9 @@ class StaticWorker(Worker):
             "LCHARG": False,
         }
         # Override with custom settings
-        if incar_settings:
-            default_incar.update(incar_settings)
-        incar_settings = default_incar
+        if global_incar:
+            default_incar.update(global_incar)
+        global_incar = default_incar
 
         # Structural relaxation
         relax_maker = DoubleRelaxMaker.from_relax_maker(
@@ -95,10 +95,11 @@ class StaticWorker(Worker):
                 input_set_generator=TightRelaxSetGenerator(
                     user_potcar_functional=potcar_functional,
                     user_incar_settings={
-                        **incar_settings,
+                        **global_incar,
                         "ISIF": 3,
                         "LWAVE": True,
                         "LCHARG": True,
+                        **relax_incar,
                     },
                 ),
             ),
@@ -110,7 +111,7 @@ class StaticWorker(Worker):
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=potcar_functional,
                 user_incar_settings={
-                    **incar_settings,
+                    **global_incar,
                     "ISTART": 1,
                     "ICHARG": 1,
                     "NELM": 200,
@@ -120,6 +121,7 @@ class StaticWorker(Worker):
                     "EDIFF": 1e-7,
                     "EDIFFG": 1e-6,
                     "LORBIT": 11,
+                    **static_incar,
                 },
             ),
         )

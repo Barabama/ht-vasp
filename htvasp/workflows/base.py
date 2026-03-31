@@ -19,7 +19,7 @@ class Worker(ABC):
         worker_name: str,
         vasp_args: dict[str, Any],
         potcar_functional: Literal["PBE", "PBE_54", "PBE_64"] = "PBE_64",
-        incar_settings: dict[str, Any] | None = None,
+        global_incar: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -29,7 +29,7 @@ class Worker(ABC):
             worker_name: Name of the worker
             vasp_args: VASP command and handler settings
             potcar_functional: POTCAR functional type
-            incar_settings: INCAR settings
+            global_incar: Global INCAR settings
         """
         pass
 
