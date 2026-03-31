@@ -7,10 +7,10 @@ ISMEAR = 1
 SIGMA= 0.2
 ALGO = Fast
 NELM = 200
-NELMIN = 4
-NELMDL= -12
+NELMIN = 6
+NELMDL= -6
 # Ionic
-IBRION = 2
+IBRION = 1
 ISIF = 7
 NSW = 10
 POTIM = 0.5
@@ -19,13 +19,13 @@ EDIFF = 1e-5
 # Magnetic
 ISPIN = 2
 # MAGMOM = 108*1
-# AMIX = 0.04
-# BMIX = 0.0001
-# AMIX_MAG = 0.8
-# BMIX_MAG = 0.0001
+AMIX = 0.2
+BMIX = 0.001
+AMIX_MAG = 0.4
+BMIX_MAG = 0.001
 # Precision
-KPAR = 2
-NCORE = 2
+# KPAR = 2
+# NCORE = 2
 ISYM = 0 # 2
 LREAL = Auto
 PREC = Normal

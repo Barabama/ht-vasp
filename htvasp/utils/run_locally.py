@@ -17,10 +17,103 @@ from monty.os import cd
 from jobflow import SETTINGS, initialize_logger
 from jobflow.core.flow import get_flow
 from jobflow.core.reference import OnMissing
+from jobflow.core.job import Response
 from jobflow.managers.local import logger
 
 if typing.TYPE_CHECKING:
     import jobflow
+
+
+def _find_existing_job_dir(job: jobflow.Job, root_dir: Path, resume: bool) -> Path | None:
+    """Find an existing directory for a job if resume is enabled."""
+    if not resume:
+        return None
+    
+    for item in root_dir.iterdir():
+        if not item.is_dir():
+            continue
+        if job.name.replace(" ", "_") in item.name:
+            logger.debug(f"Found existing directory for job {job.name}: {item}")
+            return item
+    return None
+
+
+def _check_job_completed(job: jobflow.Job, store: jobflow.JobStore, resume: bool) -> dict | None:
+    """Check if a job has already been completed in the store."""
+    if not resume:
+        return None
+    
+    try:
+        # First try by uuid and index (exact match)
+        existing_doc = store.query_one(
+            criteria={"uuid": job.uuid, "index": job.index}
+        )
+        
+        # If not found by uuid, try by name and index (more flexible)
+        if existing_doc is None:
+            existing_doc = store.query_one(
+                criteria={"name": job.name, "index": job.index}
+            )
+        
+        if existing_doc is not None:
+            logger.debug(f"Found completed job: {job.name} (index {job.index})")
+        return existing_doc
+    except Exception as e:
+        logger.debug(f"Error checking job completion: {e}")
+        return None
+
+
+def _load_existing_output(existing_doc: dict, store: jobflow.JobStore) -> Response:
+    """Load existing output from store and create a Response."""
+    try:
+        existing_output = store.get_output(
+            uuid=existing_doc["uuid"], 
+            which=existing_doc["index"],
+            load=True
+        )
+        return Response(output=existing_output)
+    except Exception as load_error:
+        logger.warning(f"Could not load existing output, using dummy response: {load_error}")
+        return Response(output=None)
+
+
+def _generate_job_dir(
+    job: jobflow.Job,
+    root_dir: Path,
+    dir_format: str,
+    dir_prefix: str | None,
+    dir_suffix: str,
+    auto_prefix_enabled: bool,
+    current_prefix: int | None
+) -> tuple[Path, int | None]:
+    """Generate a directory name for a job."""
+    # Build directory name from format
+    dir_name = dir_format.format(
+        name=job.name.replace(" ", "_"),
+        uuid=job.uuid[:8],
+        index=job.index,
+    )
+    
+    # Add prefix and suffix
+    if auto_prefix_enabled:
+        current_dir_prefix = f"{current_prefix}-"
+        new_prefix = current_prefix + 1
+    else:
+        current_dir_prefix = dir_prefix
+        new_prefix = current_prefix
+    
+    dir_name = f"{current_dir_prefix}{dir_name}{dir_suffix}"
+    
+    # Handle duplicates by adding a sequential suffix
+    idx = 1
+    job_dir = root_dir.joinpath(dir_name)
+    while job_dir.exists():
+        tmp_dir_name = f"{dir_name}_{idx}"
+        job_dir = root_dir.joinpath(tmp_dir_name)
+        idx += 1
+    
+    job_dir.mkdir(parents=True, exist_ok=True)
+    return job_dir, new_prefix
 
 
 def run_locally_custom(
@@ -32,8 +125,9 @@ def run_locally_custom(
     allow_external_references: bool = False,
     raise_immediately: bool = False,
     dir_format: str = "{name}",
-    dir_prefix: str = None,  # Changed default to None for auto-numbering
+    dir_prefix: str = None,
     dir_suffix: str = "",
+    resume: bool = True,
 ) -> dict[str, dict[int, jobflow.Response]]:
     """
     Run a Job or Flow locally with custom directory naming.
@@ -41,6 +135,7 @@ def run_locally_custom(
     This is an enhanced version of jobflow's run_locally that supports:
     - Custom directory naming patterns
     - Prefix/suffix for job directories
+    - Resume from previously completed jobs
     - Better control over job execution
 
     Args:
@@ -59,6 +154,7 @@ def run_locally_custom(
             Default is "{name}"
         dir_prefix: Prefix to add to directory names. If None, uses auto-numbering starting from 1. Defaults to None
         dir_suffix: Suffix to add to directory names
+        resume: Whether to resume from previously completed jobs. Defaults to True
 
     Returns:
         dict[str, dict[int, Response]]: The responses of the jobs.
@@ -83,27 +179,26 @@ def run_locally_custom(
     root_dir.mkdir(exist_ok=True, parents=True)
 
     # Initialize auto-numbering if dir_prefix is None
+    auto_prefix_enabled = False
+    current_prefix = None
     if dir_prefix is None:
-        # Find the highest existing number prefix
+        auto_prefix_enabled = True
         existing_prefixes = []
         for item in root_dir.iterdir():
-            if item.is_dir():
-                # Extract number from directory name
-                try:
-                    # Look for directories starting with number followed by hyphen
-                    parts = item.name.split("-", 1)
-                    if parts[0].isdigit():
-                        existing_prefixes.append(int(parts[0]))
-                except (ValueError, IndexError):
-                    pass
-        # Start from the next number
+            if not item.is_dir():
+                continue
+            try:
+                parts = item.name.split("-", 1)
+                if parts[0].isdigit():
+                    existing_prefixes.append(int(parts[0]))
+            except (ValueError, IndexError):
+                pass
+        
         if existing_prefixes:
-            next_prefix = max(existing_prefixes) + 1
+            current_prefix = max(existing_prefixes) + 1
         else:
-            next_prefix = 1
-        dir_prefix = f"{next_prefix}-"
+            current_prefix = 1
     else:
-        # Ensure dir_prefix ends with hyphen if it's not empty
         if dir_prefix and not dir_prefix.endswith("-"):
             dir_prefix += "-"
 
@@ -119,27 +214,24 @@ def run_locally_custom(
     responses: dict[str, dict[int, jobflow.Response]] = defaultdict(dict)
     stop_jobflow = False
 
-    def _get_job_dir(job):
-        """Generate custom directory name for a job."""
-        # Build directory name from format
-        dir_name = dir_format.format(
-            name=job.name.replace(" ", "_"),
-            uuid=job.uuid[:8],
-            index=job.index,
+    def _get_job_dir(job: jobflow.Job) -> Path:
+        """Generate or find a directory for a job."""
+        nonlocal current_prefix
+        
+        existing_dir = _find_existing_job_dir(job, root_dir, resume)
+        if existing_dir is not None:
+            existing_dir.mkdir(parents=True, exist_ok=True)
+            return existing_dir
+        
+        job_dir, new_prefix = _generate_job_dir(
+            job, root_dir, dir_format, dir_prefix, dir_suffix,
+            auto_prefix_enabled, current_prefix
         )
-        # Add prefix and suffix
-        dir_name = f"{dir_prefix}{dir_name}{dir_suffix}"
-        # Handle duplicates by adding a sequential suffix
-        idx = 1
-        job_dir = root_dir / dir_name
-        while job_dir.exists():
-            tmp_dir_name = f"{dir_name}_{idx}"
-            job_dir = root_dir / tmp_dir_name
-            idx += 1
-        job_dir.mkdir(parents=True, exist_ok=True)
+        current_prefix = new_prefix
         return job_dir
 
-    def _run_job(job: jobflow.Job, parents):
+    def _run_job(job: jobflow.Job, parents) -> tuple[Response | None, bool]:
+        """Run a single job."""
         nonlocal stop_jobflow
 
         if stop_jobflow:
@@ -157,6 +249,15 @@ def run_locally_custom(
             errored.add(job.uuid)
             return None, False
 
+        # Check if job is already completed in store
+        existing_doc = _check_job_completed(job, store, resume)
+        if existing_doc is not None:
+            logger.info(f"Job {job.name} (index {job.index}) already completed, skipping...")
+            existing_response = _load_existing_output(existing_doc, store)
+            responses[job.uuid][job.index] = existing_response
+            return existing_response, False
+
+        # Run the job
         if raise_immediately:
             response = job.run(store=store)
         else:
@@ -164,7 +265,6 @@ def run_locally_custom(
                 response = job.run(store=store)
             except Exception:
                 import traceback
-
                 logger.info(f"{job.name} failed with exception:\n{traceback.format_exc()}")
                 errored.add(job.uuid)
                 return None, False
@@ -195,7 +295,8 @@ def run_locally_custom(
             return None, False
         return response, False
 
-    def _run(root_flow):
+    def _run(root_flow) -> bool:
+        """Run a flow."""
         encountered_bad_response = False
         for job, parents in root_flow.iterflow():
             job_dir = _get_job_dir(job)

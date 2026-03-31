@@ -4,6 +4,7 @@ HT-VASP - QHA workflow
 Quasi-Harmonic Approximation workflows for thermodynamic properties.
 """
 
+import re
 import logging
 import traceback
 from pathlib import Path
@@ -90,10 +91,10 @@ class QhaWorker(Worker):
             "EDIFFG": -0.01,
             # Magnetic
             "ISPIN": 2,
-            "AMIX": 0.2,
-            "BMIX": 1e-3,
-            "AMIX_MAG": 0.2,
-            "BMIX_MAG": 1e-3,
+            # "AMIX": 0.4,
+            # "BMIX": 1e-4,
+            # "AMIX_MAG": 0.08,
+            # "BMIX_MAG": 1e-4,
             # Precision
             "KPAR": 2,
             "NCORE": 1,

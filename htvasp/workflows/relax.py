@@ -61,14 +61,10 @@ class RelaxWorker(Worker):
             "EDIFFG": 1e-4,
             # Magnetic
             "ISPIN": 2,
-            "AMIX": 0.04,
-            "BMIX": 1e-4,
-            "AMIX_MAG": 0.8,
-            "BMIX_MAG": 1e-4,
             # Precision
             "KPAR": 2,
             "NCORE": 1,
-            "ISYM": 2,
+            "ISYM": 0,
             "LREAL": "Auto",
             "PREC": "Normal",
             "SYMPREC": 1e-7,

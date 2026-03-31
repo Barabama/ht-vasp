@@ -4,7 +4,6 @@
 ##SBATCH --error=job.err
 #SBATCH --mem=20G
 #SBATCH --nodes=1
-#SBATCH --nodelist=429e
 #SBATCH --ntasks=32
 #SBATCH --cpus-per-task=1
 #SBATCH --partition=partCPU

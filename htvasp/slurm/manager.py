@@ -5,6 +5,7 @@ Python interface for submitting and managing VASP jobs on Slurm clusters.
 Supports CPU/GPU partition switching.
 """
 
+import os
 import logging
 import subprocess
 from pathlib import Path
@@ -57,7 +58,8 @@ class SlurmConfig:
     vasp_gam_cmd: str = "srun vasp_gam"
 
     # Environment settings
-    conda_path: str = "/nfs_ssd/.conda"
+    # conda_path: str = "/nfs_ssd/.conda"
+    # conda_path: str = "/opt/miniconda3"
 
     # Extra commands
     extra_commands: list[str] = field(default_factory=list)
@@ -71,8 +73,9 @@ class SlurmConfig:
         """
         # Use '.' instead of 'source' for better compatibility with /bin/sh
         return [
-            ". /etc/profile.d/modules.sh",
-            "module purge",
+            f". /etc/profile.d/modules.sh",
+            f"ulimit -s unlimited",
+            f"module purge",
             f"module load {module_name}",
         ]
 
@@ -83,11 +86,10 @@ class SlurmConfig:
         Returns:
             List of conda activation commands
         """
-        env_path = f"{self.conda_path}/envs/{conda_env}"
         return [
-            f"export PATH=$PATH:{env_path}/bin",
-            f"export PYTHONPATH=$PYTHONPATH:{env_path}/lib/python3.12/site-packages",
-            f"export CONDA_DEFAULT_ENV={conda_env}",
+            f". /opt/miniconda3/etc/profile.d/conda.sh",
+            # f"conda info --envs",
+            f"conda activate {conda_env}",
         ]
 
 

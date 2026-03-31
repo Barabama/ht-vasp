@@ -70,10 +70,6 @@ class StaticWorker(Worker):
             "EDIFFG": -0.01,
             # Magnetic
             "ISPIN": 2,
-            "AMIX": 0.2,
-            "BMIX": 1e-3,
-            "AMIX_MAG": 0.2,
-            "BMIX_MAG": 1e-3,
             # Precision
             "KPAR": 2,
             "NCORE": 1,
@@ -116,7 +112,7 @@ class StaticWorker(Worker):
                 user_incar_settings={
                     **incar_settings,
                     "ISTART": 1,
-                    "ICHARG": 11,
+                    "ICHARG": 1,
                     "NELM": 200,
                     "IBRION": -1,
                     "ISIF": 2,
