@@ -19,7 +19,10 @@ class OJConfig(BaseModel):
         noncollinear: Whether to use noncollinear magnetism
         base_spin: Base spin value
         extend_poscar: Supercell extension factors (nx, ny, nz)
-        kppa: K-points per atom for automatic k-point mesh generation
+        reciprocal_density: K-point density by reciprocal volume (same as atomate2)
+        reciprocal_density_metal: K-point density for metallic systems
+        auto_metal_kpoints: Automatically use higher density for metallic systems
+        force_gamma: Force gamma-centered k-point mesh
         incar: INCAR settings for VASP calculations
     """
 
@@ -29,7 +32,10 @@ class OJConfig(BaseModel):
     noncollinear: bool = False
     base_spin: float | list[float] = 1.0
     extend_poscar: tuple[int, int, int] = (2, 2, 2)
-    kppa: int = 1000
+    reciprocal_density: float = 100
+    reciprocal_density_metal: float = 400
+    auto_metal_kpoints: bool = True
+    force_gamma: bool = True
 
     incar: dict[str, Any] = Field(
         default_factory=lambda: {
@@ -115,6 +121,40 @@ class OJConfig(BaseModel):
         return "\n".join(lines) + "\n"
 
     def update_incar(self, **kwargs) -> "OJConfig":
-        """Return a new instance with updated INCAR settings"""
-        new_incar = {**self.incar, **kwargs}
+        """Return a new instance with updated INCAR settings
+
+        Supports:
+        - Updating existing parameters
+        - Adding new parameters
+        - Removing parameters (set value to None)
+
+        Args:
+            **kwargs: INCAR parameters to update
+
+        Returns:
+            New OJConfig instance with updated INCAR
+
+        Example:
+            >>> config = OJConfig()
+            >>> config2 = config.update_incar(ENCUT=520, ISPIN=None)  # Update ENCUT, remove ISPIN
+        """
+        new_incar = {**self.incar}
+
+        for key, value in kwargs.items():
+            if value is None:
+                new_incar.pop(key, None)
+            else:
+                new_incar[key] = value
+
         return OJConfig(**{**self.model_dump(), "incar": new_incar})
+
+    def merge_incar(self, incar_dict: dict[str, Any]) -> "OJConfig":
+        """Merge a dictionary of INCAR settings
+
+        Args:
+            incar_dict: Dictionary of INCAR settings to merge
+
+        Returns:
+            New OJConfig instance with merged INCAR
+        """
+        return self.update_incar(**incar_dict)

@@ -171,8 +171,8 @@ def run_locally():
     flow_dir = Path("temp/relax-Al")
     json_path = flow_dir.joinpath("relax_Al.json")
 
-    # if flow_dir.exists():
-    #     shutil.rmtree(flow_dir)
+    if flow_dir.exists():
+        shutil.rmtree(flow_dir)
 
     vasp_args = {
         "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",

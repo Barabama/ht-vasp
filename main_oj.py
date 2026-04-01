@@ -20,7 +20,11 @@ class DateTimeEncoder(json.JSONEncoder):
             return obj.isoformat()
         return super().default(obj)
 
-
+global_incar = {
+    "KPAR": 2,
+    "NCORE": 2,
+    "GGA": "PE",
+}
 vasp_args = {
     "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
     "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
@@ -90,7 +94,8 @@ def run_locally(force=False):
         try:
             worker = OJWorker(
                 worker_name=f"{name}-oj",
-                config=OJConfig(),
+                config=OJConfig(j_count=4),
+                global_incar=global_incar,
                 vasp_args=vasp_args,
             )
 

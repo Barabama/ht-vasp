@@ -10,6 +10,29 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 
+def format_j_repr(j_repr: list | str) -> str:
+    """Format J representation as string
+
+    Args:
+        j_repr: J representation, either as list ["Fe", "Fe", 1] or string "Fe-Fe-1"
+
+    Returns:
+        Formatted string like "Fe-Fe-1"
+
+    Example:
+        >>> format_j_repr(["Fe", "Fe", 1])
+        'Fe-Fe-1'
+        >>> format_j_repr("Fe-Fe-1")
+        'Fe-Fe-1'
+    """
+    if isinstance(j_repr, str):
+        return j_repr
+    elif isinstance(j_repr, list):
+        return "-".join(str(x) for x in j_repr)
+    else:
+        return str(j_repr)
+
+
 class OJResult(BaseModel):
     """Result from OstravaJ magnetic exchange calculation
 
@@ -43,27 +66,42 @@ class OJResult(BaseModel):
             vasp_success_rate=solution.get("vasp_success_rate", 1.0),
         )
 
+    def get_j_pairs_dict(self) -> dict[str, float]:
+        """Get J pairs as a dictionary with formatted keys
+
+        Returns:
+            Dictionary mapping J representation to J value
+
+        Example:
+            >>> result = OJResult(J_reprs=[["Fe", "Fe", 1]], Js=[10.5])
+            >>> result.get_j_pairs_dict()
+            {'Fe-Fe-1': 10.5}
+        """
+        if not self.J_reprs or not self.Js:
+            return {}
+
+        formatted_reprs = [format_j_repr(j) for j in self.J_reprs]
+        return dict(zip(formatted_reprs, self.Js))
+
     def to_summary(self) -> dict[str, Any]:
         """Return summary dict"""
-        # Check for negative Tc_RPA (physical anomaly)
-        tc_rpa = self.Tc_RPA
         has_negative_tc = False
-        if tc_rpa < 0:
+        if self.Tc_RPA is not None and self.Tc_RPA < 0:
             has_negative_tc = True
-        
+
         summary = {
-            "J_pairs": dict(zip(self.J_reprs, self.Js)) if self.J_reprs else {},
+            "J_pairs": self.get_j_pairs_dict(),
             "Tc_MFA": self.Tc_MFA,
             "Tc_RPA": self.Tc_RPA,
             "num_configs": self.num_configs,
             "vasp_success_rate": self.vasp_success_rate,
         }
-        
+
         if has_negative_tc:
             summary["warnings"] = ["Negative Tc_RPA detected (physical anomaly)"]
-        
+
         return summary
 
     def __repr__(self) -> str:
-        pairs = dict(zip(self.J_reprs, self.Js)) if self.J_reprs else {}
-        return f"OJResult(J_pairs={pairs}, Tc_MFA={self.Tc_MFA}, Tc_RPA={self.Tc_RPA})"
+        j_pairs = self.get_j_pairs_dict()
+        return f"OJResult(J_pairs={j_pairs}, Tc_MFA={self.Tc_MFA}, Tc_RPA={self.Tc_RPA})"

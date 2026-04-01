@@ -25,10 +25,14 @@ vasp_args = {
     "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
 }
 
-incar_settings = {
+global_incar = {
     "KPAR": 2,
     "NCORE": 2,
     "GGA": "PE",
+    # "AMIX": 0.4,
+    # "BMIX": 1e-4,
+    # "AMIX_MAG": 0.08,
+    # "BMIX_MAG": 1e-4,
 }
 
 struct_names = [
@@ -95,7 +99,7 @@ def run_locally(force=False):
             worker = StaticWorker(
                 worker_name=f"{name}-static",
                 vasp_args=vasp_args,
-                global_incar=incar_settings,
+                global_incar=global_incar,
             )
             static_data = worker.run_flow(name, struct, flowdir)
             if not static_data:
