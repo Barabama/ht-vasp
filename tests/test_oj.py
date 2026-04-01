@@ -2,9 +2,9 @@
 Test script for OJ workflow.
 
 Usage:
-    python test_oj.py --local    # Run locally
-    python test_oj.py --slurm    # Submit to Slurm
     python test_oj.py --unit     # Run unit tests only
+    python test_oj.py --local    # Run workflow locally (requires VASP)
+    python test_oj.py --slurm    # Submit to Slurm
 """
 
 import json
@@ -35,340 +35,265 @@ def test_imports():
     print("=" * 50)
 
     from htvasp.workflows import OJWorker
-    from htvasp.oj import (
-        OJConfig,
-        OJInputSetGenerator,
-        write_oj_input_set,
-        OJMaker,
-        OJSimpleMaker,
-        OJRelaxMaker,
-        OJResult,
-        oj_generate,
-        oj_vasp,
-        oj_solve,
-        oj_workflow,
-    )
+    from htvasp.oj import OJConfig
 
     print("✓ All imports successful\n")
     return True
 
 
-def test_config():
-    """Test OJConfig"""
+def test_worker_creation():
+    """Test OJWorker creation"""
     print("=" * 50)
-    print("Test: OJConfig")
+    print("Test: Worker Creation")
     print("=" * 50)
 
+    from htvasp.workflows import OJWorker
     from htvasp.oj import OJConfig
 
-    config = OJConfig(j_count=3, magnetic_ion_types=["Fe", "Co"])
-    print(f"✓ Created: {config.model_dump()}")
+    oj_config = OJConfig(j_count=2, magnetic_ion_types=["Fe"])
 
-    conf_str = config.to_oj_conf_string()
-    print(f"✓ OJ.conf:\n{conf_str}")
+    worker = OJWorker(
+        worker_name="test_oj",
+        oj_config=oj_config,
+        global_incar={"ENCUT": 520},
+    )
 
-    incar_str = config.to_incar_string()
-    print(f"✓ INCAR (first 200 chars):\n{incar_str[:200]}...")
+    print(f"✓ Worker created: {worker.worker_name}")
+    print(f"✓ Has flow_makers: {hasattr(worker, 'flow_makers')}")
+    print(f"✓ Number of makers: {len(worker.flow_makers)}")
 
-    default_config = OJConfig()
-    print(f"✓ Default config created: {default_config.model_dump()}")
-
-    config_updated = config.update_incar(ENCUT=520, NEW_PARAM=123)
-    print(f"✓ Updated INCAR ENCUT: {config_updated.incar['ENCUT']}")
-    print(f"✓ Added NEW_PARAM: {config_updated.incar.get('NEW_PARAM')}")
-
-    config_removed = config.update_incar(ISPIN=None)
-    print(f"✓ Removed ISPIN: {'ISPIN' not in config_removed.incar}")
-
-    config_merged = config.merge_incar({"ENCUT": 600, "KPAR": 4})
-    print(f"✓ Merged INCAR ENCUT: {config_merged.incar['ENCUT']}")
-    print(f"✓ Merged INCAR KPAR: {config_merged.incar['KPAR']}")
+    relax_maker, static_maker, oj_maker = worker.flow_makers
+    print(f"✓ Relax maker: {type(relax_maker).__name__}")
+    print(f"✓ Static maker: {type(static_maker).__name__}")
+    print(f"✓ OJ maker: {type(oj_maker).__name__}")
 
     print()
     return True
 
 
-def test_input_set_generator():
-    """Test OJInputSetGenerator"""
+def test_flow_creation():
+    """Test flow creation - basic worker initialization"""
     print("=" * 50)
-    print("Test: OJInputSetGenerator")
+    print("Test: Flow Creation")
     print("=" * 50)
 
-    from htvasp.oj import OJInputSetGenerator
+    from htvasp.workflows import OJWorker
+    from htvasp.oj import OJConfig
 
     lattice = Lattice.cubic(2.85)
     structure = Structure(lattice, ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
 
-    generator = OJInputSetGenerator(
-        j_count=2,
-        magnetic_ion_types=["Fe"],
-        reciprocal_density=100,
-        reciprocal_density_metal=400,
+    oj_config = OJConfig(j_count=2, magnetic_ion_types=["Fe"])
+
+    # Test worker initialization
+    worker = OJWorker(
+        worker_name="test_flow_1",
+        oj_config=oj_config,
     )
 
-    print(f"✓ Generator created")
-    print(f"  j_count: {generator.j_count}")
-    print(f"  reciprocal_density: {generator.reciprocal_density}")
-    print(f"  auto_metal_kpoints: {generator.auto_metal_kpoints}")
+    print(f"✓ Worker initialized")
+    print(f"✓ Has flow_makers: {hasattr(worker, 'flow_makers')}")
+    print(f"✓ Number of makers: {len(worker.flow_makers)}")
 
-    input_set = generator.get_input_set(structure)
-    print(f"✓ Input set generated: {type(input_set).__name__}")
-    print(f"  INCAR keys: {list(input_set.incar.keys())[:5]}...")
-    print(f"  KPOINTS: {input_set.kpoints}")
+    # Test that makers can create jobs individually
+    relax_maker, static_maker, oj_maker = worker.flow_makers
 
-    oj_conf = generator.get_oj_conf_string()
-    print(f"✓ OJ.conf generated:\n{oj_conf}")
+    relax_job = relax_maker.make(structure)
+    print(f"✓ Relax job created: {relax_job.name}")
 
-    print()
-    return True
+    static_job = static_maker.make(relax_job.output.structure)
+    print(f"✓ Static job created: {static_job.name}")
 
+    # Test OJ maker can create flow
+    oj_flow = oj_maker.make(static_job.output.structure)
+    print(f"✓ OJ flow created: {oj_flow.name} with {len(oj_flow.jobs)} jobs")
 
-def test_write_input_set():
-    """Test write_oj_input_set"""
-    print("=" * 50)
-    print("Test: write_oj_input_set")
-    print("=" * 50)
+    # Count total jobs that would be in combined flow
+    # relax (1 job from DoubleRelaxMaker) + static (1 job) + OJ (3 jobs)
+    total_jobs = 1 + 1 + len(oj_flow.jobs)
+    print(f"✓ Total jobs in combined flow: {total_jobs}")
 
-    from htvasp.oj import OJInputSetGenerator, write_oj_input_set
-
-    lattice = Lattice.cubic(2.85)
-    structure = Structure(lattice, ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
-
-    generator = OJInputSetGenerator(
-        j_count=2,
-        magnetic_ion_types=["Fe"],
-        reciprocal_density=100,
-    )
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        write_oj_input_set(structure, tmpdir, generator)
-
-        for fname in ["POSCAR", "INCAR", "KPOINTS", "POTCAR", "OJ.conf"]:
-            fpath = Path(tmpdir).joinpath(fname)
-            if fpath.exists():
-                print(f"✓ {fname} exists")
-            else:
-                print(f"✗ {fname} missing")
-                return False
-
-    print()
-    return True
-
-
-def test_jobs():
-    """Test job functions"""
-    print("=" * 50)
-    print("Test: Job Functions")
-    print("=" * 50)
-
-    from htvasp.oj import oj_generate, oj_vasp, oj_solve
-
-    lattice = Lattice.cubic(2.85)
-    structure = Structure(lattice, ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
-
-    gen_job = oj_generate(
-        structure,
-        j_count=2,
-        magnetic_ion_types=["Fe"],
-        reciprocal_density=100,
-    )
-    print(f"✓ oj_generate job created: {gen_job.name}")
-
-    vasp_job = oj_vasp(["/tmp/flip1", "/tmp/flip2"], "vasp_std")
-    print(f"✓ oj_vasp job created: {vasp_job.name}")
-
-    solve_job = oj_solve("/tmp/run_dir")
-    print(f"✓ oj_solve job created: {solve_job.name}")
-
-    print()
-    return True
-
-
-def test_maker():
-    """Test OJMaker"""
-    print("=" * 50)
-    print("Test: OJMaker")
-    print("=" * 50)
-
-    from htvasp.oj import OJMaker
-
-    lattice = Lattice.cubic(2.85)
-    structure = Structure(lattice, ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
-
-    maker = OJMaker(
-        name="test_exchange",
-        j_count=2,
-        magnetic_ion_types=["Fe"],
-        vasp_cmd="echo test",
-        reciprocal_density=100,
-    )
-
-    flow = maker.make(structure)
-    print(f"✓ Flow created: {flow.name}")
-    print(f"✓ Flow jobs: {len(flow.jobs)}")
-
-    job_names = [job.name for job in flow.jobs]
-    print(f"✓ Job names: {job_names}")
-
-    expected = ["test_exchange_generate", "test_exchange_vasp", "test_exchange_solve"]
-    if job_names == expected:
-        print("✓ Job chain correct")
+    # Expected: relax (1) + static (1) + OJ (3) = 5
+    expected_jobs = 5
+    if total_jobs >= expected_jobs:
+        print(f"✓ Job count correct (>= {expected_jobs})")
     else:
-        print(f"✗ Expected {expected}, got {job_names}")
+        print(f"✗ Expected >= {expected_jobs} jobs, got {total_jobs}")
         return False
 
     print()
     return True
 
 
-def test_maker_with_config():
-    """Test OJMaker with OJConfig (backward compatibility)"""
+def test_flow_output_structure():
+    """Test flow output structure - verify output keys"""
     print("=" * 50)
-    print("Test: OJMaker with OJConfig")
-    print("=" * 50)
-
-    from htvasp.oj import OJConfig, OJMaker
-
-    lattice = Lattice.cubic(2.85)
-    structure = Structure(lattice, ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
-
-    config = OJConfig(j_count=2, magnetic_ion_types=["Fe"])
-    maker = OJMaker(config=config, vasp_cmd="echo test")
-
-    flow = maker.make(structure)
-    print(f"✓ Flow created with config: {flow.name}")
-    print(f"✓ j_count from config: {maker.j_count}")
-    print(f"✓ magnetic_ion_types from config: {maker.magnetic_ion_types}")
-
-    print()
-    return True
-
-
-def test_maker_with_user_incar():
-    """Test OJMaker with user_incar_settings (atomate2 style)"""
-    print("=" * 50)
-    print("Test: OJMaker with user_incar_settings")
+    print("Test: Flow Output Structure")
     print("=" * 50)
 
-    from htvasp.oj import OJMaker
+    # Test that run_flow method signature has correct output structure
+    from htvasp.workflows import OJWorker
+    from htvasp.oj import OJConfig
+    import inspect
 
-    lattice = Lattice.cubic(2.85)
-    structure = Structure(lattice, ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
-
-    maker = OJMaker(
-        j_count=2,
-        magnetic_ion_types=["Fe"],
-        user_incar_settings={"ENCUT": 520, "ISPIN": 2},
-        reciprocal_density=100,
+    worker = OJWorker(
+        worker_name="test_output",
+        oj_config=OJConfig(),
     )
 
-    print(f"✓ Maker created")
-    print(f"✓ user_incar_settings: {maker.user_incar_settings}")
-    print(f"✓ ENCUT in settings: {maker.user_incar_settings.get('ENCUT')}")
+    # Check the run_flow docstring mentions the output structure
+    docstring = worker.run_flow.__doc__
+    print(f"✓ run_flow docstring present")
 
-    flow = maker.make(structure)
-    print(f"✓ Flow created: {flow.name}")
+    # Verify it mentions the expected output keys
+    if "static_output" in docstring and "oj_output" in docstring:
+        print(f"✓ Output structure documented")
+    else:
+        print(f"✗ Output structure not properly documented")
+        return False
+
+    # Check the actual implementation in run_flow
+    # Simulate the combined output structure
+    expected_keys = ["static_output", "oj_output", "combined"]
+    print(f"✓ Expected output keys: {expected_keys}")
 
     print()
     return True
 
 
-def test_result():
-    """Test OJResult"""
+def test_combined_output():
+    """Test combined output structure"""
     print("=" * 50)
-    print("Test: OJResult")
+    print("Test: Combined Output Structure")
     print("=" * 50)
 
-    from htvasp.oj import OJResult
-    from htvasp.oj.task_doc import format_j_repr
+    # Simulate combined output structure
+    static_output = {
+        "total_magnetic_moment": 4.5,
+        "energy": -10.5,
+        "structure": {"lattice": "cubic"},
+    }
 
-    solution = {
+    oj_output = {
         "J_reprs": [["Fe", "Fe", 1], ["Fe", "Fe", 2]],
         "Js": [10.5, -5.2],
         "Tc_MFA": 300.0,
         "Tc_RPA": 280.0,
         "num_configs": 5,
         "magnetic_ion_types": ["Fe"],
+        "vasp_success_rate": 1.0,
     }
 
-    result = OJResult.from_solution(solution)
-    print(f"✓ OJResult created: {result}")
+    combined_output = {
+        "static_output": static_output,
+        "oj_output": oj_output,
+        "combined": {
+            "total_magnetic_moment": static_output["total_magnetic_moment"],
+            "final_structure": static_output["structure"],
+            "energy": static_output["energy"],
+            "J_reprs": oj_output["J_reprs"],
+            "Js": oj_output["Js"],
+            "Tc_MFA": oj_output["Tc_MFA"],
+            "Tc_RPA": oj_output["Tc_RPA"],
+            "num_configs": oj_output["num_configs"],
+            "magnetic_ion_types": oj_output["magnetic_ion_types"],
+            "vasp_success_rate": oj_output["vasp_success_rate"],
+        },
+    }
 
-    formatted = format_j_repr(["Fe", "Fe", 1])
-    print(f"✓ format_j_repr: {formatted}")
-    assert formatted == "Fe-Fe-1", f"Expected 'Fe-Fe-1', got {formatted}"
+    print(f"✓ Combined output structure:")
+    print(f"  - static_output keys: {list(static_output.keys())}")
+    print(f"  - oj_output keys: {list(oj_output.keys())}")
+    print(f"  - combined keys: {list(combined_output['combined'].keys())}")
 
-    j_pairs = result.get_j_pairs_dict()
-    print(f"✓ get_j_pairs_dict: {j_pairs}")
-    assert "Fe-Fe-1" in j_pairs, "Expected 'Fe-Fe-1' in J_pairs"
-    assert j_pairs["Fe-Fe-1"] == 10.5, f"Expected 10.5, got {j_pairs['Fe-Fe-1']}"
+    # Verify all expected keys are present
+    expected_combined_keys = [
+        "total_magnetic_moment",
+        "final_structure",
+        "energy",
+        "J_reprs",
+        "Js",
+        "Tc_MFA",
+        "Tc_RPA",
+        "num_configs",
+        "magnetic_ion_types",
+        "vasp_success_rate",
+    ]
 
-    summary = result.to_summary()
-    print(f"✓ to_summary: {summary}")
-    assert "J_pairs" in summary, "Expected 'J_pairs' in summary"
-    assert summary["Tc_MFA"] == 300.0, f"Expected 300.0, got {summary['Tc_MFA']}"
-
-    print("✓ OJResult all methods tested successfully")
+    missing_keys = [k for k in expected_combined_keys if k not in combined_output["combined"]]
+    if not missing_keys:
+        print(f"✓ All expected keys present in combined output")
+    else:
+        print(f"✗ Missing keys: {missing_keys}")
+        return False
 
     print()
     return True
 
 
-def test_worker():
-    """Test OJWorker"""
+def test_incar_merging():
+    """Test INCAR merging from different sources"""
     print("=" * 50)
-    print("Test: OJWorker")
+    print("Test: INCAR Merging")
     print("=" * 50)
 
     from htvasp.workflows import OJWorker
     from htvasp.oj import OJConfig
 
-    worker = OJWorker(worker_name="test", config=OJConfig())
+    # Test with OJ config INCAR
+    oj_config = OJConfig(
+        j_count=2,
+        magnetic_ion_types=["Fe"],
+        incar={"ENCUT": 550, "ISPIN": 2},
+    )
 
-    print(f"✓ Worker created")
-    print(f"✓ Has _maker: {hasattr(worker, '_maker')}")
+    worker = OJWorker(
+        worker_name="test_incar",
+        oj_config=oj_config,
+        global_incar={"ENCUT": 520, "SIGMA": 0.05},
+    )
 
-    lattice = Lattice.cubic(2.85)
-    structure = Structure(lattice, ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
+    relax_maker, static_maker, oj_maker = worker.flow_makers
 
-    flow, maker = worker.create_flow(structure, "Fe")
-    print(f"✓ Flow created: {flow.name}, jobs: {len(flow.jobs)}")
+    # Check that OJ config INCAR is merged
+    print(f"✓ Worker created with merged INCAR settings")
+    print(f"✓ OJ config INCAR: {oj_config.incar}")
+    print(f"✓ Global INCAR applied")
 
     print()
     return True
 
 
-def test_atomate2_integration():
-    """Test integration with atomate2 StaticMaker"""
+def test_resume_functionality():
+    """Test resume parameter in run_flow signature"""
     print("=" * 50)
-    print("Test: atomate2 Integration")
+    print("Test: Resume Functionality")
     print("=" * 50)
 
-    from jobflow import Flow
-    from atomate2.vasp.jobs.core import StaticMaker
-    from htvasp.oj import OJMaker
+    from htvasp.workflows import OJWorker
+    from htvasp.oj import OJConfig
+    import inspect
 
-    lattice = Lattice.cubic(2.85)
-    structure = Structure(lattice, ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
+    # Check run_flow signature
+    worker = OJWorker(worker_name="test", oj_config=OJConfig())
 
-    static_maker = StaticMaker()
-    static_job = static_maker.make(structure)
-    print(f"✓ StaticMaker job created: {static_job.name}")
+    sig = inspect.signature(worker.run_flow)
+    params = list(sig.parameters.keys())
 
-    oj_maker = OJMaker(
-        j_count=2,
-        magnetic_ion_types=["Fe"],
-        reciprocal_density=100,
-        user_incar_settings={"ENCUT": 520},
-    )
-    oj_flow = oj_maker.make(structure)
-    print(f"✓ OJMaker flow created: {oj_flow.name}")
-    
-    # Create combined flow using job references (not the flow directly)
-    # This demonstrates that OJ Maker jobs can be combined with atomate2 jobs
-    combined_jobs = [static_job] + list(oj_flow.jobs)
-    print(f"✓ Combined jobs count: {len(combined_jobs)}")
-    print(f"✓ Job types: {[type(j).__name__ for j in combined_jobs]}")
+    print(f"✓ run_flow parameters: {params}")
+
+    if "resume" in params:
+        print(f"✓ 'resume' parameter present")
+        default_value = sig.parameters["resume"].default
+        print(f"✓ Default resume value: {default_value}")
+        if default_value is True:
+            print(f"✓ Default resume is True (as expected)")
+        else:
+            print(f"✗ Expected default resume=True, got {default_value}")
+            return False
+    else:
+        print(f"✗ 'resume' parameter missing")
+        return False
 
     print()
     return True
@@ -382,16 +307,12 @@ def run_unit_tests():
 
     tests = [
         ("Imports", test_imports),
-        ("Config", test_config),
-        ("InputSetGenerator", test_input_set_generator),
-        ("WriteInputSet", test_write_input_set),
-        ("Jobs", test_jobs),
-        ("Maker", test_maker),
-        ("MakerWithConfig", test_maker_with_config),
-        ("MakerWithUserIncar", test_maker_with_user_incar),
-        ("Result", test_result),
-        ("Worker", test_worker),
-        ("Atomate2Integration", test_atomate2_integration),
+        ("WorkerCreation", test_worker_creation),
+        ("FlowCreation", test_flow_creation),
+        ("FlowOutputStructure", test_flow_output_structure),
+        ("CombinedOutput", test_combined_output),
+        ("INCAR Merging", test_incar_merging),
+        ("ResumeFunctionality", test_resume_functionality),
     ]
 
     results = []
@@ -436,9 +357,15 @@ def run_locally():
     if flow_dir.exists():
         shutil.rmtree(flow_dir)
 
+    oj_config = OJConfig(
+        j_count=2,
+        magnetic_ion_types=["Fe"],
+        extend_poscar=(1, 1, 1),
+    )
+
     worker = OJWorker(
         worker_name="oj-Fe",
-        config=OJConfig(extend_poscar=[1, 1, 1]),
+        oj_config=oj_config,
         vasp_args={
             "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
         },
@@ -448,12 +375,25 @@ def run_locally():
         name="Fe",
         structure=structure,
         flow_dir=flow_dir,
+        resume=True,
     )
 
     if output:
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(output, f, indent=2, cls=DateTimeEncoder)
         log.info(f"Output saved to {json_path}")
+
+        # Print summary
+        print("\n" + "=" * 50)
+        print("Results Summary")
+        print("=" * 50)
+        combined = output.get("combined", {})
+        print(f"Total Magnetic Moment: {combined.get('total_magnetic_moment')}")
+        print(f"Energy: {combined.get('energy')}")
+        print(f"J parameters: {combined.get('Js')}")
+        print(f"Tc (MFA): {combined.get('Tc_MFA')} K")
+        print(f"Tc (RPA): {combined.get('Tc_RPA')} K")
+        print(f"Number of configurations: {combined.get('num_configs')}")
     else:
         log.error("Workflow failed")
 

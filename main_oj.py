@@ -7,7 +7,7 @@ from datetime import datetime
 
 from htvasp.model import Endmember
 from htvasp.oj import OJConfig, OJResult
-from htvasp.workflows import OJWorker
+from htvasp.workflows import StaticOJWorker
 from htvasp.slurm import SlurmJobManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
@@ -92,9 +92,9 @@ def run_locally(force=False):
         flowdir.mkdir(parents=True, exist_ok=True)
         struct = endmember.get_poscar(name, posdir)
         try:
-            worker = OJWorker(
+            worker = StaticOJWorker(
                 worker_name=f"{name}-oj",
-                config=OJConfig(j_count=4),
+                oj_config=OJConfig(j_count=4),
                 global_incar=global_incar,
                 vasp_args=vasp_args,
             )
