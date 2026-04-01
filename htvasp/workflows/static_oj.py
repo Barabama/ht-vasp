@@ -230,7 +230,7 @@ class StaticOJWorker(Worker):
         oj_flow = oj_maker.make(static_job.output.structure)
 
         # Combine all jobs into a single flow
-        all_jobs = [relax_job, static_job, *oj_flow.jobs]
+        all_jobs = [relax_job, static_job, oj_flow]
         flow = Flow(
             all_jobs,
             output={
