@@ -89,20 +89,20 @@ class OJWorker(Worker):
         self.worker_name = worker_name
 
         default_incar = {
-            "ENCUT": 500,
+            "ENCUT": 400,
             "ISTART": 0,
             "ICHARG": 2,
             # Electronic
             "ISMEAR": 1,
             "SIGMA": 0.1,
             "ALGO": "Normal",
-            "NELM": 100,
+            "NELM": 200,
             "NELMIN": 6,
             "NELMDL": -6,
             # Ionic
             "IBRION": 2,
             "ISIF": 3,
-            "NSW": 50,
+            "NSW": 100,
             "POTIM": 0.2,
             "EDIFF": 1e-6,
             "EDIFFG": -0.01,

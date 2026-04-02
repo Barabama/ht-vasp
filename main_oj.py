@@ -30,6 +30,10 @@ oj_incar = {
     "KPAR": 1,
     "NCORE": 4,
     "GGA": "PE",
+    "AMIX": 0.2,
+    "BMIX": 1e-4,
+    "AMIX_MAG": 0.8,
+    "BMIX_MAG": 1e-4,
 }
 struct_names = [
     "SER-Co",
