@@ -6,8 +6,7 @@ from pathlib import Path
 from datetime import datetime
 
 from htvasp.model import Endmember
-from htvasp.oj import OJConfig, OJResult
-from htvasp.workflows import StaticOJWorker
+from htvasp.workflows import OJWorker
 from htvasp.slurm import SlurmJobManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
@@ -20,17 +19,18 @@ class DateTimeEncoder(json.JSONEncoder):
             return obj.isoformat()
         return super().default(obj)
 
-global_incar = {
-    "KPAR": 2,
-    "NCORE": 2,
-    "GGA": "PE",
-}
+
 vasp_args = {
     "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
     "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
 }
 
-
+# oj_incar to override INCAR settings for OJ calculations
+oj_incar = {
+    "KPAR": 1,
+    "NCORE": 4,
+    "GGA": "PE",
+}
 struct_names = [
     "SER-Co",
     "SER-Fe",
@@ -92,30 +92,29 @@ def run_locally(force=False):
         flowdir.mkdir(parents=True, exist_ok=True)
         struct = endmember.get_poscar(name, posdir)
         try:
-            worker = StaticOJWorker(
+            worker = OJWorker(
                 worker_name=f"{name}-oj",
-                oj_config=OJConfig(j_count=4),
-                global_incar=global_incar,
                 vasp_args=vasp_args,
+                oj_incar=oj_incar,
+                j_count=4,
+                extend_poscar=(2, 2, 2),
             )
 
             oj_data = worker.run_flow(name, struct, flowdir)
             if not oj_data:
-                result = {"name": name, "state": "failed", "struct": struct.as_dict()}
-            else:
-                oj_result = OJResult.from_solution(oj_data)
-                summary = oj_result.to_summary()
-                result = {"name": name, "state": "successful", **summary}
+                raise ValueError(f"OJ flow for structure {name} did not return any data")
+            
+            result = {"name": name, "state": "successful", **oj_data}
 
         except Exception as e:
-            log.error(f"System {name} failed: {e}")
+            log.error(f"Structure {name} failed: {e}")
             result = {"name": name, "state": "failed", "struct": struct.as_dict()}
 
         # Save result
         with open(json_path, "w", encoding="utf-8") as jf:
             json.dump(result, jf, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
 
-        log.info(f"System {name} done")
+        log.info(f"Structure {name} done")
 
 
 def submit_job(force=False):
@@ -125,8 +124,7 @@ def submit_job(force=False):
         job_name="gml-oj",
         output_log="em-oj.log",
         nodes=1,
-        nodelist="429e",
-        ntasks=32,
+        ntasks=56,
     )
     job_id = manager.submit_command(
         command=f"python {__file__} --local {'--force' if force else ''}",

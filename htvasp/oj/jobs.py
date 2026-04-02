@@ -58,20 +58,7 @@ def _run_vasp(flip_dir: Path, vasp_cmd: str) -> dict[str, Any]:
 
 @job
 def oj_generate(
-    structure: Structure,
-    input_set_generator: OJInputSetGenerator | None = None,
-    j_count: int | None = 2,
-    dist_cutoff: float | None = None,
-    magnetic_ion_types: list[str] | None = None,
-    noncollinear: bool = False,
-    base_spin: float | list[float] = 1.0,
-    extend_poscar: tuple[int, int, int] = (2, 2, 2),
-    reciprocal_density: float = 100,
-    reciprocal_density_metal: float = 400,
-    auto_metal_kpoints: bool = True,
-    force_gamma: bool = True,
-    user_incar_settings: dict[str, Any] | None = None,
-    potcar_functional: Literal["PBE", "PBE_54", "PBE_64"] = "PBE_64",
+    structure: Structure, input_set_generator: OJInputSetGenerator
 ) -> dict[str, Any]:
     """Generate magnetic configurations using OstravaJ
 
@@ -81,19 +68,7 @@ def oj_generate(
 
     Args:
         structure: Input structure
-        input_set_generator: OJInputSetGenerator instance (atomate2 style)
-        j_count: Number of J pairs to consider
-        dist_cutoff: Distance cutoff for J pairs (mutually exclusive with j_count)
-        magnetic_ion_types: List of magnetic ion types
-        noncollinear: Whether to use noncollinear magnetism
-        base_spin: Base spin value
-        extend_poscar: Supercell extension factors (nx, ny, nz)
-        reciprocal_density: K-point density for insulators
-        reciprocal_density_metal: K-point density for metals
-        auto_metal_kpoints: Automatically use higher density for metals
-        force_gamma: Force gamma-centered k-point mesh
-        user_incar_settings: Custom INCAR settings
-        potcar_functional: POTCAR functional type
+        input_set_generator: OJInputSetGenerator instance
 
     Returns:
         Dictionary with run_dir, flip_dirs, and num_configs
@@ -103,29 +78,10 @@ def oj_generate(
     temp_input_dir = job_dir.parent.joinpath(f"temp_input_{job_dir.name}")
     temp_input_dir.mkdir(parents=True, exist_ok=True)
 
-    # Use provided input_set_generator or create one from parameters
-    if input_set_generator is None:
-        generator = OJInputSetGenerator(
-            j_count=j_count,
-            dist_cutoff=dist_cutoff,
-            magnetic_ion_types=magnetic_ion_types or [],
-            noncollinear=noncollinear,
-            base_spin=base_spin,
-            extend_poscar=extend_poscar,
-            reciprocal_density=reciprocal_density,
-            reciprocal_density_metal=reciprocal_density_metal,
-            auto_metal_kpoints=auto_metal_kpoints,
-            force_gamma=force_gamma,
-            user_incar_settings=user_incar_settings or {},
-            user_potcar_functional=potcar_functional,
-        )
-    else:
-        generator = input_set_generator
-
     write_oj_input_set(
         structure,
         temp_input_dir,
-        generator,
+        input_set_generator,
         include_oj_conf=True,
     )
 
@@ -151,10 +107,7 @@ def oj_generate(
 
 
 @job
-def oj_vasp(
-    flip_dirs: list[str],
-    vasp_cmd: str = "vasp_std",
-) -> dict[str, Any]:
+def oj_vasp(flip_dirs: list[str], vasp_cmd: str) -> dict[str, Any]:
     """Run VASP for all magnetic configurations in serial
 
     Args:
@@ -190,10 +143,7 @@ def oj_vasp(
 
 
 @job
-def oj_solve(
-    run_dir: str,
-    vasp_results: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
+def oj_solve(run_dir: str, vasp_results: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Solve for exchange parameters using OstravaJ
 
     Args:
@@ -231,71 +181,3 @@ def oj_solve(
         "error": "No solution file",
         "run_dir": run_dir,
     }
-
-
-@job
-def oj_workflow(
-    structure: Structure,
-    j_count: int | None = 2,
-    dist_cutoff: float | None = None,
-    magnetic_ion_types: list[str] | None = None,
-    noncollinear: bool = False,
-    base_spin: float | list[float] = 1.0,
-    extend_poscar: tuple[int, int, int] = (2, 2, 2),
-    reciprocal_density: float = 100,
-    reciprocal_density_metal: float = 400,
-    auto_metal_kpoints: bool = True,
-    force_gamma: bool = True,
-    user_incar_settings: dict[str, Any] | None = None,
-    vasp_cmd: str = "vasp_std",
-    potcar_functional: Literal["PBE", "PBE_54", "PBE_64"] = "PBE_64",
-) -> dict[str, Any]:
-    """Run complete OJ workflow in a single job (simplified mode)
-
-    This runs all steps in one job without Flow composition.
-    Use for simple serial execution.
-
-    Args:
-        structure: Input structure
-        j_count: Number of J pairs to consider
-        dist_cutoff: Distance cutoff for J pairs
-        magnetic_ion_types: List of magnetic ion types
-        noncollinear: Whether to use noncollinear magnetism
-        base_spin: Base spin value
-        extend_poscar: Supercell extension factors
-        reciprocal_density: K-point density for insulators
-        reciprocal_density_metal: K-point density for metals
-        auto_metal_kpoints: Automatically use higher density for metals
-        force_gamma: Force gamma-centered k-point mesh
-        user_incar_settings: Custom INCAR settings
-        vasp_cmd: VASP command
-        potcar_functional: POTCAR functional type
-
-    Returns:
-        Dictionary with solution results
-    """
-    gen = oj_generate.function(
-        structure,
-        j_count=j_count,
-        dist_cutoff=dist_cutoff,
-        magnetic_ion_types=magnetic_ion_types,
-        noncollinear=noncollinear,
-        base_spin=base_spin,
-        extend_poscar=extend_poscar,
-        reciprocal_density=reciprocal_density,
-        reciprocal_density_metal=reciprocal_density_metal,
-        auto_metal_kpoints=auto_metal_kpoints,
-        force_gamma=force_gamma,
-        user_incar_settings=user_incar_settings,
-        potcar_functional=potcar_functional,
-    )
-    vasp = oj_vasp.function(gen["flip_dirs"], vasp_cmd)
-    solution = oj_solve.function(gen["run_dir"], vasp["results"])
-
-    solution["workdir"] = str(Path.cwd())
-    solution["num_configs"] = gen["num_configs"]
-    solution["vasp_success_rate"] = (
-        vasp["num_successful"] / vasp["num_total"] if vasp["num_total"] > 0 else 0
-    )
-
-    return solution

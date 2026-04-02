@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
+from pathlib import Path
 
 from atomate2.vasp.sets.base import VaspInputGenerator
 
 if TYPE_CHECKING:
     from pymatgen.core import Structure
-    from pymatgen.io.vasp import Kpoints
+    from pymatgen.io.vasp import Kpoints, VaspInput
     from pymatgen.io.vasp.sets import UserPotcarFunctional
 
 log = logging.getLogger(__name__)
@@ -55,36 +55,38 @@ class OJInputSetGenerator(VaspInputGenerator):
         >>>
         >>> structure = Structure.from_file("POSCAR")
         >>> generator = OJInputSetGenerator(
-        ...     j_count=3,
+        ...     j_count=4,
         ...     magnetic_ion_types=["Fe", "Co"],
-        ...     reciprocal_density=100,
         ... )
         >>> input_set = generator.get_input_set(structure)
         >>> input_set.write_input("./flip000")
     """
 
-    name: str = "oj_input"
-    j_count: int | None = 2
+    j_count: int | None = 4
     dist_cutoff: float | None = None
     magnetic_ion_types: list[str] = field(default_factory=list)
     noncollinear: bool = False
     base_spin: float | list[float] = 1.0
     extend_poscar: tuple[int, int, int] = (2, 2, 2)
-    reciprocal_density: float = 100
-    reciprocal_density_metal: float = 400
-    auto_metal_kpoints: bool = True
-    force_gamma: bool = True
-    user_potcar_functional: UserPotcarFunctional = "PBE_64"
-    user_incar_settings: dict[str, Any] = field(default_factory=dict)
-    user_kpoints_settings: dict[str, Any] | Kpoints | None = None
-    user_potcar_settings: dict[str, Any] = field(default_factory=dict)
-    constrain_total_magmom: bool = False
-    sort_structure: bool = False
-    auto_ismear: bool = False
-    auto_ispin: bool = False
+
+    # Superclass params
+    # reciprocal_density: float = 100
+    # reciprocal_density_metal: float = 400
+    # auto_metal_kpoints: bool = True
+    # force_gamma: bool = True
+    # user_potcar_functional: UserPotcarFunctional = "PBE_64"
+    # user_incar_settings: dict[str, Any] = field(default_factory=dict)
+    # user_kpoints_settings: dict[str, Any] | Kpoints | None = None
+    # user_potcar_settings: dict[str, Any] = field(default_factory=dict)
+    # constrain_total_magmom: bool = False
+    # sort_structure: bool = False
+    # auto_ismear: bool = True
+    # auto_ispin: bool = True
 
     def __post_init__(self) -> None:
         """Initialize the input set generator."""
+        if self.j_count is None and self.dist_cutoff is None:
+            raise ValueError("Either j_count or dist_cutoff must be specified")
         super().__post_init__()
 
     @property
@@ -96,27 +98,14 @@ class OJInputSetGenerator(VaspInputGenerator):
         """
         return {
             "ENCUT": 500,
-            "ISTART": 0,
-            "ICHARG": 2,
-            "ISMEAR": 1,
-            "SIGMA": 0.1,
-            "ALGO": "Normal",
             "NELM": 100,
-            "NELMIN": 6,
-            "NELMDL": -6,
             "IBRION": 2,
             "ISIF": 3,
             "NSW": 50,
-            "POTIM": 0.2,
             "EDIFF": 1e-6,
             "EDIFFG": -0.01,
-            "ISPIN": 2,
-            "KPAR": 2,
-            "NCORE": 2,
             "ISYM": 0,
             "LREAL": "Auto",
-            "PREC": "Accurate",
-            "SYMPREC": 1e-7,
             "LORBIT": 11,
             "LWAVE": False,
             "LCHARG": False,
@@ -156,8 +145,14 @@ class OJInputSetGenerator(VaspInputGenerator):
         structure: Structure | None = None,
         prev_dir: str | Path | None = None,
         potcar_spec: bool = False,
-    ) -> "VaspInputSet":
+    ) -> VaspInput:
         """Get the VASP input set.
+
+        OstravaJ requires INCAR without MAGMOM — it generates its own magnetic
+        configurations.  We therefore strip any ``magmom`` site property from
+        the incoming structure *and* remove MAGMOM from the resulting INCAR so
+        that the downstream ``jmixer generate`` step does not fail with
+        ``AssertionError: Please provide INCAR file without MAGMOM specified``.
 
         Args:
             structure: A structure to generate the input set for. If None, the structure
@@ -168,12 +163,24 @@ class OJInputSetGenerator(VaspInputGenerator):
         Returns:
             A VaspInputSet object.
         """
+        # Remove magmom site property so VaspInputGenerator won't write MAGMOM
+        if structure is not None and "magmom" in structure.site_properties:
+            structure = structure.copy()
+            structure.remove_site_property("magmom")
+            log.debug("Stripped 'magmom' site property from structure for OJ input set")
+
         # Call parent get_input_set
         input_set = super().get_input_set(
             structure=structure,
             prev_dir=prev_dir,
             potcar_spec=potcar_spec,
         )
+
+        # Belt-and-suspenders: also remove MAGMOM from INCAR if still present
+        if "MAGMOM" in input_set.incar:
+            del input_set.incar["MAGMOM"]
+            log.debug("Removed MAGMOM key from generated INCAR for OJ input set")
+
         return input_set
 
 
@@ -196,8 +203,6 @@ def write_oj_input_set(
         include_oj_conf: Whether to include OJ.conf file
         **kwargs: Additional arguments passed to write_input
     """
-    from pymatgen.io.vasp.inputs import VaspInput
-
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
 
@@ -205,12 +210,12 @@ def write_oj_input_set(
 
     if include_oj_conf:
         oj_conf = input_set_generator.get_oj_conf_string()
-        (directory / "OJ.conf").write_text(oj_conf)
+        (directory.joinpath("OJ.conf")).write_text(oj_conf)
 
     clean_prev = kwargs.pop("clean_prev", True)
     if clean_prev:
         for filename in ("POSCAR", "KPOINTS", "POTCAR", "INCAR"):
-            filepath = directory / filename
+            filepath = directory.joinpath(filename)
             if filepath.exists():
                 filepath.unlink()
 

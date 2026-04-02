@@ -15,7 +15,7 @@ from atomate2.vasp.jobs.core import TightRelaxMaker
 from atomate2.vasp.sets.core import TightRelaxSetGenerator
 from custodian.vasp.handlers import VaspErrorHandler
 from maggma.stores import JSONStore, MemoryStore
-from jobflow.core.store import JobStore
+from jobflow import JobStore
 
 from htvasp.workflows.base import Worker
 from htvasp.utils import run_locally_custom
@@ -41,6 +41,7 @@ class RelaxWorker(Worker):
     ):
         # Store will be initialized in run_flow to allow custom paths
         self.store = None
+        self.worker_name = worker_name
 
         # Default INCAR settings
         default_incar = {
@@ -76,6 +77,8 @@ class RelaxWorker(Worker):
         if global_incar:
             default_incar.update(global_incar)
         global_incar = default_incar
+        r7_incar = r7_incar or {}
+        r3_incar = r3_incar or {}
 
         # R7 structural relaxation
         relax_r7_maker = DoubleRelaxMaker.from_relax_maker(
@@ -141,7 +144,7 @@ class RelaxWorker(Worker):
         else:
             store_path = Path(store_path).resolve()
         self.store = JobStore(
-            JSONStore(store_path, read_only=False),
+            JSONStore(str(store_path), read_only=False),
             additional_stores={"data": MemoryStore()},
         )
 

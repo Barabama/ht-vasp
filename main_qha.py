@@ -99,10 +99,10 @@ def run_locally(force=False):
         log.info(f"Structure {name} start")
 
         # Run QhaWorker
-        struct = endmember.get_poscar(name, posdir)
         if force and flowdir.exists():
             shutil.rmtree(flowdir)
         flowdir.mkdir(parents=True, exist_ok=True)
+        struct = endmember.get_poscar(name, posdir)
         try:
             worker = QhaWorker(
                 worker_name=f"{name}-qha",
@@ -111,6 +111,8 @@ def run_locally(force=False):
                 relax_incar=relax_incar,
                 eos_incar=relax_incar,
                 phonon_incar=phonon_incar,
+                temperature_range=(0, 3100, 50)
+                supercell_matrix=((2, 0, 0), (0, 2, 0), (0, 0, 2)),
             )
             qha_data = worker.run_flow(name, struct, flowdir)
             if not qha_data:
@@ -135,8 +137,7 @@ def submit_job(force=False):
         job_name="gml-qha",
         output_log="em-qha.log",
         nodes=1,
-        nodelist="429pro",
-        ntasks=48,
+        ntasks=56,
     )
     job_id = manager.submit_command(
         command=f"python {__file__} --local {'--force' if force else ''}",

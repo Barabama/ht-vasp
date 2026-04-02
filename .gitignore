@@ -21,6 +21,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest*/
 
 # Virtual environments
 venv/
@@ -34,6 +35,9 @@ ENV/
 *.swp
 *.swo
 *~
+.claude/
+.kilo/
+.lingma/
 
 # Logs
 *.log

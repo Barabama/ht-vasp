@@ -1,7 +1,8 @@
 """
-HT-VASP - Static-OJ Workflows
+HT-VASP - OJ Workflows
 
-Combined workflow: relax + static + OJ (magnetic exchange)
+OJ workflow: performs magnetic exchange calculation using the total energy difference method.
+The OJ worker generates magnetic configurations, runs VASP, and solves for J parameters.
 """
 
 import json
@@ -12,16 +13,12 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pymatgen.core import Structure
-from atomate2.vasp.flows.core import DoubleRelaxMaker
-from atomate2.vasp.jobs.core import StaticMaker, TightRelaxMaker
-from atomate2.vasp.sets.core import StaticSetGenerator, TightRelaxSetGenerator
-from custodian.vasp.handlers import VaspErrorHandler
 from maggma.stores import JSONStore, MemoryStore
-from jobflow.core.store import JobStore
-from jobflow.core.flow import Flow
+from custodian.vasp.handlers import VaspErrorHandler
+from jobflow import Flow, JobStore
 
 from htvasp.workflows.base import Worker
-from htvasp.oj.config import OJConfig
+from htvasp.oj.input_set import OJInputSetGenerator
 from htvasp.oj.maker import OJMaker
 from htvasp.utils.run_locally import run_locally_custom
 
@@ -36,55 +33,61 @@ class DateTimeEncoder(json.JSONEncoder):
 
 
 class OJWorker(Worker):
-    """Worker for combined relax + static + OJ calculations
+    """Worker for OJ magnetic exchange calculations
 
-    Performs:
-    1. Structural relaxation (R3 full relaxation)
-    2. Static calculation (to get total magnetic moment)
-    3. OJ calculation (magnetic exchange interactions)
+    Performs OJ calculation using the total energy difference method:
+    1. Generates magnetic configurations from input structure
+    2. Runs VASP for each magnetic configuration
+    3. Solves for exchange parameters J and Curie temperature
+
+    The input structure is used as the base crystal structure.
+    OJ internally generates supercell and various magnetic configurations (MAGMOM).
+    No prior structure relaxation step is required by this worker
+    (the ostravaj README does not mandate pre-relaxation).
+    You may optionally pass a pre-relaxed structure for better accuracy.
 
     Args:
-        worker_name: Name for the worker
-        oj_config: OJ configuration
-        potcar_functional: POTCAR functional type
-        global_incar: Custom INCAR settings to override defaults
-        relax_incar: Custom INCAR settings for relaxation
-        static_incar: Custom INCAR settings for static calculation
+        worker_name: Worker name
         vasp_args: VASP execution arguments
+        potcar_functional: POTCAR functional
+        oj_incar: OJ-specific INCAR settings
+        j_count: Number of J pairs to consider
+        dist_cutoff: Distance cutoff for J pairs
+        magnetic_ion_types: List of magnetic ion types
+        noncollinear: Whether to use noncollinear magnetism
+        base_spin: Base spin value
+        extend_poscar: Supercell extension factors
+
 
     Example:
         >>> from pymatgen.core import Structure
-        >>> from htvasp.workflows import StaticOJWorker
-        >>> from htvasp.oj import OJConfig
+        >>> from htvasp.workflows import OJWorker
         >>>
         >>> structure = Structure.from_file("POSCAR")
-        >>> oj_config = OJConfig(j_count=3, magnetic_ion_types=["Fe", "Co"])
-        >>> worker = StaticOJWorker(
+        >>> worker = OJWorker(
         ...     worker_name="fe_co_oj",
-        ...     oj_config=oj_config,
-        ...     global_incar={"ENCUT": 520},
+        ...     j_count=3,
+        ...     user_incar_settings={"ENCUT": 520, "KPAR": 4},
         ... )
-        >>> output = worker.run_flow("FeCo", structure, "./oj_work")
     """
 
     def __init__(
         self,
         worker_name: str,
-        oj_config: OJConfig | None = None,
+        vasp_args: dict[str, Any],
         potcar_functional: Literal["PBE", "PBE_54", "PBE_64"] = "PBE_64",
-        global_incar: dict[str, Any] | None = None,
-        relax_incar: dict[str, Any] | None = None,
-        static_incar: dict[str, Any] | None = None,
-        vasp_args: dict[str, Any] | None = None,
+        oj_incar: dict[str, Any] | None = None,
+        j_count: int = 4,
+        dist_cutoff: float | None = None,
+        magnetic_ion_types: list[str] = [],
+        noncollinear: bool = False,
+        base_spin: float | list[float] = 1.0,
+        extend_poscar: tuple[int, int, int] = (2, 2, 2),
         **kwargs,
     ):
         self.store = None
         self.worker_name = worker_name
-        self.oj_config = oj_config or OJConfig()
-        self.potcar_functional = potcar_functional
-        self.vasp_args = vasp_args or {}
 
-        # Default INCAR settings
         default_incar = {
             "ENCUT": 500,
             "ISTART": 0,
@@ -99,7 +102,7 @@ class OJWorker(Worker):
             # Ionic
             "IBRION": 2,
             "ISIF": 3,
-            "NSW": 100,
+            "NSW": 50,
             "POTIM": 0.2,
             "EDIFF": 1e-6,
             "EDIFFG": -0.01,
@@ -113,73 +116,29 @@ class OJWorker(Worker):
             # Output
             "LWAVE": False,
             "LCHARG": False,
+            "LORBIT": 11,
         }
 
-        # Override with custom settings
-        if global_incar:
-            default_incar.update(global_incar)
-        global_incar = default_incar
+        default_incar.update(oj_incar or {})
 
-        # Apply OJ config INCAR settings
-        if self.oj_config.incar:
-            global_incar.update(self.oj_config.incar)
-
-        vasp_cmd = self.vasp_args.get("vasp_cmd", "vasp_std")
-
-        # Structural relaxation (R3 full relaxation)
-        relax_maker = DoubleRelaxMaker.from_relax_maker(
-            TightRelaxMaker(
-                name="r3_relax",
-                run_vasp_kwargs={"handlers": [VaspErrorHandler()], "vasp_cmd": vasp_cmd},
-                stop_children_kwargs={"handle_unsuccessful": False},
-                input_set_generator=TightRelaxSetGenerator(
-                    user_potcar_functional=potcar_functional,
-                    user_incar_settings={
-                        **global_incar,
-                        "ISIF": 3,
-                        "LWAVE": True,
-                        "LCHARG": True,
-                        **(relax_incar or {}),
-                    },
-                ),
-            ),
-        )
-
-        # Static calculation
-        static_maker = StaticMaker(
-            run_vasp_kwargs={"handlers": [VaspErrorHandler()], "vasp_cmd": vasp_cmd},
+        oj_maker = OJMaker(
+            run_vasp_kwargs={"handlers": [VaspErrorHandler()], **vasp_args},
             stop_children_kwargs={"handle_unsuccessful": False},
-            input_set_generator=StaticSetGenerator(
+            input_set_generator=OJInputSetGenerator(
                 user_potcar_functional=potcar_functional,
                 user_incar_settings={
-                    **global_incar,
-                    "ISTART": 1,
-                    "ICHARG": 1,
-                    "NELM": 200,
-                    "IBRION": -1,
-                    "ISIF": 2,
-                    "NSW": 0,
-                    "EDIFF": 1e-7,
-                    "EDIFFG": 1e-6,
-                    "LORBIT": 11,
-                    **(static_incar or {}),
+                    **default_incar,
                 },
+                j_count=j_count,
+                dist_cutoff=dist_cutoff,
+                magnetic_ion_types=magnetic_ion_types,
+                noncollinear=noncollinear,
+                base_spin=base_spin,
+                extend_poscar=extend_poscar,
             ),
         )
 
-        # OJ calculation
-        oj_maker = OJMaker(
-            name=f"{worker_name}_oj",
-            config=self.oj_config,
-            vasp_cmd=vasp_cmd,
-            potcar_functional=potcar_functional,
-        )
-
-        self.flow_makers: tuple[DoubleRelaxMaker, StaticMaker, OJMaker] = (
-            relax_maker,
-            static_maker,
-            oj_maker,
-        )
+        self.oj_maker = oj_maker
 
     def run_flow(
         self,
@@ -190,7 +149,7 @@ class OJWorker(Worker):
         store_path: Path | str = "",
         resume: bool = True,
     ) -> dict[str, Any] | None:
-        """Run the combined relax + static + OJ workflow
+        """Run the OJ workflow
 
         Args:
             name: Structure name
@@ -201,10 +160,7 @@ class OJWorker(Worker):
             resume: Whether to resume from previously completed jobs (default: True)
 
         Returns:
-            Dictionary containing:
-            - static_output: Static calculation results (total magnetic moment, etc.)
-            - oj_output: OJ calculation results (J parameters, Tc, etc.)
-            - combined: Combined results including both static and OJ data
+            Dictionary containing OJ calculation results (J parameters, Tc, etc.)
         """
         flow_dir = Path(flow_dir)
         flow_dir.mkdir(parents=True, exist_ok=True)
@@ -215,32 +171,14 @@ class OJWorker(Worker):
             store_path = Path(store_path).resolve()
 
         self.store = JobStore(
-            JSONStore(store_path, read_only=False),
+            JSONStore(str(store_path), read_only=False),
             additional_stores={"data": MemoryStore()},
         )
 
-        relax_maker, static_maker, oj_maker = self.flow_makers
+        oj_flow = self.oj_maker.make(structure)
+        flow = Flow([oj_flow], output=oj_flow.output, name=name)
 
-        # Build the flow: relax -> static -> oj
-        relax_job = relax_maker.make(structure)
-        static_job = static_maker.make(
-            relax_job.output.structure,
-            prev_dir=relax_job.output.dir_name,
-        )
-        oj_flow = oj_maker.make(static_job.output.structure)
-
-        # Combine all jobs into a single flow
-        all_jobs = [relax_job, static_job, oj_flow]
-        flow = Flow(
-            all_jobs,
-            output={
-                "static_output": static_job.output,
-                "oj_output": oj_flow.output,
-            },
-            name=name,
-        )
-
-        log.info(f"Running Static-OJ flow for {name} in {flow_dir}")
+        log.info(f"Running OJ flow for {name} in {flow_dir}")
 
         try:
             run_locally_custom(
@@ -253,20 +191,6 @@ class OJWorker(Worker):
 
             self.store.connect()
 
-            # Get static job output
-            static_job_doc = self.store.query_one(
-                criteria={"name": {"$regex": "static"}},
-                properties=["uuid", "index", "name"],
-                sort={"index": -1},
-            )
-            if not static_job_doc:
-                raise ValueError(f"No 'static' job found in store {store_path}")
-
-            static_output = self.store.get_output(
-                uuid=static_job_doc["uuid"], which="last", load=True
-            )
-
-            # Get OJ solve job output
             oj_job_doc = self.store.query_one(
                 criteria={"name": {"$regex": "solve"}},
                 properties=["uuid", "index", "name"],
@@ -277,51 +201,13 @@ class OJWorker(Worker):
 
             oj_output = self.store.get_output(uuid=oj_job_doc["uuid"], which="last", load=True)
 
-            # Combine results
-            combined_output = {
-                **static_output,
-                **oj_output,
-            }
-
-            log.info(f"Static-OJ flow for {name} completed successfully")
-            return combined_output
+            log.info(f"OJ flow for {name} completed successfully")
+            return oj_output
 
         except Exception as e:
-            log.error(f"Static-OJ flow for {name} failed: {e}")
+            log.error(f"OJ flow for {name} failed: {e}")
             log.error(traceback.format_exc())
             return None
 
         finally:
             self.close()
-
-    def create_flow(self, structure: Structure, name: str = "oj") -> tuple[Flow, tuple]:
-        """Create a Flow for external execution
-
-        Note: This method creates jobs that can only be used once.
-        For multiple flow creations, use run_flow() instead.
-
-        Returns:
-            Tuple of (flow, makers) for use with run_locally or FireWorks
-        """
-        relax_maker, static_maker, oj_maker = self.flow_makers
-
-        relax_job = relax_maker.make(structure)
-        static_job = static_maker.make(
-            relax_job.output.structure,
-            prev_dir=relax_job.output.dir_name,
-        )
-        oj_flow = oj_maker.make(static_job.output.structure)
-
-        # Extract jobs from oj_flow and add to combined flow
-        # Note: This will fail if jobs were already added to another flow
-        all_jobs = [relax_job, static_job] + list(oj_flow.jobs)
-        flow = Flow(
-            all_jobs,
-            output={
-                **static_job.output,
-                **oj_flow.output,
-            },
-            name=name,
-        )
-
-        return flow, (relax_maker, static_maker, oj_maker)

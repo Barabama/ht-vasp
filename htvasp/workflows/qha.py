@@ -70,6 +70,7 @@ class QhaWorker(Worker):
     ):
         # Store will be initialized in run_flow to allow custom paths
         self.store = None
+        self.worker_name = worker_name
 
         self.supercell_matrix = supercell_matrix
 
@@ -110,6 +111,9 @@ class QhaWorker(Worker):
         if global_incar:
             default_incar.update(global_incar)
         global_incar = default_incar
+        relax_incar = relax_incar or {}
+        eos_incar = eos_incar or {}
+        phonon_incar = phonon_incar or {}
 
         # R3 structural relaxation
         initial_relax_maker = DoubleRelaxMaker.from_relax_maker(
@@ -223,7 +227,7 @@ class QhaWorker(Worker):
         else:
             store_path = Path(store_path).resolve()
         self.store = JobStore(
-            JSONStore(store_path, read_only=False),
+            JSONStore(str(store_path), read_only=False),
             additional_stores={"data": MemoryStore()},
         )
 
@@ -271,24 +275,9 @@ class QhaWorker(Worker):
             output = self.store.get_output(uuid=job["uuid"], which="last", load=True)
             log.info(f"QHA flow for struct {name} completed successfully")
 
-            return QhaData(
-                name=name,
-                structure=output["structure"],
-                bulk_modulus=output["bulk_modulus"],
-                volumes=output["volumes"],
-                temperatures=output["temperatures"],
-                thermal_expansion=output["thermal_expansion"],
-                bulk_modulus_temperature=output["bulk_modulus_temperature"],
-                heat_capacity_p_numerical=output["heat_capacity_p_numerical"],
-                gibbs_temperature=output["gibbs_temperature"],
-                gruneisen_temperature=output["gruneisen_temperature"],
-                volume_temperature=output["volume_temperature"],
-                free_energies=output["free_energies"],
-                deformation_energies=deformation_energies,
-                entropies=output["entropies"],
-                heat_capacities=output["heat_capacities"],
-                helmholtz_volume=output["helmholtz_volume"],
-            )
+            output["name"] = name
+            output["deformation_energies"] = deformation_energies
+            return output
 
         except Exception as e:
             log.error(f"QHA flow for struct {name} failed: {e}")
