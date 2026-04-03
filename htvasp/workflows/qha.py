@@ -76,7 +76,7 @@ class QhaWorker(Worker):
 
         # Default INCAR settings
         default_incar = {
-            "ENCUT": 500,
+            "ENCUT": 450,
             "ISTART": 0,
             "ICHARG": 2,
             # Electronic
@@ -217,6 +217,7 @@ class QhaWorker(Worker):
         flow_dir: Path | str,
         dir_format: str = "{name}",
         store_path: Path | str = "",
+        resume: bool = True,
     ) -> dict[str, Any] | None:
         flow_dir = Path(flow_dir)
         flow_dir.mkdir(parents=True, exist_ok=True)
@@ -226,6 +227,7 @@ class QhaWorker(Worker):
             store_path = Path(flow_dir, "store.json").resolve()
         else:
             store_path = Path(store_path).resolve()
+
         self.store = JobStore(
             JSONStore(str(store_path), read_only=False),
             additional_stores={"data": MemoryStore()},
@@ -240,8 +242,7 @@ class QhaWorker(Worker):
                 store=self.store,
                 root_dir=flow_dir,
                 dir_format=dir_format,
-                # ensure_success=True,
-                # raise_immediately=True,
+                resume=resume,
             )
 
             self.store.connect()
@@ -264,15 +265,15 @@ class QhaWorker(Worker):
             deformation_energies = [item[1] for item in deformation_data]
 
             # Get analyze_free_energy job output
-            job = self.store.query_one(
+            qha_job_doc = self.store.query_one(
                 criteria={"name": {"$regex": "analyze_free_energy"}},
                 properties=["uuid", "index", "name"],
                 sort={"index": -1},
             )
-            if job is None:
+            if qha_job_doc is None:
                 raise ValueError(f"No 'analyze_free_energy' job found in store {store_path}")
 
-            output = self.store.get_output(uuid=job["uuid"], which="last", load=True)
+            output = self.store.get_output(uuid=qha_job_doc["uuid"], which="last", load=True)
             log.info(f"QHA flow for struct {name} completed successfully")
 
             output["name"] = name

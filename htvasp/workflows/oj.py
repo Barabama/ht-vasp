@@ -89,7 +89,7 @@ class OJWorker(Worker):
         self.worker_name = worker_name
 
         default_incar = {
-            "ENCUT": 400,
+            "ENCUT": 450,
             "ISTART": 0,
             "ICHARG": 2,
             # Electronic
@@ -112,7 +112,7 @@ class OJWorker(Worker):
             "ISYM": 0,
             "LREAL": "Auto",
             "PREC": "Accurate",
-            "SYMPREC": 1e-7,
+            "SYMPREC": 1e-5,
             # Output
             "LWAVE": False,
             "LCHARG": False,
@@ -165,6 +165,7 @@ class OJWorker(Worker):
         flow_dir = Path(flow_dir)
         flow_dir.mkdir(parents=True, exist_ok=True)
 
+        # Initialize store
         if not store_path:
             store_path = Path(flow_dir, "store.json").resolve()
         else:
@@ -178,7 +179,7 @@ class OJWorker(Worker):
         oj_flow = self.oj_maker.make(structure)
         flow = Flow([oj_flow], output=oj_flow.output, name=name)
 
-        log.info(f"Running OJ flow for {name} in {flow_dir}")
+        log.info(f"Running OJ flow for struct {name} in {flow_dir}")
 
         try:
             run_locally_custom(
@@ -200,12 +201,12 @@ class OJWorker(Worker):
                 raise ValueError(f"No 'solve' job found in store {store_path}")
 
             oj_output = self.store.get_output(uuid=oj_job_doc["uuid"], which="last", load=True)
-
             log.info(f"OJ flow for {name} completed successfully")
+
             return oj_output
 
         except Exception as e:
-            log.error(f"OJ flow for {name} failed: {e}")
+            log.error(f"OJ flow for struct {name} failed: {e}")
             log.error(traceback.format_exc())
             return None
 

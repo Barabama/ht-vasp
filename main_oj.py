@@ -27,10 +27,10 @@ vasp_args = {
 
 # oj_incar to override INCAR settings for OJ calculations
 oj_incar = {
-    "KPAR": 1,
+    "KPAR": 2,
     "NCORE": 4,
     "GGA": "PE",
-    "AMIX": 0.2,
+    "AMIX": 0.4,
     "BMIX": 1e-4,
     "AMIX_MAG": 0.8,
     "BMIX_MAG": 1e-4,
@@ -104,7 +104,7 @@ def run_locally(force=False):
                 extend_poscar=(2, 2, 2),
             )
 
-            oj_data = worker.run_flow(name, struct, flowdir)
+            oj_data = worker.run_flow(name, struct, flowdir, resume=not force)
             if not oj_data:
                 raise ValueError(f"OJ flow for structure {name} did not return any data")
             
@@ -128,7 +128,7 @@ def submit_job(force=False):
         job_name="gml-oj",
         output_log="em-oj.log",
         nodes=1,
-        ntasks=56,
+        ntasks=32,
     )
     job_id = manager.submit_command(
         command=f"python {__file__} --local {'--force' if force else ''}",

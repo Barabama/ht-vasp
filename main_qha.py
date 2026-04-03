@@ -26,20 +26,20 @@ vasp_args = {
 }
 
 global_incar = {
-    "KPAR": 2,
+    "KPAR": 4,
     "NCORE": 2,
     "GGA": "PE",
-    # "AMIX": 0.4,
-    # "BMIX": 1e-4,
-    # "AMIX_MAG": 0.08,
-    # "BMIX_MAG": 1e-4,
+    "AMIX": 0.4,
+    "BMIX": 1e-4,
+    "AMIX_MAG": 0.8,
+    "BMIX_MAG": 1e-4,
 }
 relax_incar = {
     "KPAR": 4,
-    "NCORE": 1,
+    "NCORE": 2,
 }
 phonon_incar = {
-    "KPAR": 1,
+    "KPAR": 2,
     "NCORE": 4,
 }
 
@@ -111,10 +111,10 @@ def run_locally(force=False):
                 relax_incar=relax_incar,
                 eos_incar=relax_incar,
                 phonon_incar=phonon_incar,
-                temperature_range=(0, 3100, 50)
+                temperature_range=(0, 3100, 50),
                 supercell_matrix=((2, 0, 0), (0, 2, 0), (0, 0, 2)),
             )
-            qha_data = worker.run_flow(name, struct, flowdir)
+            qha_data = worker.run_flow(name, struct, flowdir, resume=not force)
             if not qha_data:
                 result = {"name": name, "state": "failed", "struct": struct.as_dict()}
             result = {"name": name, "state": "successful", **qha_data}
@@ -137,7 +137,7 @@ def submit_job(force=False):
         job_name="gml-qha",
         output_log="em-qha.log",
         nodes=1,
-        ntasks=56,
+        ntasks=48,
     )
     job_id = manager.submit_command(
         command=f"python {__file__} --local {'--force' if force else ''}",
