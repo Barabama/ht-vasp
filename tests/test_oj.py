@@ -60,7 +60,7 @@ def test_worker_creation():
 
     print(f"✓ Worker created: {worker.worker_name}")
     print(f"✓ Has oj_maker: {hasattr(worker, 'oj_maker')}")
-    
+
     oj_maker = worker.oj_maker
     print(f"✓ OJ maker: {type(oj_maker).__name__}")
 
@@ -169,8 +169,17 @@ def test_oj_result_model():
 
     if result.configs_data:
         cfg = result.configs_data[0]
-        expected_keys = ["flip_name", "total_energy", "free_energy", "energy_wo_entrp",
-                         "fermi_energy", "initial_moments", "final_moments", "positions", "basis"]
+        expected_keys = [
+            "flip_name",
+            "total_energy",
+            "free_energy",
+            "energy_wo_entrp",
+            "fermi_energy",
+            "initial_moments",
+            "final_moments",
+            "positions",
+            "basis",
+        ]
         missing = [k for k in expected_keys if k not in cfg]
         if not missing:
             print(f"✓ configs_data[0] has all expected keys")
@@ -215,10 +224,12 @@ def test_summary_with_warnings():
 
     if "warnings" in summary:
         print(f"✓ Warnings: {summary['warnings']}")
-        assert any("condition" in w.lower() for w in summary["warnings"]), \
-            "Expected high condition number warning"
-        assert any("Tc_RPA" in w or "negative" in w.lower() for w in summary["warnings"]), \
-            "Expected Tc_RPA warning"
+        assert any(
+            "condition" in w.lower() for w in summary["warnings"]
+        ), "Expected high condition number warning"
+        assert any(
+            "Tc_RPA" in w or "negative" in w.lower() for w in summary["warnings"]
+        ), "Expected Tc_RPA warning"
         print(f"✓ Warnings correctly generated")
     else:
         print("✗ Expected warnings but none found")
@@ -365,7 +376,6 @@ def run_locally():
     """Run OJ workflow locally (requires OstravaJ and VASP)"""
     from htvasp.workflows import OJWorker
 
-
     structure = Structure(
         lattice=[[2.85, 0, 0], [0, 2.85, 0], [0, 0, 2.85]],
         species=["Fe", "Fe"],
@@ -381,7 +391,7 @@ def run_locally():
     vasp_args = {
         "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
         "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
-    }    
+    }
     worker = OJWorker(
         worker_name="oj-Fe",
         vasp_args=vasp_args,
@@ -403,6 +413,7 @@ def run_locally():
         log.info(f"Output saved to {json_path}")
 
         from htvasp.oj.task_doc import OJResult
+
         oj_result = OJResult.from_solution(output)
         summary = oj_result.to_summary()
 
@@ -414,7 +425,11 @@ def run_locally():
         print(f"Tc (RPA): {summary.get('Tc_RPA')} K")
         print(f"E_DLM: {summary.get('E_DLM')} eV/atom")
         print(f"avg magnetic moment: {summary.get('avg_magnetic_moment')} mu_B")
-        print(f"condition number: {summary.get('condition_number'):.2e}" if summary.get('condition_number') else "condition number: N/A")
+        print(
+            f"condition number: {summary.get('condition_number'):.2e}"
+            if summary.get("condition_number")
+            else "condition number: N/A"
+        )
         if "warnings" in summary:
             print(f"Warnings: {summary['warnings']}")
     else:

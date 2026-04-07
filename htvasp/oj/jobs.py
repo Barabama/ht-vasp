@@ -9,51 +9,16 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from jobflow import job
 from pymatgen.core import Structure
-from pymatgen.io.vasp import Outcar
 
 from htvasp.oj.input_set import OJInputSetGenerator, write_oj_input_set
 
 log = logging.getLogger(__name__)
 
 OJ_SCRIPT = Path(__file__).parent.parent.parent.joinpath("ostravaj", "ostravaj.sh")
-
-
-def _run_vasp(flip_dir: Path, vasp_cmd: str) -> dict[str, Any]:
-    """Run VASP in a single directory"""
-    result = subprocess.run(
-        vasp_cmd,
-        shell=True,
-        cwd=flip_dir,
-        capture_output=True,
-        text=True,
-    )
-
-    if result.returncode != 0:
-        return {
-            "flip_dir": str(flip_dir),
-            "success": False,
-            "error": result.stderr,
-            "returncode": result.returncode,
-        }
-
-    energy = None
-    outcar = flip_dir.joinpath("OUTCAR")
-    if outcar.exists():
-        try:
-            energy = Outcar(outcar).final_energy
-        except Exception as e:
-            log.warning(f"Failed to parse OUTCAR in {flip_dir}: {e}")
-
-    return {
-        "flip_dir": str(flip_dir),
-        "success": True,
-        "energy": energy,
-        "returncode": 0,
-    }
 
 
 @job
@@ -107,59 +72,56 @@ def oj_generate(
 
 
 @job
-def oj_vasp(flip_dirs: list[str], vasp_cmd: str) -> dict[str, Any]:
-    """Run VASP for all magnetic configurations in serial
-
-    Args:
-        flip_dirs: List of flip directory paths
-        vasp_cmd: VASP command to run
-
-    Returns:
-        Dictionary with results summary
-    """
-    results = []
-    for flip_dir in flip_dirs:
-        flip_path = Path(flip_dir)
-        log.info(f"Running VASP in {flip_dir}")
-        result = _run_vasp(flip_path, vasp_cmd)
-        results.append(result)
-
-        if result["success"]:
-            log.info(
-                f"VASP completed successfully in {flip_dir}, energy={result.get('energy')}"
-            )
-        else:
-            log.error(f"VASP failed in {flip_dir}: {result.get('error')}")
-
-    successful = sum(1 for r in results if r["success"])
-    log.info(f"VASP batch: {successful}/{len(flip_dirs)} successful")
-
-    return {
-        "flip_dirs": flip_dirs,
-        "results": results,
-        "num_successful": successful,
-        "num_total": len(flip_dirs),
-    }
-
-
-@job
-def oj_solve(run_dir: str, vasp_results: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def oj_solve(run_dir: str, flip_task_docs: list[Any] | None = None) -> dict[str, Any]:
     """Solve for exchange parameters using OstravaJ
 
     Args:
         run_dir: Directory containing flip configurations
-        vasp_results: Optional list of VASP results (for validation)
+        flip_task_docs: List of TaskDoc objects or dicts from FlipMaker jobs.
+            Each TaskDoc contains dir_name pointing to the flip directory
+            with vasprun.xml.
 
     Returns:
         Dictionary with J parameters and Tc values
     """
+    from emmet.core.tasks import TaskDoc
+
     run_path = Path(run_dir)
 
-    if vasp_results:
-        failed = [r for r in vasp_results if not r.get("success")]
-        if failed:
-            log.warning(f"{len(failed)} VASP calculations failed, solution may be inaccurate")
+    # Filter successful flips based on TaskDoc state
+    successful_flips = []
+    if flip_task_docs:
+        for task_doc in flip_task_docs:
+            # Handle both TaskDoc objects and dicts
+            if isinstance(task_doc, TaskDoc):
+                # TaskDoc is a Pydantic model - access attributes directly
+                state = getattr(task_doc, "state", None)
+                flip_dir = getattr(task_doc, "dir_name", None)
+            elif isinstance(task_doc, dict):
+                # Fallback for dict format
+                state = task_doc.get("state", "failed")
+                flip_dir = task_doc.get("dir_name")
+            else:
+                log.warning(f"Unexpected task_doc type: {type(task_doc)}, skipping")
+                continue
 
+            # Check if calculation was successful
+            if state == "successful" and flip_dir and Path(flip_dir).exists():
+                successful_flips.append(flip_dir)
+
+    if not successful_flips:
+        log.error("No successful flip calculations found")
+        return {
+            "error": "No successful flips",
+            "run_dir": run_dir,
+        }
+
+    log.info(f"Found {len(successful_flips)} successful flip calculations")
+
+    # Call ostravaj solve - it will scan run_dir for flip directories
+    # Note: Currently ostravaj CLI auto-scans run_dir, so we rely on all
+    # successful flips being present there. Future enhancement could pass
+    # explicit flip dirs via --flip-dirs argument.
     cmd = [str(OJ_SCRIPT), "solve", "-r", str(run_path)]
 
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -175,6 +137,8 @@ def oj_solve(run_dir: str, vasp_results: list[dict[str, Any]] | None = None) -> 
         with open(solution_file) as f:
             solution = json.load(f)
         solution["run_dir"] = run_dir
+        solution["num_successful_flips"] = len(successful_flips)
+        solution["successful_flip_dirs"] = successful_flips
         return solution
 
     return {

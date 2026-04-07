@@ -53,10 +53,12 @@ def _check_job_completed(job: Job, store: JobStore, resume: bool) -> dict | None
         # First try by uuid and index (exact match)
         existing_doc = store.query_one(criteria={"uuid": job.uuid, "index": job.index})
 
-        # If not found by uuid, try by name and index (more flexible)
+        # If not found by uuid, try by name and index (more flexible for dynamic jobs)
         if existing_doc is None:
             existing_doc = store.query_one(criteria={"name": job.name, "index": job.index})
 
+        # Additional check: If the job is a dynamic flow creator (like create_flip_jobs),
+        # we might need to ensure its dependencies are also resolvable.
         if existing_doc is not None:
             logger.debug(f"Found completed job: {job.name} (index {job.index})")
         return existing_doc
@@ -74,6 +76,8 @@ def _load_existing_output(existing_doc: dict, store: JobStore) -> Response:
         return Response(output=existing_output)
     except Exception as load_error:
         logger.warning(f"Could not load existing output, using dummy response: {load_error}")
+        # Return a dummy response to allow flow to continue if possible,
+        # but this might cause issues for downstream jobs depending on the output.
         return Response(output=None)
 
 
@@ -258,9 +262,16 @@ def run_locally_custom(
         existing_doc = _check_job_completed(job, store, resume)
         if existing_doc is not None:
             logger.info(f"Job {job.name} (index {job.index}) already completed, skipping...")
-            existing_response = _load_existing_output(existing_doc, store)
-            responses[job.uuid][job.index] = existing_response
-            return existing_response, False
+            try:
+                existing_response = _load_existing_output(existing_doc, store)
+                responses[job.uuid][job.index] = existing_response
+                return existing_response, False
+            except Exception as load_err:
+                logger.warning(
+                    f"Failed to load existing output for {job.name}: {load_err}. Re-running job."
+                )
+                # If loading fails, we must re-run the job to regenerate the output
+                # This handles cases where Store metadata exists but data is corrupted or missing
 
         # Run the job
         if raise_immediately:
