@@ -138,7 +138,24 @@ class StaticWorker(Worker):
         flow_dir: Path | str,
         dir_format: str = "{name}",
         store_path: Path | str = "",
+        fireworks: bool = True,
+        resume: bool = True,
     ) -> dict[str, Any] | None:
+        """
+        Run the static workflow.
+
+        Args:
+            name: Structure name for identification
+            structure: Input structure
+            flow_dir: Directory to run the flow in
+            dir_format: Directory format for job subdirectories
+            store_path: Path to the JSON store for job tracking
+            fireworks: Whether to use FireWorks for job management
+            resume: Whether to resume from previous completed jobs
+
+        Returns:
+            Dictionary with static calculation result or None if failed
+        """
         flow_dir = Path(flow_dir)
         flow_dir.mkdir(parents=True, exist_ok=True)
 
@@ -152,6 +169,7 @@ class StaticWorker(Worker):
             additional_stores={"data": MemoryStore()},
         )
 
+        # Build the workflow
         relax_maker, static_maker = self.flow_makers
         relax_job = relax_maker.make(structure)
         static_job = static_maker.make(

@@ -7,20 +7,15 @@ The OJ worker generates magnetic configurations, runs VASP, and solves for J par
 
 import json
 import logging
-import traceback
-from pathlib import Path
 from datetime import datetime
 from typing import Any, Literal
-
 from pymatgen.core import Structure
-from maggma.stores import JSONStore, MemoryStore
 from custodian.vasp.handlers import VaspErrorHandler
-from jobflow import Flow, JobStore
+from jobflow import Flow
 
 from htvasp.workflows.base import Worker
 from htvasp.oj.input_set import OJInputSetGenerator
 from htvasp.oj.maker import OJMaker
-from htvasp.utils.run_locally import run_locally_custom
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +71,8 @@ class OJWorker(Worker):
         worker_name: str,
         vasp_args: dict[str, Any],
         potcar_functional: Literal["PBE", "PBE_54", "PBE_64"] = "PBE_64",
-        oj_incar: dict[str, Any] | None = None,
+        use_fireworks: bool = True,
+        global_incar: dict[str, Any] | None = None,
         j_count: int = 4,
         dist_cutoff: float | None = None,
         magnetic_ion_types: list[str] = [],
@@ -85,41 +81,13 @@ class OJWorker(Worker):
         extend_poscar: tuple[int, int, int] = (2, 2, 2),
         **kwargs,
     ):
-        self.store = None
-        self.worker_name = worker_name
-
-        default_incar = {
-            "ENCUT": 450,
-            "ISTART": 0,
-            "ICHARG": 2,
-            # Electronic
-            "ISMEAR": 1,
-            "SIGMA": 0.1,
-            "ALGO": "Normal",
-            "NELM": 200,
-            "NELMIN": 6,
-            "NELMDL": -6,
-            # Ionic
-            "IBRION": 2,
-            "ISIF": 3,
-            "NSW": 100,
-            "POTIM": 0.2,
-            "EDIFF": 1e-6,
-            "EDIFFG": -0.01,
-            # Magnetic
-            "ISPIN": 2,
-            # Precision
-            "ISYM": 0,
-            "LREAL": "Auto",
-            "PREC": "Accurate",
-            "SYMPREC": 1e-5,
-            # Output
-            "LWAVE": False,
-            "LCHARG": False,
-            "LORBIT": 11,
-        }
-
-        default_incar.update(oj_incar or {})
+        super().__init__(
+            worker_name=worker_name,
+            vasp_args=vasp_args,
+            potcar_functional=potcar_functional,
+            use_fireworks=use_fireworks,
+            global_incar=global_incar,
+        )
 
         oj_maker = OJMaker(
             run_vasp_kwargs={"handlers": [VaspErrorHandler()], **vasp_args},
@@ -127,7 +95,7 @@ class OJWorker(Worker):
             input_set_generator=OJInputSetGenerator(
                 user_potcar_functional=potcar_functional,
                 user_incar_settings={
-                    **default_incar,
+                    **self.global_incar,
                 },
                 j_count=j_count,
                 dist_cutoff=dist_cutoff,
@@ -138,77 +106,10 @@ class OJWorker(Worker):
             ),
         )
 
-        self.oj_maker = oj_maker
+        self.flow_maker = oj_maker
 
-    def run_flow(
-        self,
-        name: str,
-        structure: Structure,
-        flow_dir: Path | str,
-        dir_format: str = "{name}",
-        store_path: Path | str = "",
-        resume: bool = True,
-    ) -> dict[str, Any] | None:
-        """Run the OJ workflow
-
-        Args:
-            name: Structure name
-            structure: Input structure
-            flow_dir: Flow directory
-            dir_format: Directory format for job folders
-            store_path: Path to store results
-            resume: Whether to resume from previously completed jobs (default: True)
-
-        Returns:
-            Dictionary containing OJ calculation results (J parameters, Tc, etc.)
-        """
-        flow_dir = Path(flow_dir)
-        flow_dir.mkdir(parents=True, exist_ok=True)
-
-        # Initialize store
-        if not store_path:
-            store_path = Path(flow_dir, "store.json").resolve()
-        else:
-            store_path = Path(store_path).resolve()
-
-        self.store = JobStore(
-            JSONStore(str(store_path), read_only=False),
-            additional_stores={"data": MemoryStore()},
-        )
-
-        oj_flow = self.oj_maker.make(structure)
-        flow = Flow([oj_flow], output=oj_flow.output, name=name)
-
-        log.info(f"Running OJ flow for struct {name} in {flow_dir}")
-
-        try:
-            run_locally_custom(
-                flow,
-                store=self.store,
-                root_dir=flow_dir,
-                dir_format=dir_format,
-                resume=resume,
-            )
-
-            self.store.connect()
-
-            oj_job_doc = self.store.query_one(
-                criteria={"name": {"$regex": "solve"}},
-                properties=["uuid", "index", "name"],
-                sort={"index": -1},
-            )
-            if not oj_job_doc:
-                raise ValueError(f"No 'solve' job found in store {store_path}")
-
-            oj_output = self.store.get_output(uuid=oj_job_doc["uuid"], which="last", load=True)
-            log.info(f"OJ flow for {name} completed successfully")
-
-            return oj_output
-
-        except Exception as e:
-            log.error(f"OJ flow for struct {name} failed: {e}")
-            log.error(traceback.format_exc())
-            return None
-
-        finally:
-            self.close()
+    def _make_flow(self, structure: Structure) -> Flow:
+        return self.flow_maker.make(structure)
+    
+    def get_result(self, output_job_name: str = "solve") -> dict[str, Any] | None:
+        return super().get_result(output_job_name)

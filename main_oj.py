@@ -26,7 +26,36 @@ vasp_args = {
 }
 
 # oj_incar to override INCAR settings for OJ calculations
-oj_incar = {
+global_incar = {
+    "ENCUT": 450,
+    "ISTART": 0,
+    "ICHARG": 2,
+    # Electronic
+    "ISMEAR": 1,
+    "SIGMA": 0.1,
+    "ALGO": "Normal",
+    "NELM": 200,
+    "NELMIN": 6,
+    "NELMDL": -6,
+    # Ionic
+    "IBRION": 2,
+    "ISIF": 3,
+    "NSW": 100,
+    "POTIM": 0.2,
+    "EDIFF": 1e-6,
+    "EDIFFG": -0.02,
+    # Magnetic
+    "ISPIN": 2,
+    # Precision
+    "ISYM": 0,
+    "LREAL": "Auto",
+    "PREC": "Accurate",
+    "SYMPREC": 1e-5,
+    # Output
+    "LWAVE": False,
+    "LCHARG": False,
+    "LORBIT": 11,
+    "GGA": "PE",
     "KPAR": 2,
     "NCORE": 4,
     "GGA": "PE",
@@ -36,10 +65,10 @@ oj_incar = {
     "BMIX_MAG": 1e-4,
 }
 struct_names = [
-    # "SER-Co",
-    # "SER-Fe",
-    # "SER-Mn",
-    # "SER-Ni",
+    "SER-Co",
+    "SER-Fe",
+    "SER-Mn",
+    "SER-Ni",
     # "BCC-Co-Co",
     # "BCC-Co-Fe",
     # "BCC-Co-Mn",
@@ -50,23 +79,22 @@ struct_names = [
     # "BCC-Mn-Mn",
     # "BCC-Mn-Ni",
     # "BCC-Ni-Ni",
-
     "FCC-Co-Co",
-    "FCC-Co-Fe",
-    "FCC-Co-Mn",
-    "FCC-Co-Ni",
-    "FCC-Fe-Co",
-    "FCC-Fe-Fe",
-    "FCC-Fe-Mn",
-    "FCC-Fe-Ni",
-    "FCC-Mn-Co",
-    "FCC-Mn-Fe",
-    "FCC-Mn-Mn",
-    "FCC-Mn-Ni",
-    "FCC-Ni-Co",
-    "FCC-Ni-Fe",
-    "FCC-Ni-Mn",
-    "FCC-Ni-Ni",
+    # "FCC-Co-Fe",
+    # "FCC-Co-Mn",
+    # "FCC-Co-Ni",
+    # "FCC-Fe-Co",
+    # "FCC-Fe-Fe",
+    # "FCC-Fe-Mn",
+    # "FCC-Fe-Ni",
+    # "FCC-Mn-Co",
+    # "FCC-Mn-Fe",
+    # "FCC-Mn-Mn",
+    # "FCC-Mn-Ni",
+    # "FCC-Ni-Co",
+    # "FCC-Ni-Fe",
+    # "FCC-Ni-Mn",
+    # "FCC-Ni-Ni",
 ]
 
 
@@ -100,15 +128,21 @@ def run_locally(force=False):
             worker = OJWorker(
                 worker_name=f"{name}-oj",
                 vasp_args=vasp_args,
-                oj_incar=oj_incar,
+                global_incar=global_incar,
                 j_count=4,
                 extend_poscar=(2, 2, 2),
             )
 
-            oj_data = worker.run_flow(name, struct, flowdir, resume=not force)
+            worker.run_flow(
+                name,
+                struct,
+                flowdir,
+                resume=not force,
+            )
+            oj_data = worker.get_result()
             if not oj_data:
                 raise ValueError(f"OJ flow for structure {name} did not return any data")
-            
+
             result = {"name": name, "state": "successful", **oj_data}
 
         except Exception as e:

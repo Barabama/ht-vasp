@@ -385,8 +385,8 @@ def run_locally():
     flow_dir = Path("temp", "oj-Fe")
     json_path = flow_dir.joinpath("oj_Fe.json")
 
-    if flow_dir.exists():
-        shutil.rmtree(flow_dir)
+    # if flow_dir.exists():
+    #     shutil.rmtree(flow_dir)
 
     vasp_args = {
         "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
@@ -395,7 +395,7 @@ def run_locally():
     worker = OJWorker(
         worker_name="oj-Fe",
         vasp_args=vasp_args,
-        oj_incar={"GGA": "PE"},
+        global_incar={"GGA": "PE"},
         j_count=2,
         extend_poscar=(1, 1, 1),
     )

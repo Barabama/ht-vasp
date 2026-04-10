@@ -5,6 +5,7 @@ Output schema for OstravaJ magnetic exchange calculations.
 """
 
 from datetime import datetime
+from functools import cached_property
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -104,6 +105,24 @@ class OJResult(BaseModel):
             J_mat=solution.get("J_mat", []),
         )
 
+    @cached_property
+    def j_pairs_dict(self) -> dict[str, float]:
+        """Get J pairs as a dictionary with formatted keys (cached).
+
+        Returns:
+            Dictionary mapping J representation to J value
+
+        Example:
+            >>> result = OJResult(J_reprs=[["Fe", "Fe", 1]], Js=[10.5])
+            >>> result.j_pairs_dict
+            {'Fe-Fe-1': 10.5}
+        """
+        if not self.J_reprs or not self.Js:
+            return {}
+
+        formatted_reprs = [format_j_repr(j) for j in self.J_reprs]
+        return dict(zip(formatted_reprs, self.Js))
+
     def get_j_pairs_dict(self) -> dict[str, float]:
         """Get J pairs as a dictionary with formatted keys
 
@@ -115,11 +134,7 @@ class OJResult(BaseModel):
             >>> result.get_j_pairs_dict()
             {'Fe-Fe-1': 10.5}
         """
-        if not self.J_reprs or not self.Js:
-            return {}
-
-        formatted_reprs = [format_j_repr(j) for j in self.J_reprs]
-        return dict(zip(formatted_reprs, self.Js))
+        return self.j_pairs_dict
 
     def to_summary(self) -> dict[str, Any]:
         """Return summary dict"""

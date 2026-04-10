@@ -31,6 +31,10 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _default_stop_children() -> dict[str, Any]:
+    return {"handle_unsuccessful": False}
+
+
 @dataclass
 class FlipMaker(Maker):
     """
@@ -169,9 +173,11 @@ def create_flip_jobs(
     if task_document_kwargs is None:
         task_document_kwargs = {}
 
-    flip_jobs = []
+    num_flips = len(flip_dirs)
+    flip_jobs = [None] * num_flips
 
-    for i, flip_dir in enumerate(flip_dirs):
+    for i in range(num_flips):
+        flip_dir = flip_dirs[i]
         flip_maker = FlipMaker(
             flip_dir=flip_dir,
             run_vasp_kwargs=run_vasp_kwargs,
@@ -180,15 +186,12 @@ def create_flip_jobs(
             name=f"oj_flip_{i}",
         )
 
-        # Create job using the maker
-        # Note: We call make() with None structure since FlipMaker doesn't need it
         flip_job = flip_maker.make(structure=None)
         flip_job.name = f"oj_flip_{i}"
-        flip_jobs.append(flip_job)
+        flip_jobs[i] = flip_job
 
-    # Return Flow containing all flip jobs
-    # The output is a list of TaskDocs from each flip job
-    return Flow(jobs=flip_jobs, output=[job.output for job in flip_jobs])
+    valid_jobs = [job for job in flip_jobs if job is not None]
+    return Flow(jobs=valid_jobs, output=[job.output for job in valid_jobs])
 
 
 @dataclass

@@ -103,7 +103,7 @@ class OJInputSetGenerator(VaspInputGenerator):
             "ISIF": 3,
             "NSW": 50,
             "EDIFF": 1e-6,
-            "EDIFFG": -0.01,
+            "EDIFFG": -0.02,
             "ISYM": 0,
             "LREAL": "Auto",
             "LORBIT": 11,
@@ -163,20 +163,17 @@ class OJInputSetGenerator(VaspInputGenerator):
         Returns:
             A VaspInputSet object.
         """
-        # Remove magmom site property so VaspInputGenerator won't write MAGMOM
-        if structure is not None and "magmom" in structure.site_properties:
+        if structure is not None and structure.site_properties.get("magmom"):
             structure = structure.copy()
             structure.remove_site_property("magmom")
             log.debug("Stripped 'magmom' site property from structure for OJ input set")
 
-        # Call parent get_input_set
         input_set = super().get_input_set(
             structure=structure,
             prev_dir=prev_dir,
             potcar_spec=potcar_spec,
         )
 
-        # Belt-and-suspenders: also remove MAGMOM from INCAR if still present
         if "MAGMOM" in input_set.incar:
             del input_set.incar["MAGMOM"]
             log.debug("Removed MAGMOM key from generated INCAR for OJ input set")

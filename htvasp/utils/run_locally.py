@@ -44,23 +44,93 @@ def _find_existing_job_dir(job: Job, root_dir: Path, resume: bool) -> Path | Non
     return None
 
 
-def _check_job_completed(job: Job, store: JobStore, resume: bool) -> dict | None:
-    """Check if a job has already been completed in the store."""
+def _check_and_clean_broken_refs(job: Job, store: JobStore, parents: list[str]) -> bool:
+    """
+    Pre-check references and clean up broken records to allow re-run.
+    Returns True if the job is safe to run, False if it needs to be skipped/errored.
+    """
+    from jobflow.core.reference import OutputReference
+
+    def find_refs(obj):
+        if isinstance(obj, OutputReference):
+            return [obj]
+        elif isinstance(obj, dict):
+            return [r for v in obj.values() for r in find_refs(v)]
+        elif isinstance(obj, (list, tuple)):
+            return [r for item in obj for r in find_refs(item)]
+        return []
+
+    refs = find_refs(job.function_kwargs) + find_refs(job.function_args)
+
+    for ref in refs:
+        try:
+            ref.resolve(store)
+        except ValueError:
+            logger.error(
+                f"[REF-CHECK] Broken reference detected in {job.name}: UUID {ref.uuid[:8]} missing."
+            )
+            logger.info(
+                f"[REF-CHECK] Cleaning up store records for {job.name} and parents to force re-generation of refs."
+            )
+
+            # Clean current job
+            store.remove_docs({"uuid": job.uuid})
+            store.remove_docs({"name": job.name})
+
+            # Clean parents that might have stale UUIDs
+            for p_uuid in parents:
+                store.remove_docs({"uuid": p_uuid})
+
+            return False
+    return True
+
+
+def _check_job_completed(
+    job: Job, store: JobStore, resume: bool, job_dir: Path | None = None
+) -> dict | None:
+    """Check if a job has already been completed using name-based matching."""
     if not resume:
         return None
 
     try:
-        # First try by uuid and index (exact match)
+        logger.info(
+            f"[DEBUG] Checking completion for: {job.name} (UUID: {job.uuid[:8]}, Index: {job.index})"
+        )
+
+        # Strategy 1: Try exact UUID match (fastest)
         existing_doc = store.query_one(criteria={"uuid": job.uuid, "index": job.index})
+        if existing_doc:
+            logger.info(f"[DEBUG] Found exact UUID match in Store for {job.name}")
 
-        # If not found by uuid, try by name and index (more flexible for dynamic jobs)
+        # Strategy 2: Name-based fuzzy match (robust for dynamic flows)
         if existing_doc is None:
-            existing_doc = store.query_one(criteria={"name": job.name, "index": job.index})
+            logger.info(f"[DEBUG] UUID not found, trying name-match for: {job.name}")
+            candidates = list(store.query(criteria={"name": job.name, "index": job.index}))
+            logger.info(f"[DEBUG] Found {len(candidates)} candidates by name for {job.name}")
 
-        # Additional check: If the job is a dynamic flow creator (like create_flip_jobs),
-        # we might need to ensure its dependencies are also resolvable.
+            for candidate in candidates:
+                # If we have a physical directory, verify it exists and has output
+                if job_dir and job_dir.exists():
+                    # Check for common success markers in the directory
+                    markers = ["vasprun.xml.gz", "task.json.gz", "OJ_solution.json"]
+                    found_markers = [m for m in markers if job_dir.joinpath(m).exists()]
+                    if found_markers:
+                        logger.info(
+                            f"[DEBUG] Physical evidence found in {job_dir}: {found_markers}"
+                        )
+                        existing_doc = candidate
+                        break
+                else:
+                    # Fallback: just take the last recorded instance of this name
+                    existing_doc = candidate
+
         if existing_doc is not None:
-            logger.debug(f"Found completed job: {job.name} (index {job.index})")
+            logger.info(
+                f"[DEBUG] Will skip {job.name} using doc UUID: {existing_doc['uuid'][:8]}"
+            )
+        else:
+            logger.info(f"[DEBUG] No match found for {job.name}, will execute.")
+
         return existing_doc
     except Exception as e:
         logger.debug(f"Error checking job completion: {e}")
@@ -259,32 +329,63 @@ def run_locally_custom(
             return None, False
 
         # Check if job is already completed in store
-        existing_doc = _check_job_completed(job, store, resume)
+        job_dir = _get_job_dir(job)
+        existing_doc = _check_job_completed(job, store, resume, job_dir)
+
         if existing_doc is not None:
-            logger.info(f"Job {job.name} (index {job.index}) already completed, skipping...")
+            logger.info(
+                f"Job {job.name} (index {job.index}) matched via name/UUID, attempting to skip..."
+            )
             try:
                 existing_response = _load_existing_output(existing_doc, store)
                 responses[job.uuid][job.index] = existing_response
-                return existing_response, False
+
+                if existing_response.output is None:
+                    logger.warning(
+                        f"[SKIP-FAIL] Dummy output loaded for {job.name}. Will execute instead."
+                    )
+                else:
+                    # CRITICAL: Verify that the skipped job's output doesn't contain broken refs for downstream
+                    existing_response.job_dir = job_dir
+                    return existing_response, False
             except Exception as load_err:
                 logger.warning(
-                    f"Failed to load existing output for {job.name}: {load_err}. Re-running job."
+                    f"[SKIP-FAIL] Load error for {job.name}: {load_err}. Will execute."
                 )
-                # If loading fails, we must re-run the job to regenerate the output
-                # This handles cases where Store metadata exists but data is corrupted or missing
+
+        # Pre-flight check for references before running
+        if not _check_and_clean_broken_refs(job, store, parents):
+            errored.add(job.uuid)
+            return None, False
 
         # Run the job
-        if raise_immediately:
-            response = job.run(store=store)
-        else:
-            try:
+        with cd(job_dir):
+            if raise_immediately:
                 response = job.run(store=store)
-            except Exception:
-                import traceback
+            else:
+                try:
+                    response = job.run(store=store)
+                except ValueError as ve:
+                    if "Could not resolve reference" in str(ve):
+                        logger.error(
+                            f"Reference broken for {job.name}. This usually means upstream jobs need to be re-run."
+                        )
+                        logger.error(
+                            f"Suggestion: Delete store.json in {root_dir} and re-run with --force if persistent."
+                        )
 
-                logger.info(f"{job.name} failed with exception:\n{traceback.format_exc()}")
-                errored.add(job.uuid)
-                return None, False
+                        # Mark all parents as errored to prevent further cascading failures
+                        for p_uuid in parents:
+                            errored.add(p_uuid)
+                        errored.add(job.uuid)
+                        return None, False
+                    raise
+                except Exception:
+                    import traceback
+
+                    logger.info(f"{job.name} failed with exception:\n{traceback.format_exc()}")
+                    errored.add(job.uuid)
+                    return None, False
 
         responses[job.uuid][job.index] = response
 
@@ -316,12 +417,13 @@ def run_locally_custom(
         """Run a flow."""
         encountered_bad_response = False
         for job, parents in root_flow.iterflow():
-            job_dir = _get_job_dir(job)
-            with cd(job_dir):
-                response, jobflow_stopped = _run_job(job, parents)
+            response, jobflow_stopped = _run_job(job, parents)
 
             if response is not None:
-                response.job_dir = job_dir
+                # Note: job_dir is already set inside _run_job for skipped jobs
+                if not hasattr(response, "job_dir") or response.job_dir is None:
+                    response.job_dir = _get_job_dir(job)
+
             encountered_bad_response = encountered_bad_response or response is None
             if jobflow_stopped:
                 return False

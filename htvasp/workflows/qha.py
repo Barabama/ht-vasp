@@ -10,19 +10,17 @@ import traceback
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
+from jobflow import Flow
 from pymatgen.core import Structure
 from atomate2.vasp.flows.core import DoubleRelaxMaker
 from atomate2.vasp.flows.phonons import PhononMaker
 from atomate2.vasp.flows.qha import QhaMaker
-from atomate2.vasp.jobs.core import TightRelaxMaker, DielectricMaker
+from atomate2.vasp.jobs.core import RelaxMaker, DielectricMaker
 from atomate2.vasp.jobs.phonons import PhononDisplacementMaker
-from atomate2.vasp.sets.core import StaticSetGenerator, TightRelaxSetGenerator
+from atomate2.vasp.sets.core import StaticSetGenerator, RelaxSetGenerator
 from custodian.vasp.handlers import VaspErrorHandler
-from maggma.stores import JSONStore, MemoryStore
-from jobflow.core.store import JobStore
 
 from htvasp.workflows.base import Worker
-from htvasp.utils.run_locally import run_locally_custom
 
 log = logging.getLogger(__name__)
 
@@ -66,65 +64,33 @@ class QhaWorker(Worker):
         phonon_incar: dict[str, Any] | None = None,
         temperature_range: tuple[int, int, int] = (0, 3000, 50),
         supercell_matrix: tuple = ((2, 0, 0), (0, 2, 0), (0, 0, 2)),
+        execution_mode: Literal["local", "fireworks"] = "local",
+        fireworks_config_dir: Path | str | None = None,
         **kwargs,
     ):
-        # Store will be initialized in run_flow to allow custom paths
-        self.store = None
-        self.worker_name = worker_name
+        super().__init__(
+            worker_name=worker_name,
+            vasp_args=vasp_args,
+            potcar_functional=potcar_functional,
+            global_incar=global_incar,
+            execution_mode=execution_mode,
+            fireworks_config_dir=fireworks_config_dir,
+        )
 
         self.supercell_matrix = supercell_matrix
-
-        # Default INCAR settings
-        default_incar = {
-            "ENCUT": 450,
-            "ISTART": 0,
-            "ICHARG": 2,
-            # Electronic
-            "ISMEAR": 1,
-            "SIGMA": 0.1,
-            "ALGO": "Normal",
-            "NELM": 200,
-            "NELMIN": 6,
-            "NELMDL": -6,
-            # Ionic
-            "IBRION": 2,
-            "ISIF": 2,
-            "NSW": 100,
-            "POTIM": 0.2,
-            "EDIFF": 1e-6,
-            "EDIFFG": -0.01,
-            # Magnetic
-            "ISPIN": 2,
-            # Precision
-            "ISYM": 0,
-            "LREAL": "Auto",
-            "PREC": "Accurate",
-            "SYMPREC": 1e-5,
-            # Output
-            "LWAVE": False,
-            "LCHARG": False,
-            "LORBIT": None,
-            "LOPTICS": False,
-            "LVTOT": False,
-        }
-        # Override with custom settings
-        if global_incar:
-            default_incar.update(global_incar)
-        global_incar = default_incar
         relax_incar = relax_incar or {}
         eos_incar = eos_incar or {}
         phonon_incar = phonon_incar or {}
 
         # R3 structural relaxation
         initial_relax_maker = DoubleRelaxMaker.from_relax_maker(
-            TightRelaxMaker(
+            RelaxMaker(
                 run_vasp_kwargs={"handlers": [VaspErrorHandler()], **vasp_args},
                 stop_children_kwargs={"handle_unsuccessful": False},
-                input_set_generator=TightRelaxSetGenerator(
+                input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=potcar_functional,
                     user_incar_settings={
-                        **global_incar,
-                        "NELM": 100,
+                        **self.global_incar,
                         "ISIF": 3,
                         **relax_incar,
                     },
@@ -134,13 +100,13 @@ class QhaWorker(Worker):
 
         # EOS relaxation
         eos_relax_maker = DoubleRelaxMaker.from_relax_maker(
-            TightRelaxMaker(
+            RelaxMaker(
                 run_vasp_kwargs={"handlers": [VaspErrorHandler()], **vasp_args},
                 stop_children_kwargs={"handle_unsuccessful": False},
-                input_set_generator=TightRelaxSetGenerator(
+                input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=potcar_functional,
                     user_incar_settings={
-                        **global_incar,
+                        **self.global_incar,
                         "ISIF": 2,
                         **eos_incar,
                     },
@@ -155,7 +121,7 @@ class QhaWorker(Worker):
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=potcar_functional,
                 user_incar_settings={
-                    **global_incar,
+                    **self.global_incar,
                     "IBRION": -1,
                     "ISIF": 2,
                     "NSW": 0,
@@ -187,7 +153,7 @@ class QhaWorker(Worker):
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=potcar_functional,
                 user_incar_settings={
-                    **global_incar,
+                    **self.global_incar,
                     "IBRION": 6,
                     "NELM": 200,
                     "ISIF": 3,
@@ -200,8 +166,7 @@ class QhaWorker(Worker):
             ),
         )
 
-        # QHA maker
-        self.qha_maker = QhaMaker(
+        self.flow_maker = QhaMaker(
             initial_relax_maker=initial_relax_maker,
             eos_relax_maker=eos_relax_maker,
             phonon_maker=phonon_maker,
@@ -210,41 +175,16 @@ class QhaWorker(Worker):
             ignore_imaginary_modes=True,
         )
 
-    def run_flow(
-        self,
-        name: str,
-        structure: Structure,
-        flow_dir: Path | str,
-        dir_format: str = "{name}",
-        store_path: Path | str = "",
-        resume: bool = True,
-    ) -> dict[str, Any] | None:
-        flow_dir = Path(flow_dir)
-        flow_dir.mkdir(parents=True, exist_ok=True)
+    def _make_flow(self, structure: Structure) -> Flow:
+        return self.flow_maker.make(structure, supercell_matrix=self.supercell_matrix)
 
-        # Initialize store
-        if not store_path:
-            store_path = Path(flow_dir, "store.json").resolve()
-        else:
-            store_path = Path(store_path).resolve()
-
-        self.store = JobStore(
-            JSONStore(str(store_path), read_only=False),
-            additional_stores={"data": MemoryStore()},
-        )
-
-        flow = self.qha_maker.make(structure, supercell_matrix=self.supercell_matrix)
-        log.info(f"Running QHA flow for struct {name} in {flow_dir}")
-
+    def get_result(self, output_job_name: str = "analyze_free_energy") -> dict[str, Any] | None:
         try:
-            run_locally_custom(
-                flow,
-                store=self.store,
-                root_dir=flow_dir,
-                dir_format=dir_format,
-                resume=resume,
-            )
-
+            output = super().get_result(output_job_name)
+            if not output:
+                raise ValueError(f"Flow return None for job {output_job_name}")
+            if not self.store:
+                raise ValueError("Store is not initialized. Run the flow first.")
             self.store.connect()
 
             # Get all "phonon static eos deformation *" jobs and sort by deformation index
@@ -264,26 +204,12 @@ class QhaWorker(Worker):
             deformation_data.sort(key=lambda x: x[0])
             deformation_energies = [item[1] for item in deformation_data]
 
-            # Get analyze_free_energy job output
-            qha_job_doc = self.store.query_one(
-                criteria={"name": {"$regex": "analyze_free_energy"}},
-                properties=["uuid", "index", "name"],
-                sort={"index": -1},
-            )
-            if qha_job_doc is None:
-                raise ValueError(f"No 'analyze_free_energy' job found in store {store_path}")
-
-            output = self.store.get_output(uuid=qha_job_doc["uuid"], which="last", load=True)
-            log.info(f"QHA flow for struct {name} completed successfully")
-
-            output["name"] = name
             output["deformation_energies"] = deformation_energies
             return output
 
         except Exception as e:
-            log.error(f"QHA flow for struct {name} failed: {e}")
+            log.error(f"Failed to get result for job: {e}")
             log.error(traceback.format_exc())
             return None
-
         finally:
             self.close()

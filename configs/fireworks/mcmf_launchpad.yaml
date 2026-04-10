@@ -1,0 +1,23 @@
+# mcmf_launchpad.yaml - FireWorks LaunchPad Configuration Template
+# Copy this file to ~/.fireworks/mcmf_launchpad.yaml and update the values
+
+# MongoDB connection settings
+host: 192.168.9.144          # MongoDB server IP (node1)
+port: 27017                   # MongoDB port
+name: fireworks_db            # Database name
+username: fireworks_user      # MongoDB username
+password: fw123456            # MongoDB password (CHANGE THIS!)
+authsource: fireworks_db      # Authentication database
+
+# Logging configuration
+logdir: /home/mcmf429/nfs_hdd/2025/gaominliang/ht-vasp/logs/fireworks
+strm_lvl: INFO                # Log level: DEBUG, INFO, WARNING, ERROR
+
+# Optional: User indices for faster queries
+user_indices: []
+wf_user_indices: []
+
+# Optional: SSL/TLS settings (uncomment if using SSL)
+# ssl: true
+# ssl_ca_certs: /path/to/ca.pem
+# ssl_certfile: /path/to/client.pem

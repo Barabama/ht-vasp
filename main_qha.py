@@ -26,10 +26,40 @@ vasp_args = {
 }
 
 global_incar = {
+            "ENCUT": 450,
+            "ISTART": 0,
+            "ICHARG": 2,
+            # Electronic
+            "ISMEAR": 1,
+            "SIGMA": 0.1,
+            "ALGO": "Normal",
+            "NELM": 200,
+            "NELMIN": 6,
+            "NELMDL": -6,
+            # Ionic
+            "IBRION": 2,
+            "ISIF": 2,
+            "NSW": 100,
+            "POTIM": 0.2,
+            "EDIFF": 1e-6,
+            "EDIFFG": -0.01,
+            # Magnetic
+            "ISPIN": 2,
+            # Precision
+            "ISYM": 0,
+            "LREAL": "Auto",
+            "PREC": "Accurate",
+            "SYMPREC": 1e-5,
+            # Output
+            "LWAVE": False,
+            "LCHARG": False,
+            "LORBIT": None,
+            "LOPTICS": False,
+            "LVTOT": False,
     "KPAR": 4,
     "NCORE": 2,
     "GGA": "PE",
-    "AMIX": 0.4,
+    "AMIX": 0.2,
     "BMIX": 1e-4,
     "AMIX_MAG": 0.8,
     "BMIX_MAG": 1e-4,
@@ -78,7 +108,24 @@ struct_names = [
 
 
 def run_locally(force=False):
-    """Run all structures locally."""
+    """Run all structures locally (legacy function, kept for compatibility)."""
+    run_qha(force=force, execution_mode="local")
+
+
+def run_qha(
+    force: bool = False,
+    execution_mode: str = "local",
+    fw_config_dir: Path | None = None,
+    wait_for_completion: bool = False,
+):
+    """Run all structures in specified mode.
+
+    Args:
+        force: Force re-run even if results exist
+        execution_mode: "local" or "fireworks"
+        fw_config_dir: Directory containing FireWorks config files (fireworks mode only)
+        wait_for_completion: Wait for FireWorks workflow to complete (fireworks mode only)
+    """
     endmember = Endmember()
     for name in struct_names:
         workdir = Path("data/endmembers").joinpath(name)
@@ -96,7 +143,7 @@ def run_locally(force=False):
                 log.info(f"Structure {name} already done")
                 continue
 
-        log.info(f"Structure {name} start")
+        log.info(f"Structure {name} start (mode: {execution_mode})")
 
         # Run QhaWorker
         if force and flowdir.exists():
@@ -113,11 +160,21 @@ def run_locally(force=False):
                 phonon_incar=phonon_incar,
                 temperature_range=(0, 3100, 50),
                 supercell_matrix=((2, 0, 0), (0, 2, 0), (0, 0, 2)),
+                execution_mode=execution_mode,
+                fireworks_config_dir=fw_config_dir,
             )
-            qha_data = worker.run_flow(name, struct, flowdir, resume=not force)
+            worker.run_flow(
+                name,
+                struct,
+                flowdir,
+                resume=not force,
+                wait_for_completion=wait_for_completion,
+            )
+            qha_data = worker.get_result()
             if not qha_data:
                 result = {"name": name, "state": "failed", "struct": struct.as_dict()}
-            result = {"name": name, "state": "successful", **qha_data}
+            else:
+                result = {"name": name, "state": "successful", **qha_data}
 
         except Exception as e:
             log.error(f"Structure {name} failed: {e}")
@@ -149,15 +206,47 @@ def submit_job(force=False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="run VASP task")
-    parser.add_argument("--local", action="store_true", help="run locally")
-    parser.add_argument("--slurm", action="store_true", help="submit to slurm")
-    parser.add_argument("--force", action="store_true", help="force run even if already done")
+    parser = argparse.ArgumentParser(description="Run QHA workflow")
+    parser.add_argument("--local", action="store_true", help="Run locally (legacy)")
+    parser.add_argument("--slurm", action="store_true", help="Submit as single Slurm job")
+    parser.add_argument(
+        "--mode",
+        choices=["local", "fireworks"],
+        default="local",
+        help="Execution mode: local or fireworks",
+    )
+    parser.add_argument(
+        "--fw-config-dir",
+        type=Path,
+        default=None,
+        help="FireWorks configuration directory",
+    )
+    parser.add_argument(
+        "--wait",
+        action="store_true",
+        help="Wait for FireWorks workflow completion",
+    )
+    parser.add_argument("--force", action="store_true", help="Force re-run even if already done")
     args = parser.parse_args()
 
-    if args.local:
-        run_locally(args.force)
-    elif args.slurm:
-        submit_job(args.force)
+    # Determine execution mode
+    if args.local or args.slurm:
+        execution_mode = "local"
     else:
-        print("specify run mode: --local or --slurm")
+        execution_mode = args.mode
+
+    if execution_mode == "local":
+        if args.slurm:
+            submit_job(args.force)
+        else:
+            run_qha(args.force, execution_mode="local")
+    elif execution_mode == "fireworks":
+        if not args.fw_config_dir:
+            log.error("FireWorks mode requires --fw-config-dir")
+            exit(1)
+        run_qha(
+            args.force,
+            execution_mode="fireworks",
+            fw_config_dir=args.fw_config_dir,
+            wait_for_completion=args.wait,
+        )

@@ -8,6 +8,7 @@ import json
 import logging
 import shutil
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,11 @@ from htvasp.oj.input_set import OJInputSetGenerator, write_oj_input_set
 
 log = logging.getLogger(__name__)
 
-OJ_SCRIPT = Path(__file__).parent.parent.parent.joinpath("ostravaj", "ostravaj.sh")
+
+@lru_cache(maxsize=1)
+def _get_oj_script_path() -> Path:
+    """Get cached OJ script path."""
+    return Path(__file__).parent.parent.parent.joinpath("ostravaj", "ostravaj.sh")
 
 
 @job
@@ -51,7 +56,8 @@ def oj_generate(
     )
 
     run_dir = job_dir
-    cmd = [str(OJ_SCRIPT), "generate", "-i", str(temp_input_dir), "-r", str(run_dir)]
+    oj_script = _get_oj_script_path()
+    cmd = [str(oj_script), "generate", "-i", str(temp_input_dir), "-r", str(run_dir)]
 
     result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -88,26 +94,20 @@ def oj_solve(run_dir: str, flip_task_docs: list[Any] | None = None) -> dict[str,
 
     run_path = Path(run_dir)
 
-    # Filter successful flips based on TaskDoc state
     successful_flips = []
     if flip_task_docs:
         for task_doc in flip_task_docs:
-            # Handle both TaskDoc objects and dicts
-            if isinstance(task_doc, TaskDoc):
-                # TaskDoc is a Pydantic model - access attributes directly
-                state = getattr(task_doc, "state", None)
-                flip_dir = getattr(task_doc, "dir_name", None)
-            elif isinstance(task_doc, dict):
-                # Fallback for dict format
+            if isinstance(task_doc, dict):
                 state = task_doc.get("state", "failed")
                 flip_dir = task_doc.get("dir_name")
             else:
-                log.warning(f"Unexpected task_doc type: {type(task_doc)}, skipping")
-                continue
+                state = getattr(task_doc, "state", None)
+                flip_dir = getattr(task_doc, "dir_name", None)
 
-            # Check if calculation was successful
-            if state == "successful" and flip_dir and Path(flip_dir).exists():
-                successful_flips.append(flip_dir)
+            if state == "successful" and flip_dir:
+                flip_path = Path(flip_dir)
+                if flip_path.exists():
+                    successful_flips.append(flip_dir)
 
     if not successful_flips:
         log.error("No successful flip calculations found")
@@ -122,7 +122,7 @@ def oj_solve(run_dir: str, flip_task_docs: list[Any] | None = None) -> dict[str,
     # Note: Currently ostravaj CLI auto-scans run_dir, so we rely on all
     # successful flips being present there. Future enhancement could pass
     # explicit flip dirs via --flip-dirs argument.
-    cmd = [str(OJ_SCRIPT), "solve", "-r", str(run_path)]
+    cmd = [str(_get_oj_script_path()), "solve", "-r", str(run_path)]
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
