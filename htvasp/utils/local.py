@@ -16,7 +16,7 @@ from monty.os import cd
 if TYPE_CHECKING:
     import jobflow
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def run_locally_custom(
@@ -101,7 +101,7 @@ def run_locally_custom(
 
         # Check if parent stopped
         if set(parents).intersection(stopped_parents):
-            log.info(f"{job.name} is a child of a job with stop_children=True, skipping...")
+            logger.info(f"{job.name} is a child of a job with stop_children=True, skipping...")
             stopped_parents.add(job.uuid)
             return None, False
 
@@ -116,9 +116,9 @@ def run_locally_custom(
                 response = _load_completed_output(job, store)
                 if response is not None:
                     responses[job.uuid][job.index] = response
-                    log.info(f"Skipped completed job: {job.name}")
+                    logger.info(f"Skipped completed job: {job.name}")
                     return response, False
-            log.warning(f"Cannot skip {job.name}: dependencies incomplete, will re-execute")
+            logger.warning(f"Cannot skip {job.name}: dependencies incomplete, will re-execute")
             completed_uuids.discard(job.uuid)
 
         # Execute job
@@ -133,7 +133,7 @@ def run_locally_custom(
         responses[job.uuid][job.index] = response
 
         if response.stored_data is not None:
-            log.warning("Response.stored_data is not supported with local manager.")
+            logger.warning("Response.stored_data is not supported with local manager.")
 
         if response.stop_children:
             stopped_parents.add(job.uuid)
@@ -172,9 +172,9 @@ def run_locally_custom(
 
         return not encountered_bad_response
 
-    log.info("Started executing jobs locally")
+    logger.info("Started executing jobs locally")
     finished_successfully = _run(flow)
-    log.info("Finished executing jobs locally")
+    logger.info("Finished executing jobs locally")
 
     if ensure_success and not finished_successfully:
         raise RuntimeError("Flow did not finish running successfully")
@@ -195,7 +195,7 @@ def _prepare_resume(flow: Flow, store: JobStore) -> set[str]:
         existing = store.query_one({"name": job.name, "index": job.index})
         if existing is not None:
             job.set_uuid(existing["uuid"])
-            log.debug(f"Found existing record: {job.name} (uuid: {job.uuid[:8]})")
+            logger.debug(f"Found existing record: {job.name} (uuid: {job.uuid[:8]})")
 
     # Second pass: validate outputs
     for job, _ in flow.iterflow():
@@ -204,14 +204,14 @@ def _prepare_resume(flow: Flow, store: JobStore) -> set[str]:
             continue
 
         if not _validate_job_output(job, store):
-            log.warning(f"Job {job.name} has incomplete output, will re-execute")
+            logger.warning(f"Job {job.name} has incomplete output, will re-execute")
             continue
 
         completed_uuids.add(job.uuid)
-        log.debug(f"Verified completed job: {job.name}")
+        logger.debug(f"Verified completed job: {job.name}")
 
     if completed_uuids:
-        log.info(f"Found {len(completed_uuids)} previously completed jobs")
+        logger.info(f"Found {len(completed_uuids)} previously completed jobs")
 
     return completed_uuids
 
@@ -231,7 +231,7 @@ def _load_completed_output(job: Job, store: JobStore) -> Response | None:
         output = store.get_output(uuid=job.uuid, which=job.index, load=True)
         return Response(output=output)
     except Exception as e:
-        log.warning(f"Failed to load output for {job.name}: {e}")
+        logger.warning(f"Failed to load output for {job.name}: {e}")
         return None
 
 
@@ -240,6 +240,6 @@ def _execute_job_safe(job: Job, store: JobStore, errored: set[str]) -> Response 
     try:
         return job.run(store=store)
     except Exception:
-        log.info(f"{job.name} failed with exception:\n{traceback.format_exc()}")
+        logger.info(f"{job.name} failed with exception:\n{traceback.format_exc()}")
         errored.add(job.uuid)
         return None
