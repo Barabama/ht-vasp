@@ -7,8 +7,7 @@ Quasi-Harmonic Approximation workflows for thermodynamic properties.
 import re
 import logging
 import traceback
-from pathlib import Path
-from typing import Any, Literal, TypedDict
+from typing import Any, TypedDict
 
 from jobflow import Flow
 from pymatgen.core import Structure
@@ -18,7 +17,6 @@ from atomate2.vasp.flows.qha import QhaMaker
 from atomate2.vasp.jobs.core import RelaxMaker, DielectricMaker
 from atomate2.vasp.jobs.phonons import PhononDisplacementMaker
 from atomate2.vasp.sets.core import StaticSetGenerator, RelaxSetGenerator
-from custodian.vasp.handlers import VaspErrorHandler
 
 from htvasp.workflows.base import Worker
 
@@ -55,17 +53,15 @@ class QhaWorker(Worker):
 
     def __init__(
         self,
-        worker_name: str,
-        vasp_args: dict[str, Any],
-        potcar_functional: Literal["PBE", "PBE_54", "PBE_64"] = "PBE_64",
+        worker_name: str = "qha-worker",
+        vasp_args: dict[str, Any] | None = None,
+        potcar_functional="PBE_64",
         global_incar: dict[str, Any] | None = None,
         relax_incar: dict[str, Any] | None = None,
         eos_incar: dict[str, Any] | None = None,
         phonon_incar: dict[str, Any] | None = None,
         temperature_range: tuple[int, int, int] = (0, 3000, 50),
         supercell_matrix: tuple = ((2, 0, 0), (0, 2, 0), (0, 0, 2)),
-        execution_mode: Literal["local", "fireworks"] = "local",
-        fireworks_config_dir: Path | str | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -73,8 +69,6 @@ class QhaWorker(Worker):
             vasp_args=vasp_args,
             potcar_functional=potcar_functional,
             global_incar=global_incar,
-            execution_mode=execution_mode,
-            fireworks_config_dir=fireworks_config_dir,
         )
 
         self.supercell_matrix = supercell_matrix
@@ -85,10 +79,11 @@ class QhaWorker(Worker):
         # R3 structural relaxation
         initial_relax_maker = DoubleRelaxMaker.from_relax_maker(
             RelaxMaker(
-                run_vasp_kwargs={"handlers": [VaspErrorHandler()], **vasp_args},
-                stop_children_kwargs={"handle_unsuccessful": False},
+                name="init relax",
+                run_vasp_kwargs=self.run_vasp_kwargs,
+                # stop_children_kwargs={"handle_unsuccessful": False},
                 input_set_generator=RelaxSetGenerator(
-                    user_potcar_functional=potcar_functional,
+                    user_potcar_functional=self.potcar_functional,
                     user_incar_settings={
                         **self.global_incar,
                         "ISIF": 3,
@@ -101,10 +96,11 @@ class QhaWorker(Worker):
         # EOS relaxation
         eos_relax_maker = DoubleRelaxMaker.from_relax_maker(
             RelaxMaker(
-                run_vasp_kwargs={"handlers": [VaspErrorHandler()], **vasp_args},
-                stop_children_kwargs={"handle_unsuccessful": False},
+                name="eos relax",
+                run_vasp_kwargs=self.run_vasp_kwargs,
+                # stop_children_kwargs={"handle_unsuccessful": False},
                 input_set_generator=RelaxSetGenerator(
-                    user_potcar_functional=potcar_functional,
+                    user_potcar_functional=self.potcar_functional,
                     user_incar_settings={
                         **self.global_incar,
                         "ISIF": 2,
@@ -116,10 +112,10 @@ class QhaWorker(Worker):
 
         # Phonon displacement maker
         phonon_displacement_maker = PhononDisplacementMaker(
-            run_vasp_kwargs={"handlers": [VaspErrorHandler()], **vasp_args},
-            stop_children_kwargs={"handle_unsuccessful": False},
+            run_vasp_kwargs=self.run_vasp_kwargs,
+            # stop_children_kwargs={"handle_unsuccessful": False},
             input_set_generator=StaticSetGenerator(
-                user_potcar_functional=potcar_functional,
+                user_potcar_functional=self.potcar_functional,
                 user_incar_settings={
                     **self.global_incar,
                     "IBRION": -1,
@@ -148,10 +144,10 @@ class QhaWorker(Worker):
 
         # Dielectric maker
         dielectric_maker = DielectricMaker(
-            run_vasp_kwargs={"handlers": [VaspErrorHandler()], **vasp_args},
-            stop_children_kwargs={"handle_unsuccessful": False},
+            # run_vasp_kwargs=self.run_vasp_kwargs,
+            # stop_children_kwargs={"handle_unsuccessful": False},
             input_set_generator=StaticSetGenerator(
-                user_potcar_functional=potcar_functional,
+                user_potcar_functional=self.potcar_functional,
                 user_incar_settings={
                     **self.global_incar,
                     "IBRION": 6,
@@ -179,19 +175,23 @@ class QhaWorker(Worker):
         return self.flow_maker.make(structure, supercell_matrix=self.supercell_matrix)
 
     def get_result(self, output_job_name: str = "analyze_free_energy") -> dict[str, Any] | None:
+        """Override to include deformation energies."""
+        result = super().get_result(output_job_name)
+        if result is not None:
+            result["deformation_energies"] = self._get_deformation_energies()
+        return result
+
+    def _get_deformation_energies(self) -> list[float]:
+        """Helper function to extract deformation energies from the store."""
         try:
-            output = super().get_result(output_job_name)
-            if not output:
-                raise ValueError(f"Flow return None for job {output_job_name}")
             if not self.store:
                 raise ValueError("Store is not initialized. Run the flow first.")
             self.store.connect()
 
-            # Get all "phonon static eos deformation *" jobs and sort by deformation index
-            deformation_data = []
+            deformation_energies = []
             for doc in self.store.query(
                 criteria={"name": {"$regex": r"phonon static eos deformation \d+"}},
-                properties=["uuid", "index", "name"],
+                properties=["uuid", "name"],
             ):
                 uuid = doc.get("uuid", "N/A")
                 name = doc.get("name", "")
@@ -200,16 +200,11 @@ class QhaWorker(Worker):
                     log.warning(f"Could not extract deformation index from job name: {name}")
                     continue
                 output = self.store.get_output(uuid=uuid, which="last", load=True)
-                deformation_data.append((int(match.group(1)), output["output"]["energy"]))
-            deformation_data.sort(key=lambda x: x[0])
-            deformation_energies = [item[1] for item in deformation_data]
-
-            output["deformation_energies"] = deformation_energies
-            return output
-
+                deformation_energies.append(output["output"]["energy"])
+            return deformation_energies
         except Exception as e:
-            log.error(f"Failed to get result for job: {e}")
+            log.error(f"Failed to get deformation energies: {e}")
             log.error(traceback.format_exc())
-            return None
+            return []
         finally:
             self.close()

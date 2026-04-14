@@ -22,7 +22,6 @@ dependencies = [
     "phonopy==2.42.0",
     "seekpath==2.1.0",
     "mp-api==0.45.15",
-    "fireworks==2.0.9",
     "more_itertools==10.8.0",
     "lxml==5.4.0",
 ]

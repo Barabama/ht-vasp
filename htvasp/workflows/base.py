@@ -128,7 +128,7 @@ class Worker:
         self.flow = self._make_flow(structure)
 
         # Generate flow directory
-        flow_dir = Path(flow_dir).joinpath(f"{name}-{self.flow.uuid[:8]}")
+        flow_dir = Path(flow_dir).resolve().joinpath(f"{name}-{self.flow.uuid[:8]}")
         store_dir = Path(store_dir).resolve().joinpath(name)
 
         # Resume: copy from store_dir to flow_dir
@@ -136,9 +136,9 @@ class Worker:
             log.info(f"Resuming from {store_dir}, copying to {flow_dir}")
             shutil.copytree(store_dir, flow_dir)
 
-        # Initialize store (use absolute path for store.json)
+        # Initialize store
         self.store = JobStore(
-            JSONStore(str(flow_dir.joinpath("store.json").resolve()), read_only=False),
+            JSONStore(str(flow_dir.joinpath("store.json")), read_only=False),
             additional_stores={"data": MemoryStore()},
         )
 
@@ -204,4 +204,3 @@ class Worker:
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, default=str)
         log.info(f"Output saved to {json_path}")
-

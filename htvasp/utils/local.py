@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 def run_locally_custom(
     flow: Flow | Job | list[Job],
-    logging: bool | str = True,
+    log_fmt: bool | str = "%(asctime)s[%(levelname)s]%(message)s",
     store: JobStore | None = None,
     root_dir: str | Path | None = None,
     ensure_success: bool = False,
@@ -57,8 +57,8 @@ def run_locally_custom(
 
     store.connect()
 
-    if logging:
-        initialize_logger(fmt=logging if isinstance(logging, str) else "")
+    if log_fmt:
+        initialize_logger(fmt=log_fmt if isinstance(log_fmt, str) else "")
 
     flow = get_flow(flow, allow_external_references=allow_external_references)
 

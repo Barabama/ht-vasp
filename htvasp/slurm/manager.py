@@ -209,6 +209,7 @@ class SlurmJobManager:
     def get_cpu_config(
         self,
         job_name: str = "vasp-cpu",
+        output_log: str = "job.log",
         ntasks: int = 48,
         memory: str = "20G",
         **kwargs,
@@ -218,6 +219,7 @@ class SlurmJobManager:
 
         Args:
             job_name: Job name (default: "vasp-cpu")
+            output_log: Output log file (default: "job.log")
             ntasks: Number of tasks (default: 48)
             memory: Memory per node (default: "20G")
             **kwargs: Additional SlurmConfig parameters
@@ -227,6 +229,7 @@ class SlurmJobManager:
         """
         return SlurmConfig(
             job_name=job_name,
+            output_log=output_log,
             ntasks=ntasks,
             memory=memory,
             partition="partCPU",
@@ -236,6 +239,7 @@ class SlurmJobManager:
     def get_gpu_config(
         self,
         job_name: str = "vasp-gpu",
+        output_log: str = "job.log",
         ntasks: int = 1,
         gpus_per_node: int = 1,
         memory: str = "10G",
@@ -246,6 +250,7 @@ class SlurmJobManager:
 
         Args:
             job_name: Job name (default: "vasp-gpu")
+            output_log: Output log file (default: "job.log")
             ntasks: Number of tasks (default: 1 CPU for GPU)
             gpus_per_node: Number of GPUs per node (default: 1)
             memory: Memory per node (default: "10G")
@@ -256,6 +261,7 @@ class SlurmJobManager:
         """
         return SlurmConfig(
             job_name=job_name,
+            output_log=output_log,
             ntasks=ntasks,
             gpus_per_task=gpus_per_node,
             memory=memory,
@@ -277,7 +283,6 @@ class SlurmJobManager:
         try:
             result = subprocess.run(
                 cmd,
-                shell=True,
                 capture_output=True,
                 text=True,
                 check=True,
@@ -309,7 +314,6 @@ class SlurmJobManager:
         try:
             subprocess.run(
                 cmd,
-                shell=True,
                 capture_output=True,
                 text=True,
                 check=True,
@@ -333,7 +337,6 @@ class SlurmJobManager:
         try:
             result = subprocess.run(
                 cmd,
-                shell=True,
                 capture_output=True,
                 text=True,
                 check=True,
