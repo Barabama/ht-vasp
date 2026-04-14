@@ -270,13 +270,12 @@ class SlurmJobManager:
         )
 
     def get_job_status(self, job_id: str) -> dict[str, Any] | None:
-        """
-        Get job status from Slurm.
+        """Get job status from Slurm.
 
         Args:
             job_id: Job ID
         Returns:
-            Job status dict or None
+            Job status dict or None if job not found
         """
         cmd = ["scontrol", "show", "job", job_id]
         status = {}
@@ -296,10 +295,26 @@ class SlurmJobManager:
                     key, value = item.split("=", 1)
                     status[key.strip()] = value.strip()
             return status
-        except subprocess.CalledProcessError as e:
-            log.error(f"Error getting job status: {e}")
-            log.error(f"stdout: {result.stdout}")
+        except subprocess.CalledProcessError:
             return None
+
+    def is_job_completed(self, job_id: str) -> bool:
+        """Check if a job has completed (finished, cancelled, or failed).
+
+        Args:
+            job_id: Job ID
+        Returns:
+            True if job is no longer running/pending, False otherwise
+        """
+        status = self.get_job_status(job_id)
+        if status is None:
+            # Job not found means it has completed
+            return True
+
+        job_state = status.get("JobState", "")
+        # Running states: PENDING, RUNNING, CONFIGURING, COMPLETING
+        # Completed states: COMPLETED, CANCELLED, FAILED, TIMEOUT, NODE_FAIL, etc.
+        return job_state not in ("PENDING", "RUNNING", "CONFIGURING", "COMPLETING")
 
     def cancel_job(self, job_id: str) -> bool:
         """
