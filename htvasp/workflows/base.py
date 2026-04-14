@@ -1,8 +1,9 @@
 import json
 import logging
+import shutil
 import traceback
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from jobflow import Flow, JobStore
 from custodian.vasp.handlers import VaspErrorHandler
@@ -25,8 +26,8 @@ class Worker:
     def __init__(
         self,
         worker_name: str,
-        vasp_args: dict[str, Any],
-        potcar_functional = "PBE_64",
+        vasp_args: dict[str, Any] | None = None,
+        potcar_functional="PBE_64",
         global_incar: dict[str, Any] | None = None,
         **kwargs,
     ):
@@ -48,7 +49,7 @@ class Worker:
                 "max_errors_per_job": 3,
                 "gzipped_output": False,
             },
-            **vasp_args,
+            **(vasp_args or {}),
         }
         self.potcar_functional = potcar_functional
 
@@ -124,22 +125,20 @@ class Worker:
             raise_immediately: Raise an error immediately if a job fails
             resume: Resume from previous completed jobs
         """
-        import shutil
-
         self.flow = self._make_flow(structure)
 
-        # 生成目录路径
-        flow_dir = Path(flow_dir) / f"{name}-{self.flow.uuid[:8]}"
-        final_store_dir = Path(store_dir).resolve() / name
+        # Generate flow directory
+        flow_dir = Path(flow_dir).joinpath(f"{name}-{self.flow.uuid[:8]}")
+        store_dir = Path(store_dir).resolve().joinpath(name)
 
-        # Resume: 从 store_dir 复制到 flow_dir
-        if resume and final_store_dir.exists():
-            log.info(f"Resuming from {final_store_dir}, copying to {flow_dir}")
-            shutil.copytree(final_store_dir, flow_dir)
+        # Resume: copy from store_dir to flow_dir
+        if resume and store_dir.exists():
+            log.info(f"Resuming from {store_dir}, copying to {flow_dir}")
+            shutil.copytree(store_dir, flow_dir)
 
-        # 初始化 store
+        # Initialize store (use absolute path for store.json)
         self.store = JobStore(
-            JSONStore(str(flow_dir / "store.json"), read_only=False),
+            JSONStore(str(flow_dir.joinpath("store.json").resolve()), read_only=False),
             additional_stores={"data": MemoryStore()},
         )
 
@@ -157,12 +156,12 @@ class Worker:
             log.critical(f"Flow execution failed: {e}")
             raise
         finally:
-            # 无论成功失败，移动 flow_dir 到 store_dir
+            # Move flow_dir to store_dir
             try:
-                if final_store_dir.exists():
-                    shutil.rmtree(final_store_dir)
-                shutil.move(str(flow_dir), str(final_store_dir))
-                log.info(f"Moved results to {final_store_dir}")
+                if store_dir.exists():
+                    shutil.rmtree(store_dir)
+                shutil.move(str(flow_dir), str(store_dir))
+                log.info(f"Moved results to {store_dir}")
             except Exception as move_error:
                 log.error(f"Failed to move results to store_dir: {move_error}")
 
@@ -196,3 +195,13 @@ class Worker:
             return None
         finally:
             self.close()
+
+    def write_result(self, name: str, data: dict | None, json_path: Path | str):
+        if not data:
+            log.warning("No data to write")
+            return
+        json_path = Path(json_path).resolve().joinpath(f"{name}.json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, default=str)
+        log.info(f"Output saved to {json_path}")
+
