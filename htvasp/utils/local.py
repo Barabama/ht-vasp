@@ -16,12 +16,12 @@ from monty.os import cd
 if TYPE_CHECKING:
     import jobflow
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 def run_locally_custom(
     flow: Flow | Job | list[Job],
-    log: bool | str = True,
+    logging: bool | str = True,
     store: JobStore | None = None,
     root_dir: str | Path | None = None,
     ensure_success: bool = False,
@@ -38,7 +38,7 @@ def run_locally_custom(
 
     Args:
         flow: A job or flow.
-        log: Controls logging. Defaults to True.
+        logging: Controls logging. Defaults to True.
         store: A job store. If not specified, uses default JobStore.
         root_dir: The root directory to run the jobs in.
         ensure_success: Raise an error if the flow was not executed successfully.
@@ -57,8 +57,8 @@ def run_locally_custom(
 
     store.connect()
 
-    if log:
-        initialize_logger(fmt=log if isinstance(log, str) else "")
+    if logging:
+        initialize_logger(fmt=logging if isinstance(logging, str) else "")
 
     flow = get_flow(flow, allow_external_references=allow_external_references)
 
@@ -101,7 +101,7 @@ def run_locally_custom(
 
         # Check if parent stopped
         if set(parents).intersection(stopped_parents):
-            logger.info(f"{job.name} is a child of a job with stop_children=True, skipping...")
+            log.info(f"{job.name} is a child of a job with stop_children=True, skipping...")
             stopped_parents.add(job.uuid)
             return None, False
 
@@ -116,9 +116,9 @@ def run_locally_custom(
                 response = _load_completed_output(job, store)
                 if response is not None:
                     responses[job.uuid][job.index] = response
-                    logger.info(f"Skipped completed job: {job.name}")
+                    log.info(f"Skipped completed job: {job.name}")
                     return response, False
-            logger.warning(f"Cannot skip {job.name}: dependencies incomplete, will re-execute")
+            log.warning(f"Cannot skip {job.name}: dependencies incomplete, will re-execute")
             completed_uuids.discard(job.uuid)
 
         # Execute job
@@ -133,7 +133,7 @@ def run_locally_custom(
         responses[job.uuid][job.index] = response
 
         if response.stored_data is not None:
-            logger.warning("Response.stored_data is not supported with local manager.")
+            log.warning("Response.stored_data is not supported with local manager.")
 
         if response.stop_children:
             stopped_parents.add(job.uuid)
@@ -172,9 +172,9 @@ def run_locally_custom(
 
         return not encountered_bad_response
 
-    logger.info("Started executing jobs locally")
+    log.info("Started executing jobs locally")
     finished_successfully = _run(flow)
-    logger.info("Finished executing jobs locally")
+    log.info("Finished executing jobs locally")
 
     if ensure_success and not finished_successfully:
         raise RuntimeError("Flow did not finish running successfully")
@@ -195,7 +195,7 @@ def _prepare_resume(flow: Flow, store: JobStore) -> set[str]:
         existing = store.query_one({"name": job.name, "index": job.index})
         if existing is not None:
             job.set_uuid(existing["uuid"])
-            logger.debug(f"Found existing record: {job.name} (uuid: {job.uuid[:8]})")
+            log.debug(f"Found existing record: {job.name} (uuid: {job.uuid[:8]})")
 
     # Second pass: validate outputs
     for job, _ in flow.iterflow():
@@ -204,14 +204,14 @@ def _prepare_resume(flow: Flow, store: JobStore) -> set[str]:
             continue
 
         if not _validate_job_output(job, store):
-            logger.warning(f"Job {job.name} has incomplete output, will re-execute")
+            log.warning(f"Job {job.name} has incomplete output, will re-execute")
             continue
 
         completed_uuids.add(job.uuid)
-        logger.debug(f"Verified completed job: {job.name}")
+        log.debug(f"Verified completed job: {job.name}")
 
     if completed_uuids:
-        logger.info(f"Found {len(completed_uuids)} previously completed jobs")
+        log.info(f"Found {len(completed_uuids)} previously completed jobs")
 
     return completed_uuids
 
@@ -231,7 +231,7 @@ def _load_completed_output(job: Job, store: JobStore) -> Response | None:
         output = store.get_output(uuid=job.uuid, which=job.index, load=True)
         return Response(output=output)
     except Exception as e:
-        logger.warning(f"Failed to load output for {job.name}: {e}")
+        log.warning(f"Failed to load output for {job.name}: {e}")
         return None
 
 
@@ -240,6 +240,6 @@ def _execute_job_safe(job: Job, store: JobStore, errored: set[str]) -> Response 
     try:
         return job.run(store=store)
     except Exception:
-        logger.info(f"{job.name} failed with exception:\n{traceback.format_exc()}")
+        log.info(f"{job.name} failed with exception:\n{traceback.format_exc()}")
         errored.add(job.uuid)
         return None
