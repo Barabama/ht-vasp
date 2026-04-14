@@ -1,41 +1,43 @@
+"""HT-VASP Static Workflow - Static calculation for magnetism."""
+
 import json
 import shutil
 import logging
 import argparse
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
+from htvasp.cli import submit_jobs, run_batch
 from htvasp.model import Endmember
 from htvasp.workflows import StaticWorker
-from htvasp.slurm import SlurmJobManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
 
 
 class DateTimeEncoder(json.JSONEncoder):
+    """JSON encoder for datetime objects."""
+
     def default(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
 
 
-vasp_args = {
+# VASP configuration
+VASP_ARGS = {
     "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
     "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
 }
 
-global_incar = {
+GLOBAL_INCAR = {
     "KPAR": 2,
     "NCORE": 2,
     "GGA": "PE",
-    # "AMIX": 0.4,
-    # "BMIX": 1e-4,
-    # "AMIX_MAG": 0.08,
-    # "BMIX_MAG": 1e-4,
 }
 
-struct_names = [
+# Structure names to process
+STRUCT_NAMES = [
     "SER-Co",
     "SER-Fe",
     "SER-Mn",
@@ -69,82 +71,81 @@ struct_names = [
 ]
 
 
-def run_locally(force=False):
-    """Run all structures locally."""
+def run_tick(name: str, force: bool = False) -> None:
+    """Run a single structure locally."""
     endmember = Endmember()
-    for name in struct_names:
-        workdir = Path("data/endmembers").joinpath(name)
-        posdir = Path("data/poscars")
-        flowdir = workdir.joinpath("staticflow")
-        json_path = workdir.joinpath(f"{name}-static.json")
-        workdir.mkdir(parents=True, exist_ok=True)
-        posdir.mkdir(parents=True, exist_ok=True)
+    workdir = Path("data/endmembers") / name
+    flowdir = workdir / "staticflow"
+    json_path = workdir / f"{name}-static.json"
 
-        # Skip if already done (unless force is True)
-        if not force and json_path.exists():
-            with open(json_path, "r", encoding="utf-8") as jf:
-                result = json.load(jf)
-            if result.get("state", "failed") == "successful":
-                log.info(f"Structure {name} already done")
-                continue
+    workdir.mkdir(parents=True, exist_ok=True)
 
-        log.info(f"Structure {name} start")
+    # Skip if already done
+    if not force and json_path.exists():
+        with open(json_path) as f:
+            result = json.load(f)
+        if result.get("state") == "successful":
+            log.info(f"Structure {name} already done")
+            return
 
-        # Run StaticWorker
-        struct = endmember.get_poscar(name, posdir)
-        if flowdir.exists():
-            shutil.rmtree(flowdir)
-        flowdir.mkdir(parents=True, exist_ok=True)
-        try:
-            worker = StaticWorker(
-                worker_name=f"{name}-static",
-                vasp_args=vasp_args,
-                global_incar=global_incar,
-            )
-            static_data = worker.run_flow(name, struct, flowdir)
-            if not static_data:
-                result = {"name": name, "state": "failed", "struct": struct.as_dict()}
+    log.info(f"Structure {name} start")
+
+    if flowdir.exists():
+        shutil.rmtree(flowdir)
+    flowdir.mkdir(parents=True, exist_ok=True)
+
+    struct = endmember.get_poscar(name, Path("data/poscars"))
+
+    try:
+        worker = StaticWorker(
+            worker_name=f"{name}-static",
+            vasp_args=VASP_ARGS,
+            global_incar=GLOBAL_INCAR,
+        )
+        worker.run_flow(name, struct, flowdir, resume=not force)
+        static_data = worker.get_result()
+
+        if static_data:
             result = {"name": name, "state": "successful", **static_data}
-
-        except Exception as e:
-            log.error(f"Structure {name} failed: {e}")
+        else:
             result = {"name": name, "state": "failed", "struct": struct.as_dict()}
 
-        # Save result
-        with open(json_path, "w", encoding="utf-8") as jf:
-            json.dump(result, jf, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
+    except Exception as e:
+        log.error(f"Structure {name} failed: {e}")
+        result = {"name": name, "state": "failed", "struct": struct.as_dict()}
 
-        log.info(f"Structure {name} done")
+    with open(json_path, "w") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
+
+    log.info(f"Structure {name} done")
 
 
-def submit_job(force=False):
-    """Submit a single job to run all structures."""
-    manager = SlurmJobManager()
-    config = manager.get_cpu_config(
-        job_name="gml-mag",
-        output_log="em-mag.log",
-        nodes=1,
-        ntasks=16,
-    )
-    job_id = manager.submit_command(
-        command=f"python {__file__} --local {'--force' if force else ''}",
-        config=config,
-        conda_env="htvasp",
-        workdir=".",
-    )
-    log.info(f"Submitted job with ID: {job_id}")
+def command_template(name: str, force: bool) -> str:
+    """Generate command for Slurm submission."""
+    return f"python {__file__} --tick {name} {'--force' if force else ''}"
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="run VASP task")
-    parser.add_argument("--local", action="store_true", help="run locally")
-    parser.add_argument("--slurm", action="store_true", help="submit to slurm")
-    parser.add_argument("--force", action="store_true", help="force run even if already done")
+    parser = argparse.ArgumentParser(description="Static workflow")
+    parser.add_argument("--tick", type=str, help="Run single structure")
+    parser.add_argument("--batch", action="store_true", help="Run all locally")
+    parser.add_argument("--slurm", action="store_true", help="Submit to Slurm")
+    parser.add_argument("--force", action="store_true", help="Force re-run")
     args = parser.parse_args()
 
-    if args.local:
-        run_locally(args.force)
+    if args.tick:
+        run_tick(args.tick, force=args.force)
+    elif args.batch:
+        run_batch(STRUCT_NAMES, run_tick, force=args.force)
     elif args.slurm:
-        submit_job(args.force)
+        submit_jobs(
+            struct_names=STRUCT_NAMES,
+            command_template=command_template,
+            force=args.force,
+            job_name=lambda n: f"{n}-static",
+            output_log=lambda n: f"logs/{n}-static.log",
+            ntasks=16,
+            conda_env="htvasp",
+        )
     else:
-        print("specify run mode: --local or --slurm")
+        parser.print_help()
