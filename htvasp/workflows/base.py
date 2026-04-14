@@ -129,7 +129,7 @@ class Worker:
 
         # Generate flow directory
         flow_dir = Path(flow_dir).resolve().joinpath(f"{name}-{self.flow.uuid[:8]}")
-        store_dir = Path(store_dir).resolve().joinpath(name)
+        store_dir = Path(store_dir).resolve()
 
         # Resume: copy from store_dir to flow_dir
         if resume and store_dir.exists():
@@ -196,11 +196,11 @@ class Worker:
         finally:
             self.close()
 
-    def write_result(self, name: str, data: dict | None, json_path: Path | str):
+    def write_result(self, data: dict | None, json_path: Path | str):
         if not data:
             log.warning("No data to write")
             return
-        json_path = Path(json_path).resolve().joinpath(f"{name}.json")
+        json_path = Path(json_path).resolve()
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, default=str)
         log.info(f"Output saved to {json_path}")

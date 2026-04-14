@@ -3,7 +3,8 @@ Test script for OJ workflow.
 
 Usage:
 python test_oj.py --unit     # Run unit tests only
-python test_oj.py --local    # Run workflow locally (requires VASP)
+python test_oj.py --local    # Run locally (fresh run)
+python test_oj.py --rerun    # Run locally with resume
 python test_oj.py --slurm    # Submit to Slurm
 """
 
@@ -11,86 +12,83 @@ import json
 import shutil
 import logging
 import argparse
-import tempfile
+import inspect
+import traceback
 from pathlib import Path
-from datetime import datetime
 
 from pymatgen.core import Structure, Lattice
+
+from htvasp.workflows import OJWorker
+from htvasp.oj import OJInputSetGenerator
+from htvasp.oj.task_doc import OJResult
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
 
 
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
+# =============================================================================
+# Test Helpers
+# =============================================================================
+
+
+def print_header(name: str):
+    """Print standardized test header."""
+    print("=" * 50)
+    print(f"Test: {name}")
+    print("=" * 50)
+
+
+def get_fe_bcc_structure(a: float = 2.85) -> Structure:
+    """Return BCC Fe structure for testing."""
+    return Structure(Lattice.cubic(a), ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
+
+
+def make_test_worker(name: str = "test_oj", **kwargs) -> OJWorker:
+    """Create OJWorker with standard test defaults."""
+    defaults = {
+        "worker_name": name,
+        "vasp_args": {"vasp_cmd": "vasp_std"},
+        "j_count": 2,
+        "magnetic_ion_types": ["Fe"],
+    }
+    defaults.update(kwargs)
+    return OJWorker(**defaults)
+
+
+# =============================================================================
+# Unit Tests
+# =============================================================================
 
 
 def test_imports():
     """Test all imports"""
-    print("=" * 50)
-    print("Test: Imports")
-    print("=" * 50)
-
-    from htvasp.workflows import OJWorker
-    from htvasp.oj import OJInputSetGenerator
-    from htvasp.oj.task_doc import OJResult
-
+    print_header("Imports")
     print("✓ All imports successful\n")
     return True
 
 
 def test_worker_creation():
     """Test OJWorker creation"""
-    print("=" * 50)
-    print("Test: Worker Creation")
-    print("=" * 50)
+    print_header("Worker Creation")
 
-    from htvasp.workflows import OJWorker
-
-    worker = OJWorker(
-        worker_name="test_oj",
-        vasp_args={"vasp_cmd": "vasp_std"},
-        j_count=2,
-        magnetic_ion_types=["Fe"],
-        user_incar_settings={"ENCUT": 520},
-    )
-
+    worker = make_test_worker(user_incar_settings={"ENCUT": 520})
     print(f"✓ Worker created: {worker.worker_name}")
-    print(f"✓ Has oj_maker: {hasattr(worker, 'oj_maker')}")
-
-    oj_maker = worker.oj_maker
-    print(f"✓ OJ maker: {type(oj_maker).__name__}")
-
+    print(f"✓ Has flow_maker: {hasattr(worker, 'flow_maker')}")
+    print(f"✓ OJ maker: {type(worker.flow_maker).__name__}")
     print()
     return True
 
 
 def test_flow_creation():
     """Test flow creation - OJ workflow"""
-    print("=" * 50)
-    print("Test: Flow Creation")
-    print("=" * 50)
+    print_header("Flow Creation")
 
-    from htvasp.workflows import OJWorker
+    worker = make_test_worker(name="test_flow_1")
+    print("✓ Worker initialized")
+    print(f"✓ Has flow_maker: {hasattr(worker, 'flow_maker')}")
 
-    lattice = Lattice.cubic(2.85)
-    structure = Structure(lattice, ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
-
-    worker = OJWorker(
-        worker_name="test_flow_1",
-        vasp_args={"vasp_cmd": "vasp_std"},
-        j_count=2,
-        magnetic_ion_types=["Fe"],
-    )
-
-    print(f"✓ Worker initialized")
-    print(f"✓ Has oj_maker: {hasattr(worker, 'oj_maker')}")
-
-    oj_maker = worker.oj_maker
-    oj_flow = oj_maker.make(structure)
+    structure = get_fe_bcc_structure()
+    oj_flow = worker.flow_maker.make(structure)
     print(f"✓ OJ flow created: {oj_flow.name} with {len(oj_flow.jobs)} jobs")
 
     expected_jobs = 3
@@ -106,12 +104,9 @@ def test_flow_creation():
 
 def test_oj_result_model():
     """Test OJResult pydantic model with new fields"""
-    print("=" * 50)
-    print("Test: OJResult Model (new fields)")
-    print("=" * 50)
+    print_header("OJResult Model (new fields)")
 
-    from htvasp.oj.task_doc import OJResult
-
+    # Minimal test data - only fields that are actually verified
     solution = {
         "J_reprs": [["Fe", "Fe", 1], ["Fe", "Fe", 2]],
         "Js": [10.5, -5.2],
@@ -154,7 +149,6 @@ def test_oj_result_model():
     print(f"✓ Js: {result.Js}")
     print(f"✓ Tc_MFA: {result.Tc_MFA}")
     print(f"✓ Tc_RPA: {result.Tc_RPA}")
-
     print(f"✓ E_DLM: {result.E_DLM}")
     print(f"✓ D_stiff: {result.D_stiff}")
     print(f"✓ is_complete: {result.is_complete}")
@@ -167,6 +161,7 @@ def test_oj_result_model():
     print(f"✓ configs_data count: {len(result.configs_data)}")
     print(f"✓ energies: {result.energies}")
 
+    # Verify configs_data structure
     if result.configs_data:
         cfg = result.configs_data[0]
         expected_keys = [
@@ -181,11 +176,10 @@ def test_oj_result_model():
             "basis",
         ]
         missing = [k for k in expected_keys if k not in cfg]
-        if not missing:
-            print(f"✓ configs_data[0] has all expected keys")
-        else:
+        if missing:
             print(f"✗ Missing keys in configs_data[0]: {missing}")
             return False
+        print("✓ configs_data[0] has all expected keys")
 
     print()
     return True
@@ -193,12 +187,9 @@ def test_oj_result_model():
 
 def test_summary_with_warnings():
     """Test to_summary() with warnings for new fields"""
-    print("=" * 50)
-    print("Test: to_summary() with warnings")
-    print("=" * 50)
+    print_header("to_summary() with warnings")
 
-    from htvasp.oj.task_doc import OJResult
-
+    # Minimal OJResult - only fields needed to trigger warnings
     result = OJResult(
         J_reprs=[["Fe", "Fe", 1]],
         Js=[10.5],
@@ -222,61 +213,37 @@ def test_summary_with_warnings():
     print(f"✓ condition_number in summary: {summary.get('condition_number')}")
     print(f"✓ avg_magnetic_moment in summary: {summary.get('avg_magnetic_moment')}")
 
-    if "warnings" in summary:
-        print(f"✓ Warnings: {summary['warnings']}")
-        assert any(
-            "condition" in w.lower() for w in summary["warnings"]
-        ), "Expected high condition number warning"
-        assert any(
-            "Tc_RPA" in w or "negative" in w.lower() for w in summary["warnings"]
-        ), "Expected Tc_RPA warning"
-        print(f"✓ Warnings correctly generated")
-    else:
+    if "warnings" not in summary:
         print("✗ Expected warnings but none found")
         return False
 
+    print(f"✓ Warnings: {summary['warnings']}")
+    assert any("condition" in w.lower() for w in summary["warnings"])
+    assert any("Tc_RPA" in w or "negative" in w.lower() for w in summary["warnings"])
+    print("✓ Warnings correctly generated")
     print()
     return True
 
 
 def test_incar_merging():
     """Test INCAR settings via user_incar_settings"""
-    print("=" * 50)
-    print("Test: INCAR Settings")
-    print("=" * 50)
-
-    from htvasp.workflows import OJWorker
-    from htvasp.oj import OJInputSetGenerator
+    print_header("INCAR Settings")
 
     user_incar_settings = {"ENCUT": 520, "SIGMA": 0.05}
+    worker = make_test_worker(name="test_incar", user_incar_settings=user_incar_settings)
 
-    worker = OJWorker(
-        worker_name="test_incar",
-        vasp_args={"vasp_cmd": "vasp_std"},
-        j_count=2,
-        magnetic_ion_types=["Fe"],
-        user_incar_settings=user_incar_settings,
-    )
+    print(f"✓ Worker created with user_incar_settings: {user_incar_settings}")
 
-    print(f"✓ Worker created with user_incar_settings")
-    print(f"✓ user_incar_settings: {user_incar_settings}")
-    print(f"✓ OJ maker created")
-
-    gen = worker.oj_maker.input_set_generator
+    gen = worker.flow_maker.input_set_generator
     print(f"✓ Input set generator: {type(gen).__name__}")
     print(f"✓ user_incar_settings in generator: {gen.user_incar_settings}")
-
     print()
     return True
 
 
 def test_input_set_generator():
     """Test OJInputSetGenerator directly"""
-    print("=" * 50)
-    print("Test: OJInputSetGenerator")
-    print("=" * 50)
-
-    from htvasp.oj import OJInputSetGenerator
+    print_header("OJInputSetGenerator")
 
     gen = OJInputSetGenerator(
         j_count=3,
@@ -289,45 +256,43 @@ def test_input_set_generator():
     print(f"✓ user_incar_settings: {gen.user_incar_settings}")
 
     oj_conf = gen.get_oj_conf_string()
-    print(f"✓ OJ.conf string generated:")
+    print("✓ OJ.conf string generated:")
     for line in oj_conf.strip().split("\n"):
         print(f"  {line}")
-
     print()
     return True
 
 
 def test_resume_functionality():
     """Test resume parameter in run_flow signature"""
-    print("=" * 50)
-    print("Test: Resume Functionality")
-    print("=" * 50)
+    print_header("Resume Functionality")
 
-    from htvasp.workflows import OJWorker
-    import inspect
-
-    worker = OJWorker(worker_name="test", vasp_args={"vasp_cmd": "vasp_std"})
-
+    worker = make_test_worker()
     sig = inspect.signature(worker.run_flow)
     params = list(sig.parameters.keys())
 
     print(f"✓ run_flow parameters: {params}")
 
-    if "resume" in params:
-        print(f"✓ 'resume' parameter present")
-        default_value = sig.parameters["resume"].default
-        print(f"✓ Default resume value: {default_value}")
-        if default_value is True:
-            print(f"✓ Default resume is True (as expected)")
-        else:
-            print(f"✗ Expected default resume=True, got {default_value}")
-            return False
-    else:
-        print(f"✗ 'resume' parameter missing")
+    if "resume" not in params:
+        print("✗ 'resume' parameter missing")
         return False
 
+    print("✓ 'resume' parameter present")
+    default_value = sig.parameters["resume"].default
+    print(f"✓ Default resume value: {default_value}")
+
+    if default_value is not True:
+        print(f"✗ Expected default resume=True, got {default_value}")
+        return False
+
+    print("✓ Default resume is True (as expected)")
     print()
     return True
+
+
+# =============================================================================
+# Test Runner
+# =============================================================================
 
 
 def run_unit_tests():
@@ -354,8 +319,6 @@ def run_unit_tests():
             results.append((name, result))
         except Exception as e:
             print(f"✗ Test {name} failed: {e}")
-            import traceback
-
             traceback.print_exc()
             results.append((name, False))
 
@@ -372,48 +335,56 @@ def run_unit_tests():
     return passed == total
 
 
-def run_locally():
-    """Run OJ workflow locally (requires OstravaJ and VASP)"""
-    from htvasp.workflows import OJWorker
+# =============================================================================
+# Integration Functions
+# =============================================================================
 
-    structure = Structure(
-        lattice=[[2.85, 0, 0], [0, 2.85, 0], [0, 0, 2.85]],
-        species=["Fe", "Fe"],
-        coords=[[0, 0, 0], [0.5, 0.5, 0.5]],
-    )
+CLUSTER_VASP_ARGS = {
+    "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
+    "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
+}
 
-    flow_dir = Path("temp", "oj-Fe")
-    json_path = flow_dir.joinpath("oj_Fe.json")
 
-    # if flow_dir.exists():
-    #     shutil.rmtree(flow_dir)
+def run_locally(clean: bool = True):
+    """Run OJ workflow locally (requires OstravaJ and VASP).
 
-    vasp_args = {
-        "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
-        "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
-    }
+    Args:
+        clean: If True, remove existing flow_dir before running.
+               If False, keep existing data and use resume=True.
+    """
+    structure = get_fe_bcc_structure()
+    flow_name = "Fe-oj"
+    flow_dir = Path("/nfs_ssd/tmp")
+    store_dir = Path("./temp") / flow_name
+    json_path = store_dir / f"{flow_name}.json"
+
+    if clean and flow_dir.exists():
+        shutil.rmtree(flow_dir)
+        log.info(f"Cleaned existing flow_dir: {flow_dir}")
+
     worker = OJWorker(
-        worker_name="oj-Fe",
-        vasp_args=vasp_args,
+        vasp_args=CLUSTER_VASP_ARGS,
         global_incar={"GGA": "PE"},
         j_count=2,
         extend_poscar=(1, 1, 1),
     )
 
-    output = worker.run_flow(
-        name="Fe",
+    resume = not clean
+    if resume:
+        log.info("Running in RESUME mode - will skip completed jobs")
+
+    worker.run_flow(
+        name=flow_name,
         structure=structure,
         flow_dir=flow_dir,
-        resume=True,
+        store_dir=store_dir,
+        resume=resume,
     )
 
+    output = worker.get_result()
+    worker.write_result(data=output, json_path=json_path)
+
     if output:
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(output, f, indent=2, cls=DateTimeEncoder)
-        log.info(f"Output saved to {json_path}")
-
-        from htvasp.oj.task_doc import OJResult
-
         oj_result = OJResult.from_solution(output)
         summary = oj_result.to_summary()
 
@@ -425,11 +396,8 @@ def run_locally():
         print(f"Tc (RPA): {summary.get('Tc_RPA')} K")
         print(f"E_DLM: {summary.get('E_DLM')} eV/atom")
         print(f"avg magnetic moment: {summary.get('avg_magnetic_moment')} mu_B")
-        print(
-            f"condition number: {summary.get('condition_number'):.2e}"
-            if summary.get("condition_number")
-            else "condition number: N/A"
-        )
+        if cond := summary.get("condition_number"):
+            print(f"condition number: {cond:.2e}")
         if "warnings" in summary:
             print(f"Warnings: {summary['warnings']}")
     else:
@@ -437,37 +405,60 @@ def run_locally():
 
 
 def submit_job():
-    """Submit OJ workflow to Slurm"""
+    """Submit OJ workflow to Slurm with abort/rerun simulation."""
     from htvasp.slurm import SlurmJobManager
 
     manager = SlurmJobManager()
-    config = manager.get_cpu_config(
-        ntasks=16,
-        memory="4G",
-    )
-    job_id = manager.submit_command(
-        command=f"python {__file__} --local",
-        config=config,
-        conda_env="htvasp",
-        workdir=".",
-    )
+
+    def submit(config_overrides: dict | None = None, command_suffix: str = "") -> str | None:
+        """Helper to submit a job with common defaults."""
+        config = manager.get_cpu_config(ntasks=16, memory="8G", **(config_overrides or {}))
+        return manager.submit_command(
+            command=f"python {__file__} --local{command_suffix}",
+            config=config,
+            conda_env="htvasp",
+            workdir=".",
+        )
+
+    job_id = submit()
+    if not job_id:
+        return
     log.info(f"Submitted job: {job_id}")
 
+    # Simulate abort and rerun
+    import time
+
+    time.sleep(30)
+
+    if manager.cancel_job(job_id):
+        log.info(f"Cancelled job: {job_id}")
+    else:
+        log.error(f"Failed to cancel job: {job_id}")
+        return
+
+    job_id2 = submit({"output_log": "job2.log"}, " --rerun")
+    if job_id2:
+        log.info(f"ReSubmitted job: {job_id2}")
+
+
+# =============================================================================
+# Main
+# =============================================================================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test OJ workflow")
-    parser.add_argument("--local", action="store_true", help="run workflow locally")
+    parser.add_argument("--local", action="store_true", help="run workflow locally (fresh run)")
+    parser.add_argument("--rerun", action="store_true", help="run workflow with resume")
     parser.add_argument("--slurm", action="store_true", help="submit to slurm")
     parser.add_argument("--unit", action="store_true", help="run unit tests only")
     args = parser.parse_args()
 
     if args.local:
-        run_locally()
+        run_locally(clean=True)
+    elif args.rerun:
+        run_locally(clean=False)
     elif args.slurm:
         submit_job()
-    elif args.unit:
-        success = run_unit_tests()
-        exit(0 if success else 1)
     else:
         success = run_unit_tests()
         exit(0 if success else 1)

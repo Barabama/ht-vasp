@@ -4,7 +4,6 @@ import json
 import shutil
 import logging
 import argparse
-from datetime import datetime
 from pathlib import Path
 
 from htvasp.cli import submit_jobs, run_batch
@@ -13,15 +12,6 @@ from htvasp.workflows import QhaWorker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
-
-
-class DateTimeEncoder(json.JSONEncoder):
-    """JSON encoder for datetime objects."""
-
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
 
 
 # VASP configuration
@@ -56,9 +46,9 @@ GLOBAL_INCAR = {
     "LORBIT": None,
     "LOPTICS": False,
     "LVTOT": False,
+    "GGA": "PE",
     "KPAR": 4,
     "NCORE": 2,
-    "GGA": "PE",
     "AMIX": 0.2,
     "BMIX": 1e-4,
     "AMIX_MAG": 0.8,
@@ -72,17 +62,43 @@ PHONON_INCAR = {"KPAR": 2, "NCORE": 4}
 STRUCT_NAMES = [
     "SER-Co",
     "SER-Fe",
+    "SER-Mn",
+    "SER-Ni",
+    # "BCC-Co-Co",
+    # "BCC-Co-Fe",
+    # "BCC-Co-Mn",
+    # "BCC-Co-Ni",
+    # "BCC-Fe-Fe",
+    # "BCC-Fe-Mn",
+    # "BCC-Fe-Ni",
+    # "BCC-Mn-Mn",
+    # "BCC-Mn-Ni",
+    # "BCC-Ni-Ni",
+    "FCC-Co-Co",
+    "FCC-Co-Fe",
+    "FCC-Co-Mn",
+    "FCC-Co-Ni",
+    "FCC-Fe-Co",
+    "FCC-Fe-Fe",
+    "FCC-Fe-Mn",
+    "FCC-Fe-Ni",
+    "FCC-Mn-Co",
+    "FCC-Mn-Fe",
+    "FCC-Mn-Mn",
+    "FCC-Mn-Ni",
+    "FCC-Ni-Co",
+    "FCC-Ni-Fe",
+    "FCC-Ni-Mn",
+    "FCC-Ni-Ni",
 ]
 
 
 def run_tick(name: str, force: bool = False) -> None:
     """Run a single structure locally."""
     endmember = Endmember()
-    workdir = Path("data/endmembers") / name
-    flowdir = workdir / "qhaflow"
-    json_path = workdir / f"{name}-qha.json"
-
-    workdir.mkdir(parents=True, exist_ok=True)
+    flow_dir = Path("/nfs_ssd/tmp")
+    store_dir = Path("data/endmembers") / name / "qhaflow"
+    json_path = store_dir / f"{name}-qha.json"
 
     # Skip if already done
     if not force and json_path.exists():
@@ -94,15 +110,13 @@ def run_tick(name: str, force: bool = False) -> None:
 
     log.info(f"Structure {name} start")
 
-    if force and flowdir.exists():
-        shutil.rmtree(flowdir)
-    flowdir.mkdir(parents=True, exist_ok=True)
+    if force and store_dir.exists():
+        shutil.rmtree(store_dir)
 
     struct = endmember.get_poscar(name, Path("data/poscars"))
 
     try:
         worker = QhaWorker(
-            worker_name=f"{name}-qha",
             vasp_args=VASP_ARGS,
             global_incar=GLOBAL_INCAR,
             relax_incar=RELAX_INCAR,
@@ -111,20 +125,11 @@ def run_tick(name: str, force: bool = False) -> None:
             temperature_range=(0, 3100, 50),
             supercell_matrix=((2, 0, 0), (0, 2, 0), (0, 0, 2)),
         )
-        worker.run_flow(name, struct, flowdir, resume=not force)
-        qha_data = worker.get_result()
-
-        if qha_data:
-            result = {"name": name, "state": "successful", **qha_data}
-        else:
-            result = {"name": name, "state": "failed", "struct": struct.as_dict()}
-
+        worker.run_flow(name, struct, flow_dir, store_dir, resume=not force)
+        output = worker.get_result()
+        worker.write_result(data=output, json_path=json_path)
     except Exception as e:
         log.error(f"Structure {name} failed: {e}")
-        result = {"name": name, "state": "failed", "struct": struct.as_dict()}
-
-    with open(json_path, "w") as f:
-        json.dump(result, f, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
 
     log.info(f"Structure {name} done")
 

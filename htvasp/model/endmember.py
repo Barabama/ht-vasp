@@ -112,6 +112,7 @@ class Endmember:
             Structure
         """
         outdir = Path(outdir) if isinstance(outdir, str) else outdir
+        outdir.mkdir(parents=True, exist_ok=True)
         poscar = outdir.joinpath(f"{name}.vasp")
         if poscar.is_file():
             return Structure.from_file(poscar)

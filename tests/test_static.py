@@ -11,139 +11,105 @@ import json
 import shutil
 import logging
 import argparse
+import traceback
 from pathlib import Path
-from datetime import datetime
 
 from pymatgen.core import Structure, Lattice
+
+from htvasp.workflows import StaticWorker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
 
 
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
+# =============================================================================
+# Test Helpers
+# =============================================================================
+
+
+def print_header(name: str):
+    """Print standardized test header."""
+    print("=" * 50)
+    print(f"Test: {name}")
+    print("=" * 50)
+
+
+def get_al_bcc_structure(a: float = 2.73) -> Structure:
+    """Return BCC Al structure for testing."""
+    return Structure(Lattice.cubic(a), ["Al", "Al"], [[0, 0, 0], [0.5, 0.5, 0.5]])
+
+
+def make_test_worker(name: str = "test-static", **kwargs) -> StaticWorker:
+    """Create StaticWorker with standard test defaults."""
+    defaults = {
+        "worker_name": name,
+        "vasp_args": {"vasp_cmd": "echo test"},
+    }
+    defaults.update(kwargs)
+    return StaticWorker(**defaults)
+
+
+# =============================================================================
+# Unit Tests
+# =============================================================================
 
 
 def test_imports():
     """Test all imports"""
-    print("=" * 50)
-    print("Test: Imports")
-    print("=" * 50)
-
-    from htvasp.workflows import StaticWorker
-
+    print_header("Imports")
     print("✓ All imports successful\n")
     return True
 
 
 def test_worker():
     """Test StaticWorker"""
-    print("=" * 50)
-    print("Test: StaticWorker")
-    print("=" * 50)
+    print_header("StaticWorker")
 
-    from htvasp.workflows import StaticWorker
-
-    vasp_args = {
-        "vasp_cmd": "echo test",
-        "vasp_gamma_cmd": "echo test",
-    }
-
-    worker = StaticWorker(
-        worker_name="test-static",
-        vasp_args=vasp_args,
-    )
-
-    print(f"✓ Worker created")
-    print(f"✓ Has flow_makers: {hasattr(worker, 'flow_makers')}")
-
-    lattice = Lattice.cubic(2.85)
-    structure = Structure(lattice, ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
-
+    worker = make_test_worker()
+    print("✓ Worker created")
+    print(f"✓ Has flow_maker: {hasattr(worker, 'flow_maker')}")
     print()
     return True
 
 
 def test_incar_settings():
     """Test INCAR settings"""
-    print("=" * 50)
-    print("Test: INCAR Settings")
-    print("=" * 50)
+    print_header("INCAR Settings")
 
-    from htvasp.workflows import StaticWorker
+    custom_incar = {"ENCUT": 520, "KPAR": 4}
+    worker = make_test_worker(global_incar=custom_incar)
 
-    vasp_args = {
-        "vasp_cmd": "echo test",
-    }
-
-    custom_incar = {
-        "ENCUT": 520,
-        "KPAR": 4,
-    }
-
-    worker = StaticWorker(
-        worker_name="test-static",
-        vasp_args=vasp_args,
-        global_incar=custom_incar,
-    )
-
-    print(f"✓ Worker created with custom INCAR settings")
+    print("✓ Worker created with custom INCAR settings")
     print(f"✓ Custom settings: {custom_incar}")
-
     print()
     return True
 
 
 def test_potcar_functional():
     """Test POTCAR functional selection"""
-    print("=" * 50)
-    print("Test: POTCAR Functional")
-    print("=" * 50)
+    print_header("POTCAR Functional")
 
-    from htvasp.workflows import StaticWorker
-
-    vasp_args = {
-        "vasp_cmd": "echo test",
-    }
-
-    worker = StaticWorker(
-        worker_name="test-static",
-        vasp_args=vasp_args,
-        potcar_functional="PBE_64",
-    )
-
-    print(f"✓ Worker created with PBE_64 functional")
-
+    worker = make_test_worker(potcar_functional="PBE_64")
+    print("✓ Worker created with PBE_64 functional")
     print()
     return True
 
 
 def test_flow_makers():
     """Test flow makers"""
-    print("=" * 50)
-    print("Test: Flow Makers")
-    print("=" * 50)
+    print_header("Flow Makers")
 
-    from htvasp.workflows import StaticWorker
-
-    vasp_args = {
-        "vasp_cmd": "echo test",
-    }
-
-    worker = StaticWorker(
-        worker_name="test-static",
-        vasp_args=vasp_args,
-    )
-
+    worker = make_test_worker()
     relax_maker, static_maker = worker.flow_makers
     print(f"✓ Relax maker: {relax_maker.name}")
     print(f"✓ Static maker: {static_maker.name}")
-
     print()
     return True
+
+
+# =============================================================================
+# Test Runner
+# =============================================================================
 
 
 def run_unit_tests():
@@ -167,7 +133,6 @@ def run_unit_tests():
             results.append((name, result))
         except Exception as e:
             print(f"✗ Test {name} failed: {e}")
-            import traceback
             traceback.print_exc()
             results.append((name, False))
 
@@ -184,47 +149,41 @@ def run_unit_tests():
     return passed == total
 
 
+# =============================================================================
+# Integration Functions
+# =============================================================================
+
+CLUSTER_VASP_ARGS = {
+    "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
+    "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
+}
+
+
 def run_locally():
     """Run Static workflow locally (requires VASP)"""
-    from htvasp.workflows import StaticWorker
-
-    struct = Structure(
-        lattice=[[2.73, 0, 0], [0, 2.73, 0], [0, 0, 2.73]],
-        species=["Al", "Al"],
-        coords=[[0, 0, 0], [0.5, 0.5, 0.5]],
-    )
-
-    flow_dir = Path("temp/static-Al")
-    json_path = flow_dir.joinpath("static_Al.json")
+    structure = get_al_bcc_structure()
+    flow_name = "Al-static"
+    flow_dir = Path("/nfs_ssd/tmp")
+    store_dir = Path("./temp") / flow_name
+    json_path = store_dir / f"{flow_name}.json"
 
     if flow_dir.exists():
         shutil.rmtree(flow_dir)
 
-    vasp_args = {
-        "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
-        "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
-    }
-
     worker = StaticWorker(
-        worker_name="static-Al",
-        vasp_args=vasp_args,
-        global_incar={
-            "GGA": "PE",
-        },
+        vasp_args=CLUSTER_VASP_ARGS,
+        global_incar={"GGA": "PE"},
     )
 
-    output = worker.run_flow(
-        name="Al",
-        structure=struct,
+    worker.run_flow(
+        name=flow_name,
+        structure=structure,
         flow_dir=flow_dir,
+        store_dir=store_dir,
     )
 
-    if output:
-        with open(json_path, "w", encoding="utf-8") as jf:
-            json.dump(output, jf, indent=2, cls=DateTimeEncoder)
-        log.info(f"Output saved to {json_path}")
-    else:
-        log.error("Workflow failed")
+    output = worker.get_result()
+    worker.write_result(data=output, json_path=json_path)
 
 
 def submit_job():
@@ -232,18 +191,20 @@ def submit_job():
     from htvasp.slurm import SlurmJobManager
 
     manager = SlurmJobManager()
-    config = manager.get_cpu_config(
-        ntasks=8,
-        memory="4G",
-    )
+    config = manager.get_cpu_config(ntasks=8, memory="4G")
     job_id = manager.submit_command(
         command=f"python {__file__} --local",
         config=config,
         conda_env="htvasp",
         workdir=".",
     )
-    log.info(f"Submitted job: {job_id}")
+    if job_id:
+        log.info(f"Submitted job: {job_id}")
 
+
+# =============================================================================
+# Main
+# =============================================================================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test Static workflow")
@@ -256,9 +217,6 @@ if __name__ == "__main__":
         run_locally()
     elif args.slurm:
         submit_job()
-    elif args.unit:
-        success = run_unit_tests()
-        exit(0 if success else 1)
     else:
         success = run_unit_tests()
         exit(0 if success else 1)
