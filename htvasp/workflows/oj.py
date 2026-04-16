@@ -70,7 +70,7 @@ class OJWorker(Worker):
             run_vasp_kwargs=self.run_vasp_kwargs,
             input_set_generator=OJInputSetGenerator(
                 user_potcar_functional=self.potcar_functional,
-                user_incar_settings={**self.global_incar, "LORBIT": 11},
+                user_incar_settings={**self.global_incar, "LORBIT": 10},
                 j_count=j_count,
                 dist_cutoff=dist_cutoff,
                 magnetic_ion_types=magnetic_ion_types or [],

@@ -1,4 +1,4 @@
-"""HT-VASP OJ Workflow - Magnetic exchange calculation."""
+"""HT-VASP mag Workflow - Magnetic exchange calculation."""
 
 import json
 import shutil
@@ -7,7 +7,7 @@ import argparse
 from pathlib import Path
 
 from htvasp.model import Endmember
-from htvasp.workflows import OJWorker
+from htvasp.workflows import StaticWorker
 from htvasp.slurm import SlurmJobManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
@@ -30,7 +30,7 @@ GLOBAL_INCAR = {
     "NELMIN": 6,
     "NELMDL": -6,
     "IBRION": 2,
-    "ISIF": 2,
+    "ISIF": 3,
     "NSW": 50,
     "POTIM": 0.2,
     "EDIFF": 1e-6,
@@ -44,8 +44,8 @@ GLOBAL_INCAR = {
     "LCHARG": False,
     "LORBIT": 10,
     "GGA": "PE",
-    "KPAR": 2,
-    "NCORE": 4,
+    "KPAR": 4,
+    "NCORE": 2,
     "AMIX": 0.2,
     "BMIX": 1e-4,
     "AMIX_MAG": 0.8,
@@ -91,8 +91,8 @@ def run_tick(name: str, force: bool = False):
     """Run a single structure locally."""
     endmember = Endmember()
     flow_dir = Path("/nfs_ssd/tmp")
-    store_dir = Path("data/endmembers") / name / "ojflow"
-    json_path = store_dir / f"{name}-oj.json"
+    store_dir = Path("data/endmembers") / name / "magflow"
+    json_path = store_dir / f"{name}-mag.json"
 
     # Skip if already done
     if not force and json_path.exists():
@@ -107,7 +107,7 @@ def run_tick(name: str, force: bool = False):
     struct = endmember.get_poscar(name, Path("data/poscars"))
 
     try:
-        worker = OJWorker(
+        worker = StaticWorker(
             vasp_args=VASP_ARGS,
             global_incar=GLOBAL_INCAR,
             j_count=4,
@@ -133,8 +133,8 @@ def submit_jobs(force: bool = False) -> None:
     manager = SlurmJobManager()
     for name in STRUCT_NAMES:
         config = manager.get_cpu_config(
-            job_name=f"{name}-oj",
-            output_log=f"logs/{name}-oj.log",
+            job_name=f"{name}-mag",
+            output_log=f"logs/{name}-mag.log",
             ntasks=32,
             memory="20G",
         )
@@ -151,7 +151,7 @@ def submit_jobs(force: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="OJ workflow")
+    parser = argparse.ArgumentParser(description="Magnetic workflow")
     parser.add_argument("--tick", type=str, help="Run single structure")
     parser.add_argument("--batch", action="store_true", help="Run all locally")
     parser.add_argument("--slurm", action="store_true", help="Submit to Slurm")

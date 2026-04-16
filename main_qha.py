@@ -6,13 +6,12 @@ import logging
 import argparse
 from pathlib import Path
 
-from htvasp.cli import submit_jobs, run_batch
 from htvasp.model import Endmember
 from htvasp.workflows import QhaWorker
+from htvasp.slurm import SlurmJobManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
-
 
 # VASP configuration
 VASP_ARGS = {
@@ -21,25 +20,25 @@ VASP_ARGS = {
 }
 
 GLOBAL_INCAR = {
-    "ENCUT": 450,
+    "ENCUT": 400,
     "ISTART": 0,
     "ICHARG": 2,
     "ISMEAR": 1,
-    "SIGMA": 0.1,
-    "ALGO": "Normal",
-    "NELM": 200,
+    "SIGMA": 0.2,
+    "ALGO": "Fast",
+    "NELM": 100,
     "NELMIN": 6,
     "NELMDL": -6,
     "IBRION": 2,
-    "ISIF": 2,
-    "NSW": 100,
+    "ISIF": 3,
+    "NSW": 50,
     "POTIM": 0.2,
     "EDIFF": 1e-6,
-    "EDIFFG": -0.01,
+    "EDIFFG": -0.02,
     "ISPIN": 2,
     "ISYM": 0,
     "LREAL": "Auto",
-    "PREC": "Accurate",
+    "PREC": "Normal",
     "SYMPREC": 1e-5,
     "LWAVE": False,
     "LCHARG": False,
@@ -62,8 +61,8 @@ PHONON_INCAR = {"KPAR": 2, "NCORE": 4}
 STRUCT_NAMES = [
     "SER-Co",
     "SER-Fe",
-    "SER-Mn",
-    "SER-Ni",
+    # "SER-Mn",
+    # "SER-Ni",
     # "BCC-Co-Co",
     # "BCC-Co-Fe",
     # "BCC-Co-Mn",
@@ -74,26 +73,26 @@ STRUCT_NAMES = [
     # "BCC-Mn-Mn",
     # "BCC-Mn-Ni",
     # "BCC-Ni-Ni",
-    "FCC-Co-Co",
+    # "FCC-Co-Co",
     "FCC-Co-Fe",
-    "FCC-Co-Mn",
-    "FCC-Co-Ni",
-    "FCC-Fe-Co",
-    "FCC-Fe-Fe",
-    "FCC-Fe-Mn",
+    # "FCC-Co-Mn",
+    # "FCC-Co-Ni",
+    # "FCC-Fe-Co",
+    # "FCC-Fe-Fe",
+    # "FCC-Fe-Mn",
     "FCC-Fe-Ni",
-    "FCC-Mn-Co",
-    "FCC-Mn-Fe",
-    "FCC-Mn-Mn",
-    "FCC-Mn-Ni",
-    "FCC-Ni-Co",
-    "FCC-Ni-Fe",
-    "FCC-Ni-Mn",
-    "FCC-Ni-Ni",
+    # "FCC-Mn-Co",
+    # "FCC-Mn-Fe",
+    # "FCC-Mn-Mn",
+    # "FCC-Mn-Ni",
+    # "FCC-Ni-Co",
+    # "FCC-Ni-Fe",
+    # "FCC-Ni-Mn",
+    # "FCC-Ni-Ni",
 ]
 
 
-def run_tick(name: str, force: bool = False) -> None:
+def run_tick(name: str, force: bool = False):
     """Run a single structure locally."""
     endmember = Endmember()
     flow_dir = Path("/nfs_ssd/tmp")
@@ -102,11 +101,8 @@ def run_tick(name: str, force: bool = False) -> None:
 
     # Skip if already done
     if not force and json_path.exists():
-        with open(json_path) as f:
-            result = json.load(f)
-        if result.get("state") == "successful":
-            log.info(f"Structure {name} already done")
-            return
+        log.info(f"Structure {name} already done")
+        return
 
     log.info(f"Structure {name} start")
 
@@ -134,9 +130,31 @@ def run_tick(name: str, force: bool = False) -> None:
     log.info(f"Structure {name} done")
 
 
-def command_template(name: str, force: bool) -> str:
-    """Generate command for Slurm submission."""
-    return f"python {__file__} --tick {name} {'--force' if force else ''}"
+def run_batch(force: bool = False):
+    """Run all structures locally."""
+    for name in STRUCT_NAMES:
+        run_tick(name, force=force)
+
+
+def submit_jobs(force: bool = False) -> None:
+    manager = SlurmJobManager()
+    for name in STRUCT_NAMES:
+        config = manager.get_cpu_config(
+            job_name=f"{name}-qha",
+            output_log=f"logs/{name}-qha.log",
+            ntasks=32,
+            memory="20G",
+        )
+        job_id = manager.submit_command(
+            command=f"python {__file__} --tick {name} {'--force' if force else ''}",
+            config=config,
+            conda_env="htvasp",
+            workdir=".",
+        )
+        if not job_id:
+            log.error(f"Failed to submit job for {name}")
+        else:
+            log.info(f"Submitted job for {name} with ID {job_id}")
 
 
 if __name__ == "__main__":
@@ -150,16 +168,8 @@ if __name__ == "__main__":
     if args.tick:
         run_tick(args.tick, force=args.force)
     elif args.batch:
-        run_batch(STRUCT_NAMES, run_tick, force=args.force)
+        run_batch(force=args.force)
     elif args.slurm:
-        submit_jobs(
-            struct_names=STRUCT_NAMES,
-            command_template=command_template,
-            force=args.force,
-            job_name=lambda n: f"{n}-qha",
-            output_log=lambda n: f"logs/{n}-qha.log",
-            ntasks=48,
-            conda_env="htvasp",
-        )
+        submit_jobs(force=args.force)
     else:
         parser.print_help()

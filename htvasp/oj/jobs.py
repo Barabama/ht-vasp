@@ -9,7 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from atomate2.vasp.jobs.core import RelaxMaker
+from atomate2.vasp.jobs.core import StaticMaker
 from jobflow import Flow, Response, job
 from pymatgen.core import Structure
 
@@ -68,7 +68,7 @@ def create_flip_jobs(
     run_vasp_kwargs: dict[str, Any],
     input_set_generator: OJInputSetGenerator,
 ) -> Response:
-    """Create RelaxMaker jobs in new oj_flip_{idx} directories.
+    """Create StaticMaker jobs in new oj_flip_{idx} directories.
 
     Args:
         flip_dirs: List of original flip directory paths from oj_generate.
@@ -76,7 +76,7 @@ def create_flip_jobs(
         input_set_generator: Input set generator for VASP calculations.
 
     Returns:
-        Response with detour Flow containing RelaxMaker jobs.
+        Response with detour Flow containing StaticMaker jobs.
     """
     job_dir = Path.cwd()
     flip_jobs = []
@@ -98,9 +98,9 @@ def create_flip_jobs(
                 else:
                     log.warning(f"File not found: {src_file}")
 
-            # Create RelaxMaker job
+            # Create StaticMaker job
             structure = Structure.from_file(new_flip_dir / "POSCAR")
-            flip_maker = RelaxMaker(
+            flip_maker = StaticMaker(
                 name=f"oj_flip_{idx}",
                 run_vasp_kwargs=run_vasp_kwargs,
                 input_set_generator=input_set_generator,
