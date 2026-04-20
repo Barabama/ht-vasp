@@ -47,7 +47,7 @@ class StaticWorker(Worker):
         # Structural relaxation
         relax_maker = DoubleRelaxMaker.from_relax_maker(
             RelaxMaker(
-                name="r3_relax",
+                name="r3 relax",
                 run_vasp_kwargs=self.run_vasp_kwargs,
                 # stop_children_kwargs={"handle_unsuccessful": False},
                 input_set_generator=RelaxSetGenerator(
