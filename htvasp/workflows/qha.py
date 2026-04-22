@@ -81,7 +81,7 @@ class QhaWorker(Worker):
             RelaxMaker(
                 name="init relax",
                 run_vasp_kwargs=self.run_vasp_kwargs,
-                # stop_children_kwargs={"handle_unsuccessful": False},
+                stop_children_kwargs={"handle_unsuccessful": False},
                 input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=self.potcar_functional,
                     user_incar_settings={
@@ -98,7 +98,7 @@ class QhaWorker(Worker):
             RelaxMaker(
                 name="eos relax",
                 run_vasp_kwargs=self.run_vasp_kwargs,
-                # stop_children_kwargs={"handle_unsuccessful": False},
+                stop_children_kwargs={"handle_unsuccessful": False},
                 input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=self.potcar_functional,
                     user_incar_settings={
@@ -113,7 +113,7 @@ class QhaWorker(Worker):
         # Phonon displacement maker
         phonon_displacement_maker = PhononDisplacementMaker(
             run_vasp_kwargs=self.run_vasp_kwargs,
-            # stop_children_kwargs={"handle_unsuccessful": False},
+            stop_children_kwargs={"handle_unsuccessful": False},
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=self.potcar_functional,
                 user_incar_settings={
@@ -144,8 +144,8 @@ class QhaWorker(Worker):
 
         # Dielectric maker
         dielectric_maker = DielectricMaker(
-            # run_vasp_kwargs=self.run_vasp_kwargs,
-            # stop_children_kwargs={"handle_unsuccessful": False},
+            run_vasp_kwargs=self.run_vasp_kwargs,
+            stop_children_kwargs={"handle_unsuccessful": False},
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=self.potcar_functional,
                 user_incar_settings={

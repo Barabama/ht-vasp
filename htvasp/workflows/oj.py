@@ -68,6 +68,7 @@ class OJWorker(Worker):
 
         self.flow_maker = OJMaker(
             run_vasp_kwargs=self.run_vasp_kwargs,
+            # stop_children_kwargs={"handle_unsuccessful": False},
             input_set_generator=OJInputSetGenerator(
                 user_potcar_functional=self.potcar_functional,
                 user_incar_settings={**self.global_incar, "LORBIT": 10},

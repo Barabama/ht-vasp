@@ -91,6 +91,7 @@ class NscfWorker(Worker):
         relax_maker = DoubleRelaxMaker.from_relax_maker(
             RelaxMaker(
                 run_vasp_kwargs=self.run_vasp_kwargs,
+                stop_children_kwargs={"handle_unsuccessful": False},
                 input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=self.potcar_functional,
                     user_incar_settings={
@@ -105,6 +106,7 @@ class NscfWorker(Worker):
         # Static calculation (generate CHGCAR for NSCF)
         static_maker = StaticMaker(
             run_vasp_kwargs=self.run_vasp_kwargs,
+            stop_children_kwargs={"handle_unsuccessful": False},
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=self.potcar_functional,
                 user_incar_settings={
@@ -124,6 +126,7 @@ class NscfWorker(Worker):
         nscf_dos_maker = NonSCFMaker(
             name="nscf uniform",
             run_vasp_kwargs=self.run_vasp_kwargs,
+            stop_children_kwargs={"handle_unsuccessful": False},
             input_set_generator=NonSCFSetGenerator(
                 mode="uniform",
                 reciprocal_density=reciprocal_density,
@@ -144,6 +147,7 @@ class NscfWorker(Worker):
         nscf_band_maker = NonSCFMaker(
             name="nscf line",
             run_vasp_kwargs=self.run_vasp_kwargs,
+            stop_children_kwargs={"handle_unsuccessful": False},
             input_set_generator=NonSCFSetGenerator(
                 mode="line",
                 line_density=line_density,

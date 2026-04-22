@@ -50,7 +50,7 @@ class RelaxWorker(Worker):
             RelaxMaker(
                 name="r7 relax",
                 run_vasp_kwargs=self.run_vasp_kwargs,
-                # stop_children_kwargs={"handle_unsuccessful": False},
+                stop_children_kwargs={"handle_unsuccessful": False},
                 input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=self.potcar_functional,
                     user_incar_settings={
@@ -66,7 +66,7 @@ class RelaxWorker(Worker):
             RelaxMaker(
                 name="r3 relax",
                 run_vasp_kwargs=self.run_vasp_kwargs,
-                # stop_children_kwargs={"handle_unsuccessful": False},
+                stop_children_kwargs={"handle_unsuccessful": False},
                 input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=self.potcar_functional,
                     user_incar_settings={

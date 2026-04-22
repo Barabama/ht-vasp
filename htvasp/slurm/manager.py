@@ -48,6 +48,7 @@ class SlurmConfig:
     memory: str = "20G"
     nodes: int = 1
     ntasks: int = 1
+    ntasks_per_node: int = 0  # don't use unless >0
     nodelist: str = ""
     cpus_per_task: int = 1
     gpus_per_task: int = 0  # Only for GPU partition
@@ -84,9 +85,18 @@ class SlurmConfig:
         """
         Initialize conda commands.
 
+        Args:
+            conda_env: Conda environment path (relative or absolute)
+            
         Returns:
             List of conda activation commands
         """
+        # Convert relative path to absolute path
+        if conda_env.startswith("./"):
+            conda_env = str(Path.cwd() / conda_env[2:])  # Remove "./" prefix
+        elif conda_env.startswith("."):
+            conda_env = str(Path.cwd() / conda_env[1:])  # Remove "." prefix
+        
         return [
             f". /opt/miniconda3/etc/profile.d/conda.sh",
             # f"conda info --envs",
@@ -159,6 +169,10 @@ class SlurmJobManager:
         # Add --error if specified
         if config.error_log:
             cmd_parts.append(f"--error={config.error_log}")
+
+        # Add --ntasks-per-node if specified
+        if config.ntasks_per_node:
+            cmd_parts.append(f"--ntasks-per-node={config.ntasks_per_node}")
 
         # Add --nodelist if specified
         if config.nodelist:
