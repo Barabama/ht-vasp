@@ -163,9 +163,7 @@ class NscfWorker(Worker):
             ),
         )
 
-        self.flow_makers: tuple[
-            DoubleRelaxMaker, StaticMaker, NonSCFMaker, NonSCFMaker
-        ] = (
+        self.flow_makers: tuple[DoubleRelaxMaker, StaticMaker, NonSCFMaker, NonSCFMaker] = (
             relax_maker,
             static_maker,
             nscf_dos_maker,
@@ -199,6 +197,7 @@ class NscfWorker(Worker):
             nscf_band_job = nscf_band_maker.make(
                 static_job.output.structure,
                 prev_dir=static_job.output.dir_name,
+                mode="line",  #  avoiding default "uniform"
             )
             # Both NSCF jobs depend on static, but not on each other
             return Flow(
@@ -211,9 +210,7 @@ class NscfWorker(Worker):
                 output=nscf_dos_job.output,
             )
 
-    def get_result(
-        self, output_job_name: str = "nscf uniform"
-    ) -> dict[str, Any] | None:
+    def get_result(self, output_job_name: str = "nscf uniform") -> dict[str, Any] | None:
         """
         Get the result from the specified job.
 
@@ -225,8 +222,9 @@ class NscfWorker(Worker):
             Output from the specified job or None if not found
         """
         return super().get_result(output_job_name)
-    
+
     def get_dos_result(self) -> dict[str, Any] | None:
         return super().get_result("nscf uniform")
+
     def get_band_result(self) -> dict[str, Any] | None:
         return super().get_result("nscf line")
