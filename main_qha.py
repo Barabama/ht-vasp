@@ -121,7 +121,13 @@ def run_tick(name: str, force: bool = False):
             temperature_range=(0, 3100, 50),
             supercell_matrix=((2, 0, 0), (0, 2, 0), (0, 0, 2)),
         )
-        worker.run_flow(name, struct, flow_dir, store_dir, resume=not force)
+        worker.run_flow(
+            name=name, 
+            structure=struct, 
+            flow_dir=flow_dir, 
+            store_dir=store_dir, 
+            resume=not force,
+        )
         output = worker.get_result()
         worker.write_result(data=output, json_path=json_path)
     except Exception as e:

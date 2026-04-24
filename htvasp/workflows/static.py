@@ -5,6 +5,7 @@ Structural relax and static calculation.
 """
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from jobflow import Flow
@@ -50,13 +51,14 @@ class StaticWorker(Worker):
                 name="r3 relax",
                 run_vasp_kwargs=self.run_vasp_kwargs,
                 stop_children_kwargs={"handle_unsuccessful": False},
+                copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
                 input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=self.potcar_functional,
                     user_incar_settings={
                         **self.global_incar,
+                        "ISTART": 1,
                         "ISIF": 3,
                         "LWAVE": True,
-                        "LCHARG": True,
                         **relax_incar,
                     },
                 ),
@@ -66,16 +68,18 @@ class StaticWorker(Worker):
         static_maker = StaticMaker(
             run_vasp_kwargs=self.run_vasp_kwargs,
             stop_children_kwargs={"handle_unsuccessful": False},
+            copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=self.potcar_functional,
                 user_incar_settings={
                     **self.global_incar,
                     "ISTART": 1,
-                    "ICHARG": 1,
                     "IBRION": -1,
                     "ISIF": 2,
                     "NSW": 0,
                     "LORBIT": 11,
+                    "LWAVE": True,
+                    "LCHARG": True,
                     **static_incar,
                 },
             ),
@@ -87,9 +91,9 @@ class StaticWorker(Worker):
             static_maker,
         )
 
-    def _make_flow(self, structure: Structure) -> Flow:
+    def _make_flow(self, structure: Structure, prev_dir: Path | str | None = None) -> Flow:
         relax_maker, static_maker = self.flow_makers
-        relax_job = relax_maker.make(structure)
+        relax_job = relax_maker.make(structure, prev_dir)
         static_job = static_maker.make(
             relax_job.output.structure,
             prev_dir=relax_job.output.dir_name,

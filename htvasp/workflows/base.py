@@ -95,7 +95,7 @@ class Worker:
         self.flow_maker = None
         self.flow = None  # Store the flow for later access
 
-    def _make_flow(self, structure: Structure) -> Flow:
+    def _make_flow(self, structure: Structure, prev_dir: Path | str | None = None) -> Flow:
         raise NotImplementedError
 
     def close(self):
@@ -107,6 +107,7 @@ class Worker:
         self,
         name: str,
         structure: Structure,
+        prev_dir: Path | str | None = None,
         flow_dir: Path | str = "/tmp",
         store_dir: Path | str = ".",
         ensure_success: bool = True,
@@ -119,13 +120,14 @@ class Worker:
         Args:
             name: Name of the system
             structure: Structure to run the worker on
+            prev_dir: Previous directory to resume from
             flow_dir: Flow directory for running the flow (fast storage, e.g., /tmp)
             store_dir: Directory to store the results (persistent storage)
             ensure_success: Raise an error if the flow did not finish successfully
             raise_immediately: Raise an error immediately if a job fails
             resume: Resume from previous completed jobs
         """
-        self.flow = self._make_flow(structure)
+        self.flow = self._make_flow(structure, prev_dir)
 
         # Generate flow directory
         flow_dir = Path(flow_dir).resolve().joinpath(f"{name}-{self.flow.uuid[:8]}")

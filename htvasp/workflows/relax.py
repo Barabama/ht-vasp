@@ -5,6 +5,7 @@ Structural relax workflows using atomate2 DoubleRelaxMaker.
 """
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from jobflow import Flow
@@ -51,11 +52,14 @@ class RelaxWorker(Worker):
                 name="r7 relax",
                 run_vasp_kwargs=self.run_vasp_kwargs,
                 stop_children_kwargs={"handle_unsuccessful": False},
+                copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
                 input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=self.potcar_functional,
                     user_incar_settings={
                         **self.global_incar,
+                        "ISTART": 1,
                         "ISIF": 7,
+                        "LWAVE": True,
                         **r7_incar,
                     },
                 ),
@@ -67,11 +71,14 @@ class RelaxWorker(Worker):
                 name="r3 relax",
                 run_vasp_kwargs=self.run_vasp_kwargs,
                 stop_children_kwargs={"handle_unsuccessful": False},
+                copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
                 input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=self.potcar_functional,
                     user_incar_settings={
                         **self.global_incar,
+                        "ISTART": 1,
                         "ISIF": 3,
+                        "LWAVE": True,
                         **r3_incar,
                     },
                 ),
@@ -84,8 +91,8 @@ class RelaxWorker(Worker):
             relax_maker2=relax_r3_maker,
         )
 
-    def _make_flow(self, structure: Structure) -> Flow:
-        return self.flow_maker.make(structure)
+    def _make_flow(self, structure: Structure, prev_dir: Path | str | None = None) -> Flow:
+        return self.flow_maker.make(structure, prev_dir)
 
     def get_result(self, output_job_name: str = "r3 relax") -> dict[str, Any] | None:
         return super().get_result(output_job_name)

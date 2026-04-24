@@ -114,7 +114,13 @@ def run_tick(name: str, force: bool = False):
             extend_poscar=(2, 2, 2),
             base_spin=2.0,
         )
-        worker.run_flow(name, struct, flow_dir, store_dir, resume=not force)
+        worker.run_flow(
+            name=name, 
+            structure=struct, 
+            flow_dir=flow_dir, 
+            store_dir=store_dir, 
+            resume=not force,
+        )
         output = worker.get_result()
         worker.write_result(data=output, json_path=json_path)
     except Exception as e:

@@ -7,6 +7,7 @@ Quasi-Harmonic Approximation workflows for thermodynamic properties.
 import re
 import logging
 import traceback
+from pathlib import Path
 from typing import Any, TypedDict
 
 from jobflow import Flow
@@ -171,8 +172,12 @@ class QhaWorker(Worker):
             ignore_imaginary_modes=True,
         )
 
-    def _make_flow(self, structure: Structure) -> Flow:
-        return self.flow_maker.make(structure, supercell_matrix=self.supercell_matrix)
+    def _make_flow(self, structure: Structure, prev_dir: Path | str | None = None) -> Flow:
+        return self.flow_maker.make(
+            structure,
+            supercell_matrix=self.supercell_matrix,
+            prev_dir=prev_dir,
+        )
 
     def get_result(self, output_job_name: str = "analyze_free_energy") -> dict[str, Any] | None:
         """Override to include deformation energies."""

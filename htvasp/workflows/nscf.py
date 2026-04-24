@@ -5,6 +5,7 @@ DOS + Band electronic structure calculations.
 """
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from jobflow import Flow
@@ -73,8 +74,6 @@ class NscfWorker(Worker):
         )
 
         # Disable VaspErrorHandler for NSCF calculations
-        # NSCF jobs should be stable and fail fast if there's a real issue
-        # The "number of bands has been changed" warning is handled by VASP itself
         self.run_vasp_kwargs["handlers"] = []
 
         relax_incar = relax_incar or {}
@@ -92,11 +91,14 @@ class NscfWorker(Worker):
             RelaxMaker(
                 run_vasp_kwargs=self.run_vasp_kwargs,
                 stop_children_kwargs={"handle_unsuccessful": False},
+                copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
                 input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=self.potcar_functional,
                     user_incar_settings={
                         **self.global_incar,
+                        "ISTART": 1,
                         "ISIF": 3,
+                        "LWAVE": True,
                         **relax_incar,
                     },
                 ),
@@ -107,6 +109,7 @@ class NscfWorker(Worker):
         static_maker = StaticMaker(
             run_vasp_kwargs=self.run_vasp_kwargs,
             stop_children_kwargs={"handle_unsuccessful": False},
+            copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=self.potcar_functional,
                 user_incar_settings={
@@ -127,6 +130,7 @@ class NscfWorker(Worker):
             name="nscf uniform",
             run_vasp_kwargs=self.run_vasp_kwargs,
             stop_children_kwargs={"handle_unsuccessful": False},
+            copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR", "CHGCAR")},
             input_set_generator=NonSCFSetGenerator(
                 mode="uniform",
                 reciprocal_density=reciprocal_density,
@@ -134,6 +138,7 @@ class NscfWorker(Worker):
                 user_potcar_functional=self.potcar_functional,
                 user_incar_settings={
                     **self.global_incar,
+                    "ISTART": 1,
                     "IBRION": -1,
                     "NSW": 0,
                     "ICHARG": 11,
@@ -148,12 +153,14 @@ class NscfWorker(Worker):
             name="nscf line",
             run_vasp_kwargs=self.run_vasp_kwargs,
             stop_children_kwargs={"handle_unsuccessful": False},
+            copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR", "CHGCAR")},
             input_set_generator=NonSCFSetGenerator(
                 mode="line",
                 line_density=line_density,
                 user_potcar_functional=self.potcar_functional,
                 user_incar_settings={
                     **self.global_incar,
+                    "ISTART": 1,
                     "IBRION": -1,
                     "NSW": 0,
                     "ICHARG": 11,
@@ -170,20 +177,11 @@ class NscfWorker(Worker):
             nscf_band_maker,
         )
 
-    def _make_flow(self, structure: Structure) -> Flow:
-        """
-        Create the NSCF flow.
-
-        Args:
-            structure: Input structure
-
-        Returns:
-            Flow object with Relax → Static → NSCF-DOS/Band jobs
-        """
+    def _make_flow(self, structure: Structure, prev_dir: Path | str | None = None) -> Flow:
         relax_maker, static_maker, nscf_dos_maker, nscf_band_maker = self.flow_makers
 
         # Create jobs
-        relax_job = relax_maker.make(structure)
+        relax_job = relax_maker.make(structure, prev_dir)
         static_job = static_maker.make(
             relax_job.output.structure,
             prev_dir=relax_job.output.dir_name,
@@ -211,16 +209,6 @@ class NscfWorker(Worker):
             )
 
     def get_result(self, output_job_name: str = "nscf uniform") -> dict[str, Any] | None:
-        """
-        Get the result from the specified job.
-
-        Args:
-            output_job_name: Name of the job to get result from.
-                Options: "nscf uniform" (DOS), "nscf line" (Band)
-
-        Returns:
-            Output from the specified job or None if not found
-        """
         return super().get_result(output_job_name)
 
     def get_dos_result(self) -> dict[str, Any] | None:

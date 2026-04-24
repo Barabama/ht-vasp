@@ -81,7 +81,7 @@ class OJWorker(Worker):
             ),
         )
 
-    def _make_flow(self, structure: Structure) -> Flow:
+    def _make_flow(self, structure: Structure, prev_dir: str | None = None) -> Flow:
         return self.flow_maker.make(structure)
 
     def get_result(self, output_job_name: str = "solve") -> dict[str, Any] | None:
