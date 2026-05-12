@@ -38,6 +38,7 @@ ENV/
 .claude/
 .kilo/
 .lingma/
+.deepseek/
 
 # Logs
 *log*
@@ -66,3 +67,5 @@ datasets/
 # Temporary files
 *tmp*
 *temp*
+
+output/

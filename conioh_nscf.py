@@ -10,7 +10,6 @@ from pathlib import Path
 from htvasp.workflows import NscfWorker
 from htvasp.slurm import SlurmJobManager
 
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
 
@@ -36,12 +35,12 @@ GLOBAL_INCAR = {
     "KPAR": 4,
     "NCORE": 4,
     "GGA": "PE",
-    "IVDW": 12,  # ← 新增
+    "IVDW": 12,
     "LDAU": True,
     "LDAUTYPE": 2,
     "LDAUPRINT": 1,
     "LASPH": True,
-    "LMAXMIX": 4,
+    "LMAXMIX": 4,  # d-electrons in Co, Ni
     "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
     "LDAUU": {"Co": 3.32, "Ni": 6.20},
     "LDAUJ": {"Co": 0.0, "Ni": 0.0},
@@ -52,7 +51,7 @@ RELAX_INCAR = {
     "SIGMA": 0.05,
     "IBRION": 2,
     "ISIF": 3,
-    "NSW": 50,
+    "NSW": 100,
     "EDIFFG": -0.02,
 }
 
@@ -60,15 +59,16 @@ STATIC_INCAR = {
     "ISMEAR": -5,
     "ISTART": 1,
     "IBRION": -1,
+    "ALGO": "Normal",
     "NSW": 0,
     "NELM": 200,
     "LWAVE": True,
     "LCHARG": True,
+    "LORBIT": 11,
 }
 
 NSCF_INCAR = {
     "ISMEAR": -5,
-    # "ISMEAR": 0,
     "IBRION": -1,
     "NSW": 0,
     "ICHARG": 11,
@@ -78,10 +78,11 @@ NSCF_INCAR = {
 poscars_path = Path("data/poscars")
 structs = {
     "CoNiHO": "data/poscars/CoNiHO.vasp",
-    "CoNiHOS-Co": "data/poscars/CoNiHOS-Co.vasp",
-    "CoNiHOS-Co-H": "data/poscars/CoNiHOS-Co-H.vasp",
-    "CoNiHOS-Ni": "data/poscars/CoNiHOS-Ni.vasp",
-    "CoNiHOS-Ni-H": "data/poscars/CoNiHOS-Ni-H.vasp",
+    "CoNiHOS-Co3": "data/poscars/CoNiHOS-Co3.vasp",
+    "CoNiHOS-Ni3": "data/poscars/CoNiHOS-Ni3.vasp",
+    "CoNiHOS-Co1Ni2": "data/poscars/CoNiHOS-Co1Ni2.vasp",
+    "CoNiHOS-Co2Ni1": "data/poscars/CoNiHOS-Co2Ni1.vasp",
+    "CoNiHOS-Co3-noH": "data/poscars/CoNiHOS-Co3-noH.vasp",
 }
 
 
@@ -116,7 +117,13 @@ def run_tick(name: str, force: bool = False):
             nscf_band_incar=NSCF_INCAR,
             nscf_dos_incar=NSCF_INCAR,
         )
-        worker.run_flow(name, structure, flow_dir, store_dir, resume=not force)
+        worker.run_flow(
+            name=name,
+            structure=structure,
+            flow_dir=flow_dir,
+            store_dir=store_dir,
+            resume=not force,
+        )
         dos_output = worker.get_dos_result() or {}
         log.info(f"dos_output has keys: {list(dos_output.keys())}")
         worker.write_result(dos_output, store_dir / "dos_out.json")
@@ -143,7 +150,6 @@ def submit_jobs(force: bool = False):
         config = manager.get_cpu_config(
             job_name=f"{name}-nscf",
             output_log=f"logs/{name}-nscf.log",
-            nodelist="429pro",
             ntasks=48,
             memory="100G",
         )
