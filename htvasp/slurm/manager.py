@@ -255,7 +255,7 @@ class SlurmJobManager:
         job_name: str = "vasp-gpu",
         output_log: str = "job.log",
         ntasks: int = 1,
-        gpus_per_node: int = 1,
+        gpus_per_task: int = 1,
         memory: str = "10G",
         **kwargs,
     ) -> SlurmConfig:
@@ -266,7 +266,7 @@ class SlurmJobManager:
             job_name: Job name (default: "vasp-gpu")
             output_log: Output log file (default: "job.log")
             ntasks: Number of tasks (default: 1 CPU for GPU)
-            gpus_per_node: Number of GPUs per node (default: 1)
+            gpus_per_task: Number of GPUs per task (default: 1)
             memory: Memory per node (default: "10G")
             **kwargs: Additional SlurmConfig parameters
 
@@ -277,7 +277,7 @@ class SlurmJobManager:
             job_name=job_name,
             output_log=output_log,
             ntasks=ntasks,
-            gpus_per_task=gpus_per_node,
+            gpus_per_task=gpus_per_task,
             memory=memory,
             partition="partGPU",
             **kwargs,
