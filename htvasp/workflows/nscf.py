@@ -45,6 +45,7 @@ class NscfWorker(Worker):
         reciprocal_density: int = 200,
         dedos: float = 0.02,
         line_density: int = 20,
+        band_kpath_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -63,6 +64,8 @@ class NscfWorker(Worker):
             reciprocal_density: K-point density for DOS (uniform mode)
             dedos: Energy resolution for DOS (eV), used to auto-calculate NEDOS
             line_density: Line density for band structure (line mode)
+            band_kpath_kwargs: Extra kwargs for HighSymmKpath in line mode,
+                e.g. {"path_type": "hinuma"} to use SeeK-path for slabs.
             **kwargs: Additional keyword arguments
         """
         # Initialize base Worker
@@ -85,6 +88,7 @@ class NscfWorker(Worker):
         self.reciprocal_density = reciprocal_density
         self.dedos = dedos
         self.line_density = line_density
+        self.band_kpath_kwargs = band_kpath_kwargs
 
         # Structural relaxation (ISIF=3)
         relax_maker = DoubleRelaxMaker.from_relax_maker(
@@ -158,6 +162,7 @@ class NscfWorker(Worker):
                 mode="line",
                 line_density=line_density,
                 user_potcar_functional=self.potcar_functional,
+                user_kpoints_settings={"kpath_kwargs": band_kpath_kwargs or {}},
                 user_incar_settings={
                     **self.global_incar,
                     "ISTART": 1,

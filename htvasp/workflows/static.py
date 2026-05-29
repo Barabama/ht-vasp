@@ -28,7 +28,7 @@ class StaticWorker(Worker):
         self,
         worker_name: str = "static-worker",
         vasp_args: dict[str, Any] | None = None,
-        potcar_functional="PBE_64",
+        potcar_functional: str = "PBE_64",
         global_incar: dict[str, Any] | None = None,
         relax_incar: dict[str, Any] | None = None,
         static_incar: dict[str, Any] | None = None,
@@ -48,7 +48,6 @@ class StaticWorker(Worker):
         # Structural relaxation
         relax_maker = DoubleRelaxMaker.from_relax_maker(
             RelaxMaker(
-                name="r3 relax",
                 run_vasp_kwargs=self.run_vasp_kwargs,
                 stop_children_kwargs={"handle_unsuccessful": False},
                 copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},

@@ -54,6 +54,7 @@ class SlurmConfig:
     gpus_per_task: int = 0  # Only for GPU partition
     partition: Literal["partCPU", "partGPU"] = "partCPU"
     time_limit: str = "100:00:00"
+    dependency: str = ""  # Slurm job dependency (e.g., afterok:12345)
 
     # VASP commands
     vasp_cmd: str = "srun vasp_std"
@@ -177,6 +178,10 @@ class SlurmJobManager:
         # Add --nodelist if specified
         if config.nodelist:
             cmd_parts.append(f"--nodelist={config.nodelist}")
+
+        # Add job dependency
+        if config.dependency:
+            cmd_parts.append(f"--dependency=afterok:{config.dependency}")
 
         # Add GPU-specific option
         if config.gpus_per_task > 0:
