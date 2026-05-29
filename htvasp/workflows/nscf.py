@@ -134,7 +134,7 @@ class NscfWorker(Worker):
             name="nscf uniform",
             run_vasp_kwargs=self.run_vasp_kwargs,
             stop_children_kwargs={"handle_unsuccessful": False},
-            copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR", "CHGCAR")},
+            copy_vasp_kwargs={"additional_vasp_files": ("CHGCAR",)},
             input_set_generator=NonSCFSetGenerator(
                 mode="uniform",
                 reciprocal_density=reciprocal_density,
@@ -157,7 +157,7 @@ class NscfWorker(Worker):
             name="nscf line",
             run_vasp_kwargs=self.run_vasp_kwargs,
             stop_children_kwargs={"handle_unsuccessful": False},
-            copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR", "CHGCAR")},
+            copy_vasp_kwargs={"additional_vasp_files": ("CHGCAR",)},
             input_set_generator=NonSCFSetGenerator(
                 mode="line",
                 line_density=line_density,
