@@ -17,13 +17,19 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Materials Science",
 ]
 dependencies = [
-    "atomate2==0.0.22",
-    "pymatgen==2025.6.14",
-    "phonopy==2.42.0",
-    "seekpath==2.1.0",
-    "mp-api==0.45.15",
-    "more_itertools==10.8.0",
-    "lxml==5.4.0",
+    "emmet-core==0.86.4",
+    "monty==2026.5.18",
+    "pydantic==2.13.4",
+    "seekpath==2.2.1",
+    "mp-api==0.46.1",
+    "more_itertools==11.1.0",
+    "lxml==6.1.1",
+
+    "atomate2==0.1.4",
+    "pymatgen-core==2026.5.18",
+    "pymatgen==2026.5.4",
+    "phonopy==2.48.0",
+
 ]
 
 [project.optional-dependencies]

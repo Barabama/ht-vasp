@@ -162,7 +162,10 @@ class NscfWorker(Worker):
                 mode="line",
                 line_density=line_density,
                 user_potcar_functional=self.potcar_functional,
-                user_kpoints_settings={"kpath_kwargs": band_kpath_kwargs or {}},
+                user_kpoints_settings={
+                    "line_density": line_density,
+                    "kpath_kwargs": band_kpath_kwargs or {},
+                },
                 user_incar_settings={
                     **self.global_incar,
                     "ISTART": 1,
