@@ -26,7 +26,7 @@ dependencies = [
     "lxml==6.1.1",
 
     "atomate2==0.1.4",
-    "pymatgen-core==2026.5.18",
+    "pymatgen-core==2026.5.17",
     "pymatgen==2026.5.4",
     "phonopy==2.48.0",
 

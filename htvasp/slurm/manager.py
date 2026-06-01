@@ -17,38 +17,34 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class SlurmConfig:
-    """
-    Slurm job configuration.
-
-    Supports both CPU and GPU partitions with appropriate defaults.
+    """Slurm job configuration for CPU and GPU partitions.
 
     Example:
         >>> # CPU job
         >>> config = SlurmConfig(
         ...     job_name="relax-cpu",
         ...     partition="partCPU",
-        ...     tasks_per_node=44,
-        ...     memory="80G"
+        ...     ntasks=32,
+        ...     memory="64G",
         ... )
 
         >>> # GPU job
         >>> config = SlurmConfig(
         ...     job_name="relax-gpu",
         ...     partition="partGPU",
-        ...     tasks_per_node=1,
+        ...     ntasks=1,
         ...     gpus_per_task=1,
-        ...     memory="20G"
+        ...     memory="20G",
         ... )
     """
 
-    # Basic settings
     job_name: str = "vasp-job"
-    output_log: str = "job.log"  # Default to job.log
+    output_log: str = "job.log"
     error_log: str = ""  # Empty = don't use --error unless specified
     memory: str = "20G"
     nodes: int = 1
     ntasks: int = 1
-    ntasks_per_node: int = 0  # don't use unless >0
+    ntasks_per_node: int = 0  # don't use unless > 0
     nodelist: str = ""
     cpus_per_task: int = 1
     gpus_per_task: int = 0  # Only for GPU partition
@@ -60,47 +56,34 @@ class SlurmConfig:
     vasp_cmd: str = "srun vasp_std"
     vasp_gam_cmd: str = "srun vasp_gam"
 
-    # Environment settings
-    # conda_path: str = "/nfs_ssd/.conda"
-    # conda_path: str = "/opt/miniconda3"
+    # Environment
+    conda_prefix: str = "/opt/miniconda3"
+    conda_env: str = ""
+    module_name: str | list[str] = ""
 
     # Extra commands
     extra_commands: list[str] = field(default_factory=list)
 
-    def init_module(self, module_name: str) -> list[str]:
-        """
-        Initialize module commands.
-
-        Returns:
-            List of module load commands
-        """
-        # Use '.' instead of 'source' for better compatibility with /bin/sh
-        return [
-            f". /etc/profile.d/modules.sh",
-            f"ulimit -s unlimited",
-            f"module purge",
-            f"module load {module_name}",
+    def init_module(self, module_name: str | list[str] = "") -> list[str]:
+        names = module_name if isinstance(module_name, list) else [module_name]
+        names = [n for n in names if n]
+        cmds = [
+            ". /etc/profile.d/modules.sh",
+            "ulimit -s unlimited",
+            "module purge",
         ]
+        for name in names:
+            cmds.append(f"module load {name}")
+        return cmds
 
-    def init_conda(self, conda_env: str) -> list[str]:
-        """
-        Initialize conda commands.
-
-        Args:
-            conda_env: Conda environment path (relative or absolute)
-            
-        Returns:
-            List of conda activation commands
-        """
-        # Convert relative path to absolute path
+    def init_conda(self, conda_env: str = "") -> list[str]:
         if conda_env.startswith("./"):
-            conda_env = str(Path.cwd() / conda_env[2:])  # Remove "./" prefix
+            conda_env = str(Path.cwd() / conda_env[2:])
         elif conda_env.startswith("."):
-            conda_env = str(Path.cwd() / conda_env[1:])  # Remove "." prefix
-        
+            conda_env = str(Path.cwd() / conda_env[1:])
+
         return [
-            f". /opt/miniconda3/etc/profile.d/conda.sh",
-            # f"conda info --envs",
+            f". {self.conda_prefix}/etc/profile.d/conda.sh",
             f"conda activate {conda_env}",
         ]
 
@@ -122,38 +105,38 @@ class SlurmJobManager:
         self,
         command: str,
         config: SlurmConfig | None = None,
-        conda_env: str  = "",
+        conda_env: str = "",
         module_name: str = "",
         workdir: Path | str = "",
     ) -> str | None:
-        """
-        Submit a job using sbatch --wrap (without script file).
-        This method allows running commands directly without creating a script.
+        """Submit a job via sbatch --wrap.
 
         Args:
-            command: Shell command to run (e.g., "srun vasp_std")
-            config: Slurm configuration
-            workdir: Working directory (default: current directory)
+            command: Shell command to run (e.g., "srun vasp_std").
+            config: Slurm configuration (conda_env/module_name read from here as fallback).
+            conda_env: Conda environment name (overrides config.conda_env if set).
+            module_name: Module name(s) to load (overrides config.module_name if set).
+            workdir: Working directory.
 
         Returns:
-            Job ID if successful, None otherwise
+            Job ID string, or None on failure.
         """
-        config = config or self.get_cpu_config()
+        config = config or self._default_cpu_config()
         workdir = Path(workdir).resolve()
         workdir.mkdir(parents=True, exist_ok=True)
-        log.info(f"Working directory: {workdir}")
 
-        # Build the actual command to wrap (with module initialization)
+        # Resolve env/module: explicit param > config field
+        _conda_env = conda_env or config.conda_env
+        _module_name = module_name or config.module_name
 
-        init_cmds = []
-        if module_name:
-            init_cmds.extend(config.init_module(module_name))
-        if conda_env:
-            init_cmds.extend(config.init_conda(conda_env))
+        init_cmds: list[str] = []
+        if _module_name:
+            init_cmds.extend(config.init_module(_module_name))
+        if _conda_env:
+            init_cmds.extend(config.init_conda(_conda_env))
         init_cmds.extend(config.extra_commands)
-        full_cmd = "; ".join(init_cmds) + "; " + command
+        full_cmd = "; ".join(init_cmds + [command])
 
-        # Build sbatch command with --wrap
         cmd_parts = [
             "sbatch",
             f"--job-name={config.job_name}",
@@ -166,32 +149,20 @@ class SlurmJobManager:
             f"--time={config.time_limit}",
             f'--wrap="{full_cmd}"',
         ]
-
-        # Add --error if specified
         if config.error_log:
             cmd_parts.append(f"--error={config.error_log}")
-
-        # Add --ntasks-per-node if specified
         if config.ntasks_per_node:
             cmd_parts.append(f"--ntasks-per-node={config.ntasks_per_node}")
-
-        # Add --nodelist if specified
         if config.nodelist:
             cmd_parts.append(f"--nodelist={config.nodelist}")
-
-        # Add job dependency
         if config.dependency:
             cmd_parts.append(f"--dependency=afterok:{config.dependency}")
-
-        # Add GPU-specific option
         if config.gpus_per_task > 0:
             cmd_parts.append(f"--gpus-per-task={config.gpus_per_task}")
 
         cmd = " ".join(cmd_parts)
-        log.info(f"Submitting command: {cmd}")
+        log.info(f"Submitting: {cmd}")
 
-        # Submit the job
-        job_id = None
         try:
             result = subprocess.run(
                 cmd,
@@ -201,20 +172,19 @@ class SlurmJobManager:
                 text=True,
                 check=True,
             )
-            for line in result.stdout.strip().splitlines():
-                if "Submitted batch job" in line:
-                    job_id = line.split()[-1]
-                    break
         except subprocess.CalledProcessError as e:
-            log.error(f"Error submitting job: {e}")
-            log.error(f"stdout: {result.stdout}")
+            log.error(f"sbatch failed: {e}")
             return None
 
-        if job_id is None:
-            log.error(f"Failed to parse job ID from output: {result.stdout}")
+        for line in result.stdout.strip().splitlines():
+            if "Submitted batch job" in line:
+                job_id = line.split()[-1]
+                break
+        else:
+            log.error(f"Failed to parse job ID from: {result.stdout}")
             return None
 
-        log.info(f"Job submitted successfully: {job_id}")
+        log.info(f"Job submitted: {job_id}")
         self.submitted_jobs.append(
             {
                 "job_id": job_id,
@@ -225,97 +195,56 @@ class SlurmJobManager:
         )
         return job_id
 
-    def get_cpu_config(
-        self,
-        job_name: str = "vasp-cpu",
-        output_log: str = "job.log",
-        ntasks: int = 48,
-        memory: str = "20G",
-        **kwargs,
-    ) -> SlurmConfig:
-        """
-        Get default CPU configuration.
-
-        Args:
-            job_name: Job name (default: "vasp-cpu")
-            output_log: Output log file (default: "job.log")
-            ntasks: Number of tasks (default: 48)
-            memory: Memory per node (default: "20G")
-            **kwargs: Additional SlurmConfig parameters
-
-        Returns:
-            SlurmConfig instance
-        """
+    def _default_cpu_config(self) -> SlurmConfig:
         return SlurmConfig(
-            job_name=job_name,
-            output_log=output_log,
-            ntasks=ntasks,
-            memory=memory,
+            job_name="vasp-cpu",
+            output_log="job.log",
+            ntasks=48,
+            memory="96G",
             partition="partCPU",
-            **kwargs,
         )
 
-    def get_gpu_config(
-        self,
-        job_name: str = "vasp-gpu",
-        output_log: str = "job.log",
-        ntasks: int = 1,
-        gpus_per_task: int = 1,
-        memory: str = "10G",
-        **kwargs,
-    ) -> SlurmConfig:
-        """
-        Get default GPU configuration.
+    def get_cpu_config(self, **kwargs) -> SlurmConfig:
+        """Get CPU config with defaults, overridden by kwargs."""
+        cfg = self._default_cpu_config()
+        for k, v in kwargs.items():
+            if hasattr(cfg, k):
+                setattr(cfg, k, v)
+        return cfg
 
-        Args:
-            job_name: Job name (default: "vasp-gpu")
-            output_log: Output log file (default: "job.log")
-            ntasks: Number of tasks (default: 1 CPU for GPU)
-            gpus_per_task: Number of GPUs per task (default: 1)
-            memory: Memory per node (default: "10G")
-            **kwargs: Additional SlurmConfig parameters
-
-        Returns:
-            SlurmConfig instance
-        """
+    def get_gpu_config(self, **kwargs) -> SlurmConfig:
+        """Get GPU config with defaults, overridden by kwargs."""
         return SlurmConfig(
-            job_name=job_name,
-            output_log=output_log,
-            ntasks=ntasks,
-            gpus_per_task=gpus_per_task,
-            memory=memory,
+            job_name=kwargs.pop("job_name", "vasp-gpu"),
+            output_log=kwargs.pop("output_log", "job.log"),
+            ntasks=kwargs.pop("ntasks", 1),
+            gpus_per_task=kwargs.pop("gpus_per_task", 1),
+            memory=kwargs.pop("memory", "20G"),
             partition="partGPU",
+            module_name=kwargs.pop("module_name", "vasp-gpu"),
             **kwargs,
         )
 
     def get_job_status(self, job_id: str) -> dict[str, Any] | None:
-        """Get job status from Slurm.
-
-        Args:
-            job_id: Job ID
-        Returns:
-            Job status dict or None if job not found
-        """
-        cmd = ["scontrol", "show", "job", job_id]
-        status = {}
+        """Query job status via scontrol."""
         try:
             result = subprocess.run(
-                cmd,
+                ["scontrol", "show", "job", job_id],
                 capture_output=True,
                 text=True,
                 check=True,
             )
-            for line in result.stdout.strip().splitlines():
-                if "=" not in line:
-                    continue
-                for item in line.split():
-                    if "=" not in item:
-                        continue
-                    key, value = item.split("=", 1)
-                    status[key.strip()] = value.strip()
-            return status
         except subprocess.CalledProcessError:
             return None
+
+        status: dict[str, Any] = {}
+        for line in result.stdout.strip().splitlines():
+            for item in line.split():
+                if "=" not in item:
+                    continue
+                key, value = item.split("=", 1)
+                status[key.strip()] = value.strip()
+        return status
 
     def is_job_completed(self, job_id: str) -> bool:
         """Check if a job has completed (finished, cancelled, or failed).

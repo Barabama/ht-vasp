@@ -104,26 +104,26 @@ structs = {
             "LDAUJ": {"Co": 0.0, "Ni": 0.0},
         },
     },
-    # "CoNiOH2S-noH-slab": {
-    #     "poscar": str(poscar_path / "CoNiOH2-322-S-noH-slab-001.vasp"),
-    #     "incar": {
-    #         "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
-    #         "NELECT": 281,  # 正交 # 6*9+6*10+23*1+23*6+1*6 = 6*(9+10)+23+24*6 = 114+23+144=281
-    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
-    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
-    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
-    #     },
-    # },
-    # "CoNiOH2S-noH-slab-flip": {
-    #     "poscar": str(poscar_path / "CoNiOH2-322-S-noH-slab-00-1.vasp"),
-    #     "incar": {
-    #         "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
-    #         "NELECT": 281,  # 正交 # 6*9+6*10+23*1+23*6+1*6 = 6*(9+10)+23+24*6 = 114+23+144=281
-    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
-    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
-    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
-    #     },
-    # },
+    "CoNiOH2S-noH-slab": {
+        "poscar": str(poscar_path / "CoNiOH2-322-S-noH-slab-001.vasp"),
+        "incar": {
+            "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+            "NELECT": 281,  # 正交 # 6*9+6*10+23*1+23*6+1*6 = 6*(9+10)+23+24*6 = 114+23+144=281
+            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+            "LDAUU": {"Co": 3.32, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+        },
+    },
+    "CoNiOH2S-noH-slab-flip": {
+        "poscar": str(poscar_path / "CoNiOH2-322-S-noH-slab-00-1.vasp"),
+        "incar": {
+            "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+            "NELECT": 281,  # 正交 # 6*9+6*10+23*1+23*6+1*6 = 6*(9+10)+23+24*6 = 114+23+144=281
+            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+            "LDAUU": {"Co": 3.32, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+        },
+    },
 }
 
 # %%
@@ -190,35 +190,31 @@ def submit_jobs(device: str = "cpu", rerun: bool = False):
         job_name = f"{name}-nscf"
         command = f"python {__file__} --tick {name} --device {device} {'--rerun' if rerun else ''}"
         output_log = str(root_dir / "logs" / f"{job_name}.log")
-        if device == "cpu":
-            jid = manager.submit_command(
-                command=command,
-                config=manager.get_cpu_config(
-                    job_name=job_name,
-                    output_log=output_log,
-                    nodes=2,
-                    ntasks=48,
-                    ntasks_per_node=24,
-                    memory="96G",
-                ),
-                module_name="vasp-cpu",
-                conda_env=conda_env,
-                workdir=workdir,
-            )
-        else:
-            jid = manager.submit_command(
-                command=command,
-                config=manager.get_gpu_config(
-                    job_name=job_name,
-                    output_log=output_log,
-                    nodes=1,
-                    ntasks=2,
-                    memory="16G",
-                ),
-                module_name="vasp-gpu",
-                conda_env=conda_env,
-                workdir=workdir,
-            )
+
+        config = manager.get_cpu_config(
+            job_name=job_name,
+            output_log=output_log,
+            nodes=2,
+            ntasks=48,
+            ntasks_per_node=24,
+            memory="96G",
+            conda_env=conda_env,
+            module_name="vasp-cpu",
+        ) if device == "cpu" else manager.get_gpu_config(
+            job_name=job_name,
+            output_log=output_log,
+            nodes=1,
+            ntasks=1,
+            memory="16G",
+            conda_env=conda_env,
+            module_name="vasp-gpu",
+        )
+
+        jid = manager.submit_command(
+            command=command,
+            config=config,
+            workdir=workdir,
+        )
         if not jid:
             log.error(f"Failed to submit nscf job for {name}")
         else:

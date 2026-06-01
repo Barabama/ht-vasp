@@ -2,8 +2,20 @@ import json
 import logging
 import shutil
 import traceback
+import warnings
 from pathlib import Path
 from typing import Any
+
+# Suppress Pydantic serialization warnings for selective_dynamics type mismatch.
+# pymatgen stores selective_dynamics as ndarray/list, but emmet's TypedDict expects
+# tuple[bool, bool, bool]. Pydantic v2 serializes correctly despite the type mismatch
+# and the warning is purely cosmetic — filtering avoids noise on every job retrieval.
+warnings.filterwarnings(
+    "ignore",
+    message=".*selective_dynamics.*",
+    category=UserWarning,
+    module="pydantic",
+)
 
 from jobflow import Flow, JobStore
 from custodian.vasp.handlers import VaspErrorHandler
