@@ -79,6 +79,8 @@ NSCF_INCAR = {
     "NSW": 0,
     "ICHARG": 11,
     "LORBIT": 11,
+    "KPAR": 1,
+    "NCORE": 1,
 }
 
 

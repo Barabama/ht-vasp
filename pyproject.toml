@@ -20,16 +20,14 @@ dependencies = [
     "emmet-core==0.86.4",
     "monty==2026.5.18",
     "pydantic==2.13.4",
+    "phonopy==2.48.0",
     "seekpath==2.2.1",
     "mp-api==0.46.1",
     "more_itertools==11.1.0",
     "lxml==6.1.1",
-
-    "atomate2==0.1.4",
+    "atomate2[phonons]==0.1.4",
     "pymatgen-core==2026.5.17",
     "pymatgen==2026.5.4",
-    "phonopy==2.48.0",
-
 ]
 
 [project.optional-dependencies]
