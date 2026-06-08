@@ -79,12 +79,10 @@ NSCF_INCAR = {
     "NSW": 0,
     "ICHARG": 11,
     "LORBIT": 11,
-    "KPAR": 1,
-    "NCORE": 1,
 }
 
 
-root_dir = Path("/home/mcmf507/workspace/gaominliang/ht-vasp")
+root_dir = Path("/home/mcmf507/workspace/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
 poscar_path = root_dir / "data" / "poscars"
 structs = {
     "CoMnH2CO5": {
@@ -96,26 +94,26 @@ structs = {
             "LDAUJ": {"Co": 0.0, "Mn": 0.0},
         },
     },
-    # "CoNiOH2": {
-    #     "poscar": str(poscar_path / "CoNiOH2-322.vasp"),
-    #     "incar": {
-    #         "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6},
-    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1},
-    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
-    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
-    #     },
-    # },
-    # "CoNiOH2S-noH": {
-    #     "poscar": str(poscar_path / "CoNiOH2-322-S-noH.vasp"),
-    #     "incar": {
-    #         "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
-    #         # "NELECT": 422, # 六方 # 9*9 + 9*10 + 35*6 + 35*1 + 1*6
-    #         "NELECT": 563,  # 正交 # 12*9+12*10+47*1+47*6+1*6 = 12*(9+10)+47+48*6 = 228+47+288=563
-    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
-    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
-    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
-    #     },
-    # },
+    "CoNiOH2": {
+        "poscar": str(poscar_path / "CoNiOH2-322.vasp"),
+        "incar": {
+            "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6},
+            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1},
+            "LDAUU": {"Co": 3.32, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+        },
+    },
+    "CoNiOH2S-noH": {
+        "poscar": str(poscar_path / "CoNiOH2-322-S-noH.vasp"),
+        "incar": {
+            "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+            # "NELECT": 422, # 六方 # 9*9 + 9*10 + 35*6 + 35*1 + 1*6
+            "NELECT": 563,  # 正交 # 12*9+12*10+47*1+47*6+1*6 = 12*(9+10)+47+48*6 = 228+47+288=563
+            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+            "LDAUU": {"Co": 3.32, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+        },
+    },
 }
 
 # %%
@@ -124,7 +122,7 @@ from pymatgen.core import Structure
 
 
 def run_tick(name: str, device: str = "cpu", rerun: bool = False):
-    flow_dir = Path("data") if device == "cpu" else Path("/tmp")
+    flow_dir = root_dir / "data" if device == "cpu" else Path("/tmp")
     store_dir = root_dir / "data" / name
     json_path = store_dir / f"band_out.json"
 
@@ -174,7 +172,7 @@ def run_tick(name: str, device: str = "cpu", rerun: bool = False):
 
 def submit_jobs(device: str = "cpu", rerun: bool = False):
     manager = SlurmJobManager()
-    conda_env = str(root_dir / ".conda")
+    conda_env = str(root_dir.parent / ".conda")
     workdir = str(root_dir)
 
     for name in structs:

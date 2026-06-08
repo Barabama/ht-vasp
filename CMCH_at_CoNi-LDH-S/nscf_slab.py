@@ -83,18 +83,18 @@ NSCF_INCAR = {
 }
 
 
-root_dir = Path("/home/mcmf507/workspace/gaominliang/ht-vasp")
+root_dir = Path("/home/mcmf507/workspace/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
 poscar_path = root_dir / "data" / "poscars"
 structs = {
-    # "CoMnH2CO5-slab": {
-    #     "poscar": str(poscar_path / "CoMnH2CO5-311-slab-010.vasp"),
-    #     "incar": {
-    #         "MAGMOM": {"Co": 5.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
-    #         "LDAUL": {"Co": 2, "Mn": 2, "C": -1, "H": -1, "O": -1},
-    #         "LDAUU": {"Co": 3.32, "Mn": 5.00},
-    #         "LDAUJ": {"Co": 0.0, "Mn": 0.0},
-    #     },
-    # },
+    "CoMnH2CO5-slab": {
+        "poscar": str(poscar_path / "CoMnH2CO5-311-slab-010.vasp"),
+        "incar": {
+            "MAGMOM": {"Co": 5.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
+            "LDAUL": {"Co": 2, "Mn": 2, "C": -1, "H": -1, "O": -1},
+            "LDAUU": {"Co": 3.32, "Mn": 5.00},
+            "LDAUJ": {"Co": 0.0, "Mn": 0.0},
+        },
+    },
     "CoNiOH2-slab": {
         "poscar": str(poscar_path / "CoNiOH2-322-slab-001.vasp"),
         "incar": {
@@ -132,7 +132,7 @@ from pymatgen.core import Structure
 
 
 def run_tick(name: str, device: str = "cpu", rerun: bool = False):
-    flow_dir = Path("data") if device == "cpu" else Path("/tmp")
+    flow_dir = root_dir / "data" if device == "cpu" else Path("/tmp")
     store_dir = root_dir / "data" / name
     json_path = store_dir / f"band_out.json"
 
@@ -183,7 +183,7 @@ def run_tick(name: str, device: str = "cpu", rerun: bool = False):
 
 def submit_jobs(device: str = "cpu", rerun: bool = False):
     manager = SlurmJobManager()
-    conda_env = str(root_dir / ".conda")
+    conda_env = str(root_dir.parent / ".conda")
     workdir = str(root_dir)
 
     for name in structs:

@@ -14,7 +14,6 @@ warnings.filterwarnings(
     "ignore",
     message=".*selective_dynamics.*",
     category=UserWarning,
-    module="pydantic",
 )
 
 from jobflow import Flow, JobStore
