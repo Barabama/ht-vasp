@@ -31,7 +31,7 @@ GLOBAL_INCAR = {
     "NELM": 100,
     "EDIFF": 1e-6,
     "ISPIN": 2,
-    "MAGMOM": {"Co": 5.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
+    "MAGMOM": {"Co": 5.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
     "AMIX": 0.1,
     "BMIX": 1e-4,
     "AMIX_MAG": 0.4,
@@ -45,10 +45,10 @@ GLOBAL_INCAR = {
     "LDAUTYPE": 2,
     "LDAUPRINT": 1,
     "LASPH": True,
-    "LMAXMIX": 4,  # d-electrons in Co, Mn
-    "LDAUL": {"Co": 2, "Mn": 2, "C": -1, "H": -1, "O": -1},
-    "LDAUU": {"Co": 3.32, "Mn": 5.00},
-    "LDAUJ": {"Co": 0.0, "Mn": 0.0},
+    "LMAXMIX": 4,
+    "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
+    "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
+    "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
 }
 
 RELAX_INCAR = {
@@ -84,44 +84,36 @@ NSCF_INCAR = {
 
 
 root_dir = Path("/home/mcmf507/workspace/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
-poscar_path = root_dir / "data" / "poscars"
+hetero_path = root_dir / "data" / "heterostructures"
+
 structs = {
-    "CoMnH2CO5-slab": {
-        "poscar": str(poscar_path / "CoMnH2CO5-311-slab-010.vasp"),
+    "hetero_intrinsic": {
+        "poscar": str(hetero_path / "hetero_intrinsic.vasp"),
         "incar": {
-            "MAGMOM": {"Co": 5.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
-            "LDAUL": {"Co": 2, "Mn": 2, "C": -1, "H": -1, "O": -1},
-            "LDAUU": {"Co": 3.32, "Mn": 5.00},
-            "LDAUJ": {"Co": 0.0, "Mn": 0.0},
+            "MAGMOM": {"Co": 5.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6},
+            "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1},
+            "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
         },
     },
-    "CoNiOH2-slab": {
-        "poscar": str(poscar_path / "CoNiOH2-322-slab-001.vasp"),
+    "hetero_s_doped": {
+        "poscar": str(hetero_path / "hetero_S_doped.vasp"),
         "incar": {
-            "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6},
-            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1},
-            "LDAUU": {"Co": 3.32, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+            "MAGMOM": {"Co": 5.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
+            "NELECT": 629,  # Mn_pv(13): 6*13+12*9+6*10+35*1+6*4+1*6+53*6 = 78+108+60+35+24+6+318
+            "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
+            "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
         },
     },
-    "CoNiOH2S-noH-slab": {
-        "poscar": str(poscar_path / "CoNiOH2-322-S-noH-slab-001.vasp"),
+    "hetero_s_exposed": {
+        "poscar": str(hetero_path / "hetero_S_exposed.vasp"),
         "incar": {
-            "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
-            "NELECT": 281,  # 正交 # 6*9+6*10+23*1+23*6+1*6 = 6*(9+10)+23+24*6 = 114+23+144=281
-            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
-            "LDAUU": {"Co": 3.32, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
-        },
-    },
-    "CoNiOH2S-noH-slab-flip": {
-        "poscar": str(poscar_path / "CoNiOH2-322-S-noH-slab-00-1.vasp"),
-        "incar": {
-            "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
-            "NELECT": 281,  # 正交 # 6*9+6*10+23*1+23*6+1*6 = 6*(9+10)+23+24*6 = 114+23+144=281
-            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
-            "LDAUU": {"Co": 3.32, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+            "MAGMOM": {"Co": 5.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
+            "NELECT": 629,
+            "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
+            "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
         },
     },
 }
@@ -224,7 +216,7 @@ def submit_jobs(device: str = "cpu", rerun: bool = False):
 # %%
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Nscf workflow")
+    parser = argparse.ArgumentParser(description="Heterostructure Nscf workflow")
     parser.add_argument("--slurm", action="store_true", help="Submit to Slurm")
     parser.add_argument("--tick", type=str, help="Run tick for structure name")
     parser.add_argument("--device", type=str, default="cpu", help="Use cpu/gpu")
