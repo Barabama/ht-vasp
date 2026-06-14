@@ -46,6 +46,8 @@ class NscfWorker(Worker):
         dedos: float = 0.02,
         line_density: int = 20,
         band_kpath_kwargs: dict[str, Any] | None = None,
+        relax_reciprocal_density: int | None = None,
+        static_reciprocal_density: int | None = None,
         **kwargs,
     ):
         """
@@ -66,6 +68,10 @@ class NscfWorker(Worker):
             line_density: Line density for band structure (line mode)
             band_kpath_kwargs: Extra kwargs for HighSymmKpath in line mode,
                 e.g. {"path_type": "hinuma"} to use SeeK-path for slabs.
+            relax_reciprocal_density: K-point density for relax step.
+                Default None uses atomate2 default (64).
+            static_reciprocal_density: K-point density for static step.
+                Default None uses atomate2 default (64).
             **kwargs: Additional keyword arguments
         """
         # Initialize base Worker
@@ -89,6 +95,8 @@ class NscfWorker(Worker):
         self.dedos = dedos
         self.line_density = line_density
         self.band_kpath_kwargs = band_kpath_kwargs
+        self.relax_reciprocal_density = relax_reciprocal_density
+        self.static_reciprocal_density = static_reciprocal_density
 
         # Structural relaxation (ISIF=3)
         relax_maker = DoubleRelaxMaker.from_relax_maker(
@@ -98,6 +106,11 @@ class NscfWorker(Worker):
                 copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
                 input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=self.potcar_functional,
+                    user_kpoints_settings=(
+                        {"reciprocal_density": self.relax_reciprocal_density}
+                        if self.relax_reciprocal_density is not None
+                        else {}
+                    ),
                     user_incar_settings={
                         **self.global_incar,
                         "ISTART": 1,
@@ -116,6 +129,11 @@ class NscfWorker(Worker):
             copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=self.potcar_functional,
+                user_kpoints_settings=(
+                    {"reciprocal_density": self.static_reciprocal_density}
+                    if self.static_reciprocal_density is not None
+                    else {}
+                ),
                 user_incar_settings={
                     **self.global_incar,
                     "ISTART": 1,
@@ -208,7 +226,7 @@ class NscfWorker(Worker):
             # Both NSCF jobs depend on static, but not on each other
             return Flow(
                 [relax_job, static_job, nscf_dos_job, nscf_band_job],
-                output={"dos": nscf_dos_job.output, "band": nscf_band_job.output},
+                output=nscf_band_job.output,
             )
         else:
             return Flow(

@@ -19,7 +19,7 @@ import numpy as np
 from pymatgen.core import Structure, Lattice
 from pymatgen.core.interface import Interface
 
-DATA = Path("/workspace/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
+DATA = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
 OUTDIR = DATA / "heterostructures"
 OUTDIR.mkdir(exist_ok=True)
 
@@ -98,8 +98,8 @@ ldh_s_flip_m = strain_to(ldh_s_flip, avg_a, avg_b)
 # -----------------------------------------------------------
 GAP = 2.0
 VAC_BOTTOM = 2.0    # 基底底部真空
-VAC_TOP = 6.0       # 薄膜顶部真空
-TOTAL_C = 20.0
+VAC_TOP = 12.0       # 薄膜顶部真空
+TOTAL_C = 28.0
 
 # 计算实际需要的 vacuum_over_film (Interface.from_slabs 的 c = material + gap + vacuum_over_film)
 # material = sub_thick + film_thick

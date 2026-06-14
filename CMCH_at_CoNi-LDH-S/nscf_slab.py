@@ -31,13 +31,13 @@ GLOBAL_INCAR = {
     "NELM": 100,
     "EDIFF": 1e-6,
     "ISPIN": 2,
-    "MAGMOM": {"Co": 5.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
+    "MAGMOM": {"Co": 3.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
     "AMIX": 0.1,
     "BMIX": 1e-4,
     "AMIX_MAG": 0.4,
     "BMIX_MAG": 1e-4,
     "LREAL": "Auto",
-    "KPAR": 2,
+    "KPAR": 4,
     "NCORE": 2,
     "GGA": "PE",
     "IVDW": 12,
@@ -83,22 +83,23 @@ NSCF_INCAR = {
 }
 
 
-root_dir = Path("/home/mcmf507/workspace/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
+root_dir = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
 poscar_path = root_dir / "data" / "poscars"
 structs = {
     "CoMnH2CO5-slab": {
         "poscar": str(poscar_path / "CoMnH2CO5-311-slab-010.vasp"),
         "incar": {
-            "MAGMOM": {"Co": 5.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
+            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
             "LDAUL": {"Co": 2, "Mn": 2, "C": -1, "H": -1, "O": -1},
             "LDAUU": {"Co": 3.32, "Mn": 5.00},
             "LDAUJ": {"Co": 0.0, "Mn": 0.0},
+            "LORBIT": 10,
         },
     },
     "CoNiOH2-slab": {
         "poscar": str(poscar_path / "CoNiOH2-322-slab-001.vasp"),
         "incar": {
-            "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6},
+            "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6},
             "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1},
             "LDAUU": {"Co": 3.32, "Ni": 6.20},
             "LDAUJ": {"Co": 0.0, "Ni": 0.0},
@@ -107,7 +108,7 @@ structs = {
     "CoNiOH2S-noH-slab": {
         "poscar": str(poscar_path / "CoNiOH2-322-S-noH-slab-001.vasp"),
         "incar": {
-            "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+            "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
             "NELECT": 281,  # 正交 # 6*9+6*10+23*1+23*6+1*6 = 6*(9+10)+23+24*6 = 114+23+144=281
             "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
             "LDAUU": {"Co": 3.32, "Ni": 6.20},
@@ -117,8 +118,8 @@ structs = {
     "CoNiOH2S-noH-slab-flip": {
         "poscar": str(poscar_path / "CoNiOH2-322-S-noH-slab-00-1.vasp"),
         "incar": {
-            "MAGMOM": {"Co": 5.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
-            "NELECT": 281,  # 正交 # 6*9+6*10+23*1+23*6+1*6 = 6*(9+10)+23+24*6 = 114+23+144=281
+            "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+            "NELECT": 281,
             "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
             "LDAUU": {"Co": 3.32, "Ni": 6.20},
             "LDAUJ": {"Co": 0.0, "Ni": 0.0},
@@ -132,7 +133,7 @@ from pymatgen.core import Structure
 
 
 def run_tick(name: str, device: str = "cpu", rerun: bool = False):
-    flow_dir = root_dir / "data" if device == "cpu" else Path("/tmp")
+    flow_dir = Path("/tmp")
     store_dir = root_dir / "data" / name
     json_path = store_dir / "band_out.json"
 
@@ -157,6 +158,8 @@ def run_tick(name: str, device: str = "cpu", rerun: bool = False):
             nscf_band_incar=NSCF_INCAR,
             nscf_dos_incar=NSCF_INCAR,
             band_kpath_kwargs={"path_type": "hinuma"},
+            relax_reciprocal_density=120,
+            static_reciprocal_density=150,
         )
         worker.run_flow(
             name=name,
@@ -194,10 +197,9 @@ def submit_jobs(device: str = "cpu", rerun: bool = False):
         config = manager.get_cpu_config(
             job_name=job_name,
             output_log=output_log,
-            nodes=2,
-            ntasks=48,
-            ntasks_per_node=24,
-            memory="96G",
+            nodes=1,
+            ntasks=32,
+            memory="100G",
             conda_env=conda_env,
             module_name="vasp-cpu",
         ) if device == "cpu" else manager.get_gpu_config(
@@ -205,7 +207,7 @@ def submit_jobs(device: str = "cpu", rerun: bool = False):
             output_log=output_log,
             nodes=1,
             ntasks=1,
-            memory="16G",
+            memory="20G",
             conda_env=conda_env,
             module_name="vasp-gpu",
         )
@@ -224,7 +226,7 @@ def submit_jobs(device: str = "cpu", rerun: bool = False):
 # %%
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Nscf workflow")
+    parser = argparse.ArgumentParser(description="Slab Nscf workflow")
     parser.add_argument("--slurm", action="store_true", help="Submit to Slurm")
     parser.add_argument("--tick", type=str, help="Run tick for structure name")
     parser.add_argument("--device", type=str, default="cpu", help="Use cpu/gpu")

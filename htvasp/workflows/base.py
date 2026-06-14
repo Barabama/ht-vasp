@@ -12,7 +12,7 @@ from typing import Any
 # and the warning is purely cosmetic — filtering avoids noise on every job retrieval.
 warnings.filterwarnings(
     "ignore",
-    message=".*selective_dynamics.*",
+    message=".*Pydantic serializer.*",
     category=UserWarning,
 )
 

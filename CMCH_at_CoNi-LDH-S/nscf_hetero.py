@@ -31,13 +31,13 @@ GLOBAL_INCAR = {
     "NELM": 100,
     "EDIFF": 1e-6,
     "ISPIN": 2,
-    "MAGMOM": {"Co": 5.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
+    "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
     "AMIX": 0.1,
     "BMIX": 1e-4,
     "AMIX_MAG": 0.4,
     "BMIX_MAG": 1e-4,
     "LREAL": "Auto",
-    "KPAR": 2,
+    "KPAR": 4,
     "NCORE": 2,
     "GGA": "PE",
     "IVDW": 12,
@@ -83,14 +83,14 @@ NSCF_INCAR = {
 }
 
 
-root_dir = Path("/home/mcmf507/workspace/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
+root_dir = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
 hetero_path = root_dir / "data" / "heterostructures"
 
 structs = {
     "hetero_intrinsic": {
         "poscar": str(hetero_path / "hetero_intrinsic.vasp"),
         "incar": {
-            "MAGMOM": {"Co": 5.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6},
+            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6},
             "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1},
             "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
             "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
@@ -99,7 +99,7 @@ structs = {
     "hetero_s_doped": {
         "poscar": str(hetero_path / "hetero_S_doped.vasp"),
         "incar": {
-            "MAGMOM": {"Co": 5.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
+            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
             "NELECT": 629,  # Mn_pv(13): 6*13+12*9+6*10+35*1+6*4+1*6+53*6 = 78+108+60+35+24+6+318
             "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
             "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
@@ -109,7 +109,7 @@ structs = {
     "hetero_s_exposed": {
         "poscar": str(hetero_path / "hetero_S_exposed.vasp"),
         "incar": {
-            "MAGMOM": {"Co": 5.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
+            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
             "NELECT": 629,
             "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
             "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
@@ -124,7 +124,7 @@ from pymatgen.core import Structure
 
 
 def run_tick(name: str, device: str = "cpu", rerun: bool = False):
-    flow_dir = root_dir / "data" if device == "cpu" else Path("/tmp")
+    flow_dir = Path("/tmp")
     store_dir = root_dir / "data" / name
     json_path = store_dir / "band_out.json"
 
@@ -149,6 +149,8 @@ def run_tick(name: str, device: str = "cpu", rerun: bool = False):
             nscf_band_incar=NSCF_INCAR,
             nscf_dos_incar=NSCF_INCAR,
             band_kpath_kwargs={"path_type": "hinuma"},
+            relax_reciprocal_density=120,
+            static_reciprocal_density=150,
         )
         worker.run_flow(
             name=name,
@@ -186,10 +188,9 @@ def submit_jobs(device: str = "cpu", rerun: bool = False):
         config = manager.get_cpu_config(
             job_name=job_name,
             output_log=output_log,
-            nodes=2,
-            ntasks=48,
-            ntasks_per_node=24,
-            memory="96G",
+            nodes=1,
+            ntasks=32,
+            memory="100G",
             conda_env=conda_env,
             module_name="vasp-cpu",
         ) if device == "cpu" else manager.get_gpu_config(
@@ -197,7 +198,7 @@ def submit_jobs(device: str = "cpu", rerun: bool = False):
             output_log=output_log,
             nodes=1,
             ntasks=1,
-            memory="16G",
+            memory="20G",
             conda_env=conda_env,
             module_name="vasp-gpu",
         )
