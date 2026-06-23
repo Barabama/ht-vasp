@@ -105,8 +105,6 @@ def test_dos_parameters():
         reciprocal_density=300,
         dedos=0.01,
     )
-    print(f"✓ reciprocal_density: {worker.reciprocal_density}")
-    print(f"✓ dedos: {worker.dedos}")
     print()
     return True
 
@@ -116,7 +114,6 @@ def test_band_parameters():
     print_header("Band Parameters")
 
     worker = make_test_worker(line_density=30)
-    print(f"✓ line_density: {worker.line_density}")
     print()
     return True
 

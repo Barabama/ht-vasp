@@ -10,13 +10,8 @@ from typing import Any
 
 from jobflow import Flow
 from pymatgen.core import Structure
-from atomate2.vasp.flows.core import DoubleRelaxMaker
-from atomate2.vasp.jobs.core import RelaxMaker, StaticMaker, NonSCFMaker
-from atomate2.vasp.sets.core import (
-    RelaxSetGenerator,
-    StaticSetGenerator,
-    NonSCFSetGenerator,
-)
+from atomate2.vasp.jobs.core import NonSCFMaker
+from atomate2.vasp.sets.core import NonSCFSetGenerator
 
 from htvasp.workflows.base import Worker
 
@@ -27,8 +22,7 @@ class NscfWorker(Worker):
     """
     Worker for DOS + Band electronic structure calculations.
 
-    Workflow: Relax → Static → NSCF-DOS (uniform mesh)
-                         └→ NSCF-Band (line mode)
+    Workflow: NSCF-DOS (uniform mesh) and optional NSCF-Band (line mode)
     """
 
     def __init__(
@@ -37,17 +31,13 @@ class NscfWorker(Worker):
         vasp_args: dict[str, Any] | None = None,
         potcar_functional: str = "PBE_64",
         global_incar: dict[str, Any] | None = None,
-        relax_incar: dict[str, Any] | None = None,
-        static_incar: dict[str, Any] | None = None,
         nscf_dos_incar: dict[str, Any] | None = None,
         nscf_band_incar: dict[str, Any] | None = None,
         compute_band: bool = True,
         reciprocal_density: int = 200,
-        dedos: float = 0.02,
         line_density: int = 20,
+        dedos: float = 0.02,
         band_kpath_kwargs: dict[str, Any] | None = None,
-        relax_reciprocal_density: int | None = None,
-        static_reciprocal_density: int | None = None,
         **kwargs,
     ):
         """
@@ -58,20 +48,14 @@ class NscfWorker(Worker):
             vasp_args: VASP command and handler settings
             potcar_functional: POTCAR functional type
             global_incar: Global INCAR settings
-            relax_incar: Relax-specific INCAR settings
-            static_incar: Static-specific INCAR settings
             nscf_dos_incar: NSCF-DOS-specific INCAR settings
             nscf_band_incar: NSCF-Band-specific INCAR settings
             compute_band: Whether to compute band structure
             reciprocal_density: K-point density for DOS (uniform mode)
-            dedos: Energy resolution for DOS (eV), used to auto-calculate NEDOS
             line_density: Line density for band structure (line mode)
+            dedos: Energy resolution for DOS (eV), used to auto-calculate NEDOS
             band_kpath_kwargs: Extra kwargs for HighSymmKpath in line mode,
                 e.g. {"path_type": "hinuma"} to use SeeK-path for slabs.
-            relax_reciprocal_density: K-point density for relax step.
-                Default None uses atomate2 default (64).
-            static_reciprocal_density: K-point density for static step.
-                Default None uses atomate2 default (64).
             **kwargs: Additional keyword arguments
         """
         # Initialize base Worker
@@ -82,70 +66,13 @@ class NscfWorker(Worker):
             global_incar=global_incar,
         )
 
-        # Disable VaspErrorHandler for NSCF calculations
-        self.run_vasp_kwargs["handlers"] = []
+        # # Disable VaspErrorHandler for NSCF calculations
+        # self.run_vasp_kwargs["handlers"] = []
 
-        relax_incar = relax_incar or {}
-        static_incar = static_incar or {}
         nscf_dos_incar = nscf_dos_incar or {}
         nscf_band_incar = nscf_band_incar or {}
 
         self.compute_band = compute_band
-        self.reciprocal_density = reciprocal_density
-        self.dedos = dedos
-        self.line_density = line_density
-        self.band_kpath_kwargs = band_kpath_kwargs
-        self.relax_reciprocal_density = relax_reciprocal_density
-        self.static_reciprocal_density = static_reciprocal_density
-
-        # Structural relaxation (ISIF=3)
-        relax_maker = DoubleRelaxMaker.from_relax_maker(
-            RelaxMaker(
-                run_vasp_kwargs=self.run_vasp_kwargs,
-                stop_children_kwargs={"handle_unsuccessful": False},
-                copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
-                input_set_generator=RelaxSetGenerator(
-                    user_potcar_functional=self.potcar_functional,
-                    user_kpoints_settings=(
-                        {"reciprocal_density": self.relax_reciprocal_density}
-                        if self.relax_reciprocal_density is not None
-                        else {}
-                    ),
-                    user_incar_settings={
-                        **self.global_incar,
-                        "ISTART": 1,
-                        "ISIF": 3,
-                        "LWAVE": True,
-                        **relax_incar,
-                    },
-                ),
-            )
-        )
-
-        # Static calculation (generate CHGCAR for NSCF)
-        static_maker = StaticMaker(
-            run_vasp_kwargs=self.run_vasp_kwargs,
-            stop_children_kwargs={"handle_unsuccessful": False},
-            copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
-            input_set_generator=StaticSetGenerator(
-                user_potcar_functional=self.potcar_functional,
-                user_kpoints_settings=(
-                    {"reciprocal_density": self.static_reciprocal_density}
-                    if self.static_reciprocal_density is not None
-                    else {}
-                ),
-                user_incar_settings={
-                    **self.global_incar,
-                    "ISTART": 1,
-                    "IBRION": -1,
-                    "ISIF": 2,
-                    "NSW": 0,
-                    "LWAVE": True,
-                    "LCHARG": True,
-                    **static_incar,
-                },
-            ),
-        )
 
         # NSCF-DOS (uniform mesh for density of states)
         nscf_dos_maker = NonSCFMaker(
@@ -196,41 +123,31 @@ class NscfWorker(Worker):
             ),
         )
 
-        self.flow_makers: tuple[DoubleRelaxMaker, StaticMaker, NonSCFMaker, NonSCFMaker] = (
-            relax_maker,
-            static_maker,
+        self.flow_makers: tuple[NonSCFMaker, NonSCFMaker] = (
             nscf_dos_maker,
             nscf_band_maker,
         )
 
     def _make_flow(self, structure: Structure, prev_dir: Path | str | None = None) -> Flow:
-        relax_maker, static_maker, nscf_dos_maker, nscf_band_maker = self.flow_makers
+        nscf_dos_maker, nscf_band_maker = self.flow_makers
 
         # Create jobs
-        relax_job = relax_maker.make(structure, prev_dir)
-        static_job = static_maker.make(
-            relax_job.output.structure,
-            prev_dir=relax_job.output.dir_name,
-        )
-        nscf_dos_job = nscf_dos_maker.make(
-            static_job.output.structure,
-            prev_dir=static_job.output.dir_name,
-        )
+        nscf_dos_job = nscf_dos_maker.make(structure, prev_dir=prev_dir)
 
         if self.compute_band:
             nscf_band_job = nscf_band_maker.make(
-                static_job.output.structure,
-                prev_dir=static_job.output.dir_name,
+                structure,
+                prev_dir=prev_dir,
                 mode="line",  #  avoiding default "uniform"
             )
             # Both NSCF jobs depend on static, but not on each other
             return Flow(
-                [relax_job, static_job, nscf_dos_job, nscf_band_job],
+                [nscf_dos_job, nscf_band_job],
                 output=nscf_band_job.output,
             )
         else:
             return Flow(
-                [relax_job, static_job, nscf_dos_job],
+                [nscf_dos_job],
                 output=nscf_dos_job.output,
             )
 

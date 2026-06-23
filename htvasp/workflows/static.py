@@ -32,8 +32,27 @@ class StaticWorker(Worker):
         global_incar: dict[str, Any] | None = None,
         relax_incar: dict[str, Any] | None = None,
         static_incar: dict[str, Any] | None = None,
+        relax_reciprocal_density: int | None = None,
+        static_reciprocal_density: int | None = None,
         **kwargs,
     ):
+        """
+        Initialize StaticWorker.
+
+        Args:
+            worker_name: Name of the worker
+            vasp_args: VASP command and handler settings
+            potcar_functional: POTCAR functional type
+            global_incar: Global INCAR settings
+            relax_incar: Relax-specific INCAR settings
+            static_incar: Static-specific INCAR settings
+            reciprocal_density: K-point density for DOS (uniform mode)
+            relax_reciprocal_density: K-point density for relax step.
+                Default None uses atomate2 default (64).
+            static_reciprocal_density: K-point density for static step.
+                Default None uses atomate2 default (64).
+            **kwargs: Additional keyword arguments
+        """
         # Initialize base Worker
         super().__init__(
             worker_name=worker_name,
@@ -45,7 +64,7 @@ class StaticWorker(Worker):
         relax_incar = relax_incar or {}
         static_incar = static_incar or {}
 
-        # Structural relaxation
+        # Structural relaxation (ISIF=3)
         relax_maker = DoubleRelaxMaker.from_relax_maker(
             RelaxMaker(
                 run_vasp_kwargs=self.run_vasp_kwargs,
@@ -53,6 +72,11 @@ class StaticWorker(Worker):
                 copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
                 input_set_generator=RelaxSetGenerator(
                     user_potcar_functional=self.potcar_functional,
+                    user_kpoints_settings=(
+                        {"reciprocal_density": relax_reciprocal_density}
+                        if relax_reciprocal_density is not None
+                        else {}
+                    ),
                     user_incar_settings={
                         **self.global_incar,
                         "ISTART": 1,
@@ -70,13 +94,17 @@ class StaticWorker(Worker):
             copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
             input_set_generator=StaticSetGenerator(
                 user_potcar_functional=self.potcar_functional,
+                user_kpoints_settings=(
+                    {"reciprocal_density": static_reciprocal_density}
+                    if static_reciprocal_density is not None
+                    else {}
+                ),
                 user_incar_settings={
                     **self.global_incar,
                     "ISTART": 1,
                     "IBRION": -1,
                     "ISIF": 2,
                     "NSW": 0,
-                    "LORBIT": 11,
                     "LWAVE": True,
                     "LCHARG": True,
                     **static_incar,

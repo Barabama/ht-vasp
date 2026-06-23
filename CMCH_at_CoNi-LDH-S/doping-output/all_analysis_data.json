@@ -1,0 +1,959 @@
+{
+  "meta": {
+    "description": "S-doped CoNi hydroxide 6-system analysis \u2014 pure data export",
+    "n_systems": 6,
+    "zval_reference": {
+      "Co": 9.0,
+      "Ni": 10.0,
+      "O": 6.0,
+      "H": 1.0,
+      "S": 6.0
+    },
+    "chemical_potentials": {
+      "mu_H": -3.375,
+      "mu_O": -4.925,
+      "mu_S": -2.9375
+    }
+  },
+  "overview": {
+    "columns": [
+      "Property",
+      "CoNiHO",
+      "CoNiHOS-Co3",
+      "CoNiHOS-Ni3",
+      "CoNiHOS-Co1Ni2",
+      "CoNiHOS-Co2Ni1",
+      "CoNiHOS-Co3-noH"
+    ],
+    "rows": [
+      {
+        "Property": "Formula",
+        "CoNiHO": "CoNi(HO)4",
+        "CoNiHOS-Co3": "Co9Ni9H36SO35",
+        "CoNiHOS-Ni3": "Co9Ni9H36SO35",
+        "CoNiHOS-Co1Ni2": "Co9Ni9H36SO35",
+        "CoNiHOS-Co2Ni1": "Co9Ni9H36SO35",
+        "CoNiHOS-Co3-noH": "Co9Ni9H35SO35"
+      },
+      {
+        "Property": "N atoms",
+        "CoNiHO": "90",
+        "CoNiHOS-Co3": "90",
+        "CoNiHOS-Ni3": "90",
+        "CoNiHOS-Co1Ni2": "90",
+        "CoNiHOS-Co2Ni1": "90",
+        "CoNiHOS-Co3-noH": "89"
+      },
+      {
+        "Property": "Total Energy (eV)",
+        "CoNiHO": "-478.5205",
+        "CoNiHOS-Co3": "-474.9035",
+        "CoNiHOS-Ni3": "-474.8115",
+        "CoNiHOS-Co1Ni2": "-474.9017",
+        "CoNiHOS-Co2Ni1": "-474.8831",
+        "CoNiHOS-Co3-noH": "-471.1319"
+      },
+      {
+        "Property": "Energy/atom (eV)",
+        "CoNiHO": "-5.3169",
+        "CoNiHOS-Co3": "-5.2767",
+        "CoNiHOS-Ni3": "-5.2757",
+        "CoNiHOS-Co1Ni2": "-5.2767",
+        "CoNiHOS-Co2Ni1": "-5.2765",
+        "CoNiHOS-Co3-noH": "-5.2936"
+      },
+      {
+        "Property": "Band Gap (eV)",
+        "CoNiHO": "2.8417",
+        "CoNiHOS-Co3": "2.4025",
+        "CoNiHOS-Ni3": "2.7849",
+        "CoNiHOS-Co1Ni2": "2.5153",
+        "CoNiHOS-Co2Ni1": "2.4814",
+        "CoNiHOS-Co3-noH": "0.2304"
+      },
+      {
+        "Property": "VBM (eV)",
+        "CoNiHO": "3.0820",
+        "CoNiHOS-Co3": "3.3250",
+        "CoNiHOS-Ni3": "3.1052",
+        "CoNiHOS-Co1Ni2": "3.2244",
+        "CoNiHOS-Co2Ni1": "3.2866",
+        "CoNiHOS-Co3-noH": "3.4200"
+      },
+      {
+        "Property": "CBM (eV)",
+        "CoNiHO": "5.9610",
+        "CoNiHOS-Co3": "5.7479",
+        "CoNiHOS-Ni3": "5.8915",
+        "CoNiHOS-Co1Ni2": "5.7664",
+        "CoNiHOS-Co2Ni1": "5.7880",
+        "CoNiHOS-Co3-noH": "3.6735"
+      },
+      {
+        "Property": "E_Fermi (eV)",
+        "CoNiHO": "3.0848",
+        "CoNiHOS-Co3": "3.3426",
+        "CoNiHOS-Ni3": "3.1125",
+        "CoNiHOS-Co1Ni2": "3.2252",
+        "CoNiHOS-Co2Ni1": "3.2870",
+        "CoNiHOS-Co3-noH": "3.4315"
+      },
+      {
+        "Property": "Total Mag (\u03bcB)",
+        "CoNiHO": "44.9962",
+        "CoNiHOS-Co3": "45.0007",
+        "CoNiHOS-Ni3": "45.0006",
+        "CoNiHOS-Co1Ni2": "45.0000",
+        "CoNiHOS-Co2Ni1": "45.0000",
+        "CoNiHOS-Co3-noH": "43.9998"
+      },
+      {
+        "Property": "Co avg Mag (\u03bcB)",
+        "CoNiHO": "2.7452",
+        "CoNiHOS-Co3": "2.7322",
+        "CoNiHOS-Ni3": "2.7469",
+        "CoNiHOS-Co1Ni2": "2.7421",
+        "CoNiHOS-Co2Ni1": "2.7373",
+        "CoNiHOS-Co3-noH": "2.6728"
+      },
+      {
+        "Property": "Ni avg Mag (\u03bcB)",
+        "CoNiHO": "1.8212",
+        "CoNiHOS-Co3": "1.8220",
+        "CoNiHOS-Ni3": "1.8083",
+        "CoNiHOS-Co1Ni2": "1.8129",
+        "CoNiHOS-Co2Ni1": "1.8174",
+        "CoNiHOS-Co3-noH": "1.8204"
+      },
+      {
+        "Property": "Spin Polarization",
+        "CoNiHO": "1.0000",
+        "CoNiHOS-Co3": "\u2014",
+        "CoNiHOS-Ni3": "\u2014",
+        "CoNiHOS-Co1Ni2": "1.0000",
+        "CoNiHOS-Co2Ni1": "1.0000",
+        "CoNiHOS-Co3-noH": "\u2014"
+      },
+      {
+        "Property": "d-center Co (eV)",
+        "CoNiHO": "-0.6149",
+        "CoNiHOS-Co3": "-0.9544",
+        "CoNiHOS-Ni3": "-0.6661",
+        "CoNiHOS-Co1Ni2": "-0.8739",
+        "CoNiHOS-Co2Ni1": "-1.0123",
+        "CoNiHOS-Co3-noH": "-1.1025"
+      },
+      {
+        "Property": "d-center Ni (eV)",
+        "CoNiHO": "-2.7599",
+        "CoNiHOS-Co3": "-2.9999",
+        "CoNiHOS-Ni3": "-2.9050",
+        "CoNiHOS-Co1Ni2": "-2.9709",
+        "CoNiHOS-Co2Ni1": "-2.9986",
+        "CoNiHOS-Co3-noH": "-3.0457"
+      },
+      {
+        "Property": "Volume (\u00c5\u00b3)",
+        "CoNiHO": "699.34",
+        "CoNiHOS-Co3": "719.04",
+        "CoNiHOS-Ni3": "718.89",
+        "CoNiHOS-Co1Ni2": "719.49",
+        "CoNiHOS-Co2Ni1": "719.32",
+        "CoNiHOS-Co3-noH": "710.95"
+      },
+      {
+        "Property": "S-M avg bond (\u00c5)",
+        "CoNiHO": "\u2014",
+        "CoNiHOS-Co3": "2.3326",
+        "CoNiHOS-Ni3": "2.3042",
+        "CoNiHOS-Co1Ni2": "2.3199",
+        "CoNiHOS-Co2Ni1": "2.3294",
+        "CoNiHOS-Co3-noH": "2.3048"
+      },
+      {
+        "Property": "S Coordination",
+        "CoNiHO": "\u2014",
+        "CoNiHOS-Co3": "Co/Co/Co",
+        "CoNiHOS-Ni3": "Ni/Ni/Ni",
+        "CoNiHOS-Co1Ni2": "Ni/Ni/Co",
+        "CoNiHOS-Co2Ni1": "Ni/Co/Co",
+        "CoNiHOS-Co3-noH": "Co/Co/Co"
+      },
+      {
+        "Property": "S-H bond?",
+        "CoNiHO": "\u2014",
+        "CoNiHOS-Co3": "\u2713 (1.34 \u00c5)",
+        "CoNiHOS-Ni3": "\u2713 (1.34 \u00c5)",
+        "CoNiHOS-Co1Ni2": "\u2713 (1.34 \u00c5)",
+        "CoNiHOS-Co2Ni1": "\u2713 (1.34 \u00c5)",
+        "CoNiHOS-Co3-noH": "\u2717 (nearest 2.03 \u00c5)"
+      },
+      {
+        "Property": "S Bader charge (e)",
+        "CoNiHO": "\u2014",
+        "CoNiHOS-Co3": "6.5835",
+        "CoNiHOS-Ni3": "6.5080",
+        "CoNiHOS-Co1Ni2": "6.5735",
+        "CoNiHOS-Co2Ni1": "6.5757",
+        "CoNiHOS-Co3-noH": "6.7348"
+      },
+      {
+        "Property": "S charge transfer (e)",
+        "CoNiHO": "\u2014",
+        "CoNiHOS-Co3": "-0.5835",
+        "CoNiHOS-Ni3": "-0.5080",
+        "CoNiHOS-Co1Ni2": "-0.5735",
+        "CoNiHOS-Co2Ni1": "-0.5757",
+        "CoNiHOS-Co3-noH": "-0.7348"
+      },
+      {
+        "Property": "S magmom (\u03bcB)",
+        "CoNiHO": "\u2014",
+        "CoNiHOS-Co3": "0.1649",
+        "CoNiHOS-Ni3": "0.1598",
+        "CoNiHOS-Co1Ni2": "0.1584",
+        "CoNiHOS-Co2Ni1": "0.1597",
+        "CoNiHOS-Co3-noH": "-0.1151"
+      },
+      {
+        "Property": "NN metals avg transfer (e)",
+        "CoNiHO": "\u2014",
+        "CoNiHOS-Co3": "1.2502",
+        "CoNiHOS-Ni3": "1.1862",
+        "CoNiHOS-Co1Ni2": "1.2083",
+        "CoNiHOS-Co2Ni1": "1.2300",
+        "CoNiHOS-Co3-noH": "1.2571"
+      },
+      {
+        "Property": "NN metals avg magmom (\u03bcB)",
+        "CoNiHO": "\u2014",
+        "CoNiHOS-Co3": "2.6921",
+        "CoNiHOS-Ni3": "1.7458",
+        "CoNiHOS-Co1Ni2": "2.0613",
+        "CoNiHOS-Co2Ni1": "2.3768",
+        "CoNiHOS-Co3-noH": "2.5217"
+      }
+    ]
+  },
+  "doping_effect": {
+    "pristine_energy": -478.52053328,
+    "sh3co_energy": -474.90345425,
+    "delta_e": 3.6170790300000135,
+    "pristine_lattice": {
+      "a": 9.442481040496125,
+      "b": 9.464275002853608,
+      "c": 9.038095731407829,
+      "volume": 699.3368375911989
+    },
+    "sh3co_lattice": {
+      "a": 9.486169627034295,
+      "b": 9.509198776409109,
+      "c": 9.201463933556067,
+      "volume": 719.0380748535878
+    },
+    "pristine_gap": 2.8416898895821348,
+    "sh3co_gap": 2.4025217367914697,
+    "pristine_total_mag": 44.9962317,
+    "sh3co_total_mag": 45.0007453,
+    "pristine_co_avg_mag": 2.745222222222222,
+    "pristine_ni_avg_mag": 1.8212222222222225,
+    "sh3co_co_avg_mag": 2.7322222222222226,
+    "sh3co_ni_avg_mag": 1.822,
+    "s_bond_lengths": [
+      2.3250089232464726,
+      2.3287391312084744,
+      2.3441938368483024
+    ],
+    "s_metal_types": [
+      "Co",
+      "Co",
+      "Co"
+    ]
+  },
+  "dehydrogenation": {
+    "sh3co_energy": -474.90345425,
+    "s3co_noh_energy": -471.13191013,
+    "raw_delta_e": 3.7715441199999873,
+    "sh3co_gap": 2.4025217367914697,
+    "s3co_noh_gap": 0.23037446378296167,
+    "sh3co_s_bonds": [
+      2.3250089232464726,
+      2.3287391312084744,
+      2.3441938368483024
+    ],
+    "s3co_noh_s_bonds": [
+      2.21609404020559,
+      2.3471774650080968,
+      2.3510422293222657
+    ],
+    "sh3co_S_charge_transfer": -0.5834929999999998,
+    "sh3co_S_magmom": 0.164902,
+    "s3co_noh_S_charge_transfer": -0.7347770000000002,
+    "s3co_noh_S_magmom": -0.115128,
+    "sh3co_nn_metals": [
+      {
+        "index": 5,
+        "element": "Co1",
+        "bader_charge": 7.749889,
+        "charge_transfer": 1.2501110000000004,
+        "magmom": 2.692583,
+        "atomic_vol": 9.732019
+      },
+      {
+        "index": 8,
+        "element": "Co1",
+        "bader_charge": 7.750293,
+        "charge_transfer": 1.249707,
+        "magmom": 2.692009,
+        "atomic_vol": 9.774126
+      },
+      {
+        "index": 6,
+        "element": "Co1",
+        "bader_charge": 7.749113,
+        "charge_transfer": 1.2508869999999996,
+        "magmom": 2.691776,
+        "atomic_vol": 9.686198
+      }
+    ],
+    "s3co_noh_nn_metals": [
+      {
+        "index": 6,
+        "element": "Co1",
+        "bader_charge": 7.713658,
+        "charge_transfer": 1.2863420000000003,
+        "magmom": 2.202511,
+        "atomic_vol": 8.800893
+      },
+      {
+        "index": 8,
+        "element": "Co1",
+        "bader_charge": 7.758073,
+        "charge_transfer": 1.2419269999999996,
+        "magmom": 2.679934,
+        "atomic_vol": 9.80255
+      },
+      {
+        "index": 5,
+        "element": "Co1",
+        "bader_charge": 7.756937,
+        "charge_transfer": 1.2430630000000003,
+        "magmom": 2.682609,
+        "atomic_vol": 9.793481
+      }
+    ],
+    "sh3co_co_dcenter": -0.9544193987859498,
+    "sh3co_ni_dcenter": -2.999891851776305,
+    "s3co_noh_co_dcenter": -1.1024953049298676,
+    "s3co_noh_ni_dcenter": -3.0457041381710033,
+    "sh3co_pdos_ef": {
+      "S_p": 0.4242782608695652,
+      "Co_d": 0.6607521739130435,
+      "Ni_d": 0.03636086956521739,
+      "total": 2.4561652173913044
+    },
+    "s3co_noh_pdos_ef": {
+      "S_p": 0.7906478260869565,
+      "Co_d": 1.0275782608695652,
+      "Ni_d": 0.04269565217391304,
+      "total": 3.8623608695652174
+    }
+  },
+  "coordination": {
+    "CoNiHOS-Co3": {
+      "label": "SH-3Co",
+      "energy": -474.90345425,
+      "gap": 2.4025217367914697,
+      "s_bond_lengths": [
+        2.3250089232464726,
+        2.3287391312084744,
+        2.3441938368483024
+      ],
+      "s_metal_types": [
+        "Co",
+        "Co",
+        "Co"
+      ],
+      "s_avg_bond": 2.3326472971010834,
+      "nn_magmoms": [
+        2.692583,
+        2.692009,
+        2.691776
+      ],
+      "nn_charge_transfers": [
+        1.2501110000000004,
+        1.249707,
+        1.2508869999999996
+      ],
+      "S_charge_transfer": -0.5834929999999998,
+      "S_magmom": 0.164902,
+      "co_dcenter": -0.9544193987859498,
+      "ni_dcenter": -2.999891851776305,
+      "pdos_ef": {
+        "S_p": 0.4242782608695652,
+        "Co_d": 0.6607521739130435,
+        "Ni_d": 0.03636086956521739,
+        "total": 2.4561652173913044
+      }
+    },
+    "CoNiHOS-Ni3": {
+      "label": "SH-3Ni",
+      "energy": -474.81145847,
+      "gap": 2.7848844597216984,
+      "s_bond_lengths": [
+        2.301989876248679,
+        2.304149753863724,
+        2.3065305198820996
+      ],
+      "s_metal_types": [
+        "Ni",
+        "Ni",
+        "Ni"
+      ],
+      "s_avg_bond": 2.3042233833315007,
+      "nn_magmoms": [
+        1.746452,
+        1.744424,
+        1.746499
+      ],
+      "nn_charge_transfers": [
+        1.1875929999999997,
+        1.1840159999999997,
+        1.1870049999999992
+      ],
+      "S_charge_transfer": -0.5079880000000001,
+      "S_magmom": 0.1598,
+      "co_dcenter": -0.6660511066367373,
+      "ni_dcenter": -2.9050340536880226,
+      "pdos_ef": {
+        "S_p": 0.28243478260869564,
+        "Co_d": 5.107295652173913,
+        "Ni_d": 0.2752652173913044,
+        "total": 9.865047826086956
+      }
+    },
+    "CoNiHOS-Co1Ni2": {
+      "label": "SH-Co1Ni2",
+      "energy": -474.90166318,
+      "gap": 2.5153226949629546,
+      "s_bond_lengths": [
+        2.309528347054162,
+        2.3137541443853946,
+        2.336354313975996
+      ],
+      "s_metal_types": [
+        "Ni",
+        "Ni",
+        "Co"
+      ],
+      "s_avg_bond": 2.3198789351385174,
+      "nn_magmoms": [
+        1.747305,
+        1.745105,
+        2.69163
+      ],
+      "nn_charge_transfers": [
+        1.1872480000000003,
+        1.1861320000000006,
+        1.251627
+      ],
+      "S_charge_transfer": -0.5734779999999997,
+      "S_magmom": 0.158435,
+      "co_dcenter": -0.8739312141982273,
+      "ni_dcenter": -2.9708723244161463,
+      "pdos_ef": {
+        "S_p": 0.2638869565217391,
+        "Co_d": 0.4675956521739131,
+        "Ni_d": 0.07156086956521739,
+        "total": 1.8976478260869565
+      }
+    },
+    "CoNiHOS-Co2Ni1": {
+      "label": "SH-Co2Ni1",
+      "energy": -474.88313984,
+      "gap": 2.48144194093345,
+      "s_bond_lengths": [
+        2.3134428941777845,
+        2.327145708182071,
+        2.347481139477158
+      ],
+      "s_metal_types": [
+        "Ni",
+        "Co",
+        "Co"
+      ],
+      "s_avg_bond": 2.329356580612338,
+      "nn_magmoms": [
+        1.746664,
+        2.690949,
+        2.692784
+      ],
+      "nn_charge_transfers": [
+        1.1866690000000002,
+        1.2478939999999996,
+        1.2555069999999997
+      ],
+      "S_charge_transfer": -0.5757469999999998,
+      "S_magmom": 0.159715,
+      "co_dcenter": -1.0122561971504385,
+      "ni_dcenter": -2.9985773059851177,
+      "pdos_ef": {
+        "S_p": 0.357804347826087,
+        "Co_d": 0.5378217391304349,
+        "Ni_d": 0.0658695652173913,
+        "total": 2.164978260869565
+      }
+    }
+  },
+  "bader_comprehensive": {
+    "CoNiHOS-Co3": {
+      "label": "SH-3Co",
+      "S_bader_charge": 6.583493,
+      "S_charge_transfer": -0.5834929999999998,
+      "S_magmom": 0.164902,
+      "S_atomic_vol": 19.69389,
+      "nn_metal_bader": [
+        {
+          "index": 5,
+          "element": "Co1",
+          "bader_charge": 7.749889,
+          "charge_transfer": 1.2501110000000004,
+          "magmom": 2.692583,
+          "atomic_vol": 9.732019
+        },
+        {
+          "index": 8,
+          "element": "Co1",
+          "bader_charge": 7.750293,
+          "charge_transfer": 1.249707,
+          "magmom": 2.692009,
+          "atomic_vol": 9.774126
+        },
+        {
+          "index": 6,
+          "element": "Co1",
+          "bader_charge": 7.749113,
+          "charge_transfer": 1.2508869999999996,
+          "magmom": 2.691776,
+          "atomic_vol": 9.686198
+        }
+      ],
+      "Co_avg_bader_charge": 7.706645222222223,
+      "Ni_avg_bader_charge": 8.739274333333334,
+      "Co_avg_magmom": 2.718399777777778,
+      "Ni_avg_magmom": 1.7846185555555556
+    },
+    "CoNiHOS-Ni3": {
+      "label": "SH-3Ni",
+      "S_bader_charge": 6.507988,
+      "S_charge_transfer": -0.5079880000000001,
+      "S_magmom": 0.1598,
+      "S_atomic_vol": 19.120475,
+      "nn_metal_bader": [
+        {
+          "index": 9,
+          "element": "Ni1",
+          "bader_charge": 8.812407,
+          "charge_transfer": 1.1875929999999997,
+          "magmom": 1.746452,
+          "atomic_vol": 9.33452
+        },
+        {
+          "index": 13,
+          "element": "Ni1",
+          "bader_charge": 8.815984,
+          "charge_transfer": 1.1840159999999997,
+          "magmom": 1.744424,
+          "atomic_vol": 9.35334
+        },
+        {
+          "index": 11,
+          "element": "Ni1",
+          "bader_charge": 8.812995,
+          "charge_transfer": 1.1870049999999992,
+          "magmom": 1.746499,
+          "atomic_vol": 9.360522
+        }
+      ],
+      "Co_avg_bader_charge": 7.684091666666666,
+      "Ni_avg_bader_charge": 8.764224666666667,
+      "Co_avg_magmom": 2.732415555555556,
+      "Ni_avg_magmom": 1.7717043333333333
+    },
+    "CoNiHOS-Co1Ni2": {
+      "label": "SH-Co1Ni2",
+      "S_bader_charge": 6.573478,
+      "S_charge_transfer": -0.5734779999999997,
+      "S_magmom": 0.158435,
+      "S_atomic_vol": 19.5225,
+      "nn_metal_bader": [
+        {
+          "index": 15,
+          "element": "Ni1",
+          "bader_charge": 8.812752,
+          "charge_transfer": 1.1872480000000003,
+          "magmom": 1.747305,
+          "atomic_vol": 9.334714
+        },
+        {
+          "index": 13,
+          "element": "Ni1",
+          "bader_charge": 8.813868,
+          "charge_transfer": 1.1861320000000006,
+          "magmom": 1.745105,
+          "atomic_vol": 9.329014
+        },
+        {
+          "index": 8,
+          "element": "Co1",
+          "bader_charge": 7.748373,
+          "charge_transfer": 1.251627,
+          "magmom": 2.69163,
+          "atomic_vol": 9.713912
+        }
+      ],
+      "Co_avg_bader_charge": 7.691481888888889,
+      "Ni_avg_bader_charge": 8.755578666666667,
+      "Co_avg_magmom": 2.728356777777778,
+      "Ni_avg_magmom": 1.7758823333333331
+    },
+    "CoNiHOS-Co2Ni1": {
+      "label": "SH-Co2Ni1",
+      "S_bader_charge": 6.575747,
+      "S_charge_transfer": -0.5757469999999998,
+      "S_magmom": 0.159715,
+      "S_atomic_vol": 19.619153,
+      "nn_metal_bader": [
+        {
+          "index": 10,
+          "element": "Ni1",
+          "bader_charge": 8.813331,
+          "charge_transfer": 1.1866690000000002,
+          "magmom": 1.746664,
+          "atomic_vol": 9.326773
+        },
+        {
+          "index": 3,
+          "element": "Co1",
+          "bader_charge": 7.752106,
+          "charge_transfer": 1.2478939999999996,
+          "magmom": 2.690949,
+          "atomic_vol": 9.772533
+        },
+        {
+          "index": 4,
+          "element": "Co1",
+          "bader_charge": 7.744493,
+          "charge_transfer": 1.2555069999999997,
+          "magmom": 2.692784,
+          "atomic_vol": 9.718269
+        }
+      ],
+      "Co_avg_bader_charge": 7.698732666666667,
+      "Ni_avg_bader_charge": 8.747734888888889,
+      "Co_avg_magmom": 2.7234908888888887,
+      "Ni_avg_magmom": 1.7801018888888889
+    },
+    "CoNiHOS-Co3-noH": {
+      "label": "S-3Co (no H)",
+      "S_bader_charge": 6.734777,
+      "S_charge_transfer": -0.7347770000000002,
+      "S_magmom": -0.115128,
+      "S_atomic_vol": 20.626446,
+      "nn_metal_bader": [
+        {
+          "index": 6,
+          "element": "Co1",
+          "bader_charge": 7.713658,
+          "charge_transfer": 1.2863420000000003,
+          "magmom": 2.202511,
+          "atomic_vol": 8.800893
+        },
+        {
+          "index": 8,
+          "element": "Co1",
+          "bader_charge": 7.758073,
+          "charge_transfer": 1.2419269999999996,
+          "magmom": 2.679934,
+          "atomic_vol": 9.80255
+        },
+        {
+          "index": 5,
+          "element": "Co1",
+          "bader_charge": 7.756937,
+          "charge_transfer": 1.2430630000000003,
+          "magmom": 2.682609,
+          "atomic_vol": 9.793481
+        }
+      ],
+      "Co_avg_bader_charge": 7.703036000000001,
+      "Ni_avg_bader_charge": 8.741497777777779,
+      "Co_avg_magmom": 2.6593761111111114,
+      "Ni_avg_magmom": 1.7822432222222224
+    }
+  },
+  "magnetic_check": {
+    "CoNiHOS-Co3": {
+      "name": "CoNiHOS-Co3",
+      "label": "SH-3Co",
+      "INCAR_NELECT": null,
+      "INCAR_MAGMOM": [
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6
+      ],
+      "OUTCAR_nelect": 423.0000072,
+      "OUTCAR_total_mag": 45.0007453,
+      "n_atoms": 90,
+      "composition": {
+        "Co": 9,
+        "Ni": 9,
+        "H": 36,
+        "O": 35,
+        "S": 1
+      },
+      "zval_sum": 423.0
+    },
+    "CoNiHOS-Co3-noH": {
+      "name": "CoNiHOS-Co3-noH",
+      "label": "S-3Co (no H)",
+      "INCAR_NELECT": 422.0,
+      "INCAR_MAGMOM": [
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6
+      ],
+      "OUTCAR_nelect": 422.0000004,
+      "OUTCAR_total_mag": 43.9997869,
+      "n_atoms": 89,
+      "composition": {
+        "Co": 9,
+        "Ni": 9,
+        "H": 35,
+        "O": 35,
+        "S": 1
+      },
+      "zval_sum": 422.0
+    }
+  },
+  "formation_energy": [
+    {
+      "system": "CoNiHOS-Co3",
+      "label": "SH-3Co",
+      "raw_delta_e": 3.6170790300000135,
+      "correction": -1.9874999999999998,
+      "delta_e_f": 1.6295790300000137,
+      "n_atoms": 90,
+      "delta_e_f_mev_per_atom": 18.106433666666817
+    },
+    {
+      "system": "CoNiHOS-Ni3",
+      "label": "SH-3Ni",
+      "raw_delta_e": 3.709074810000004,
+      "correction": -1.9874999999999998,
+      "delta_e_f": 1.7215748100000043,
+      "n_atoms": 90,
+      "delta_e_f_mev_per_atom": 19.12860900000005
+    },
+    {
+      "system": "CoNiHOS-Co1Ni2",
+      "label": "SH-Co1Ni2",
+      "raw_delta_e": 3.618870099999981,
+      "correction": -1.9874999999999998,
+      "delta_e_f": 1.6313700999999812,
+      "n_atoms": 90,
+      "delta_e_f_mev_per_atom": 18.126334444444236
+    },
+    {
+      "system": "CoNiHOS-Co2Ni1",
+      "label": "SH-Co2Ni1",
+      "raw_delta_e": 3.6373934399999825,
+      "correction": -1.9874999999999998,
+      "delta_e_f": 1.6498934399999827,
+      "n_atoms": 90,
+      "delta_e_f_mev_per_atom": 18.332149333333142
+    },
+    {
+      "system": "CoNiHOS-Co3-noH",
+      "label": "S-3Co (no H)",
+      "raw_delta_e": 7.388623150000001,
+      "correction": -5.3625,
+      "delta_e_f": 2.026123150000001,
+      "n_atoms": 89,
+      "delta_e_f_mev_per_atom": 22.765428651685404
+    }
+  ]
+}

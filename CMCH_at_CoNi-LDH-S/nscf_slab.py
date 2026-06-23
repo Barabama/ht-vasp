@@ -38,7 +38,7 @@ GLOBAL_INCAR = {
     "BMIX_MAG": 1e-4,
     "LREAL": "Auto",
     "KPAR": 4,
-    "NCORE": 2,
+    "NCORE": 4,
     "GGA": "PE",
     "IVDW": 12,
     "LDAU": True,
@@ -57,8 +57,8 @@ RELAX_INCAR = {
     "IBRION": 2,
     "ISIF": 2,
     "NELM": 100,
-    "NSW": 50,
-    "EDIFFG": -0.02,
+    "NSW": 100,
+    "EDIFFG": -0.05,
 }
 
 STATIC_INCAR = {
@@ -72,6 +72,8 @@ STATIC_INCAR = {
     "LWAVE": True,
     "LCHARG": True,
     "LORBIT": 11,
+    "LDIPOL": True,
+    "IDIPOL": 3,
 }
 
 NSCF_INCAR = {
@@ -80,43 +82,44 @@ NSCF_INCAR = {
     "NSW": 0,
     "ICHARG": 11,
     "LORBIT": 11,
+    "KPAR": 2,
+    "NCORE": 8,
 }
 
 
 root_dir = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
 poscar_path = root_dir / "data" / "poscars"
 structs = {
-    "CoMnH2CO5-slab": {
-        "poscar": str(poscar_path / "CoMnH2CO5-311-slab-010.vasp"),
-        "incar": {
-            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
-            "LDAUL": {"Co": 2, "Mn": 2, "C": -1, "H": -1, "O": -1},
-            "LDAUU": {"Co": 3.32, "Mn": 5.00},
-            "LDAUJ": {"Co": 0.0, "Mn": 0.0},
-            "LORBIT": 10,
-        },
-    },
-    "CoNiOH2-slab": {
-        "poscar": str(poscar_path / "CoNiOH2-322-slab-001.vasp"),
-        "incar": {
-            "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6},
-            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1},
-            "LDAUU": {"Co": 3.32, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
-        },
-    },
-    "CoNiOH2S-noH-slab": {
-        "poscar": str(poscar_path / "CoNiOH2-322-S-noH-slab-001.vasp"),
-        "incar": {
-            "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
-            "NELECT": 281,  # 正交 # 6*9+6*10+23*1+23*6+1*6 = 6*(9+10)+23+24*6 = 114+23+144=281
-            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
-            "LDAUU": {"Co": 3.32, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
-        },
-    },
+    # "CoMnH2CO5-slab": {
+    #     "poscar": str(poscar_path / "CoMnH2CO5-311-slab-010.vasp"),
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
+    #         "LDAUL": {"Co": 2, "Mn": 2, "C": -1, "H": -1, "O": -1},
+    #         "LDAUU": {"Co": 3.32, "Mn": 5.00},
+    #         "LDAUJ": {"Co": 0.0, "Mn": 0.0},
+    #     },
+    # },
+    # "CoNiOH2-slab": {
+    #     "poscar": str(poscar_path / "CoNiOH2-322-slab-001.vasp"),
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6},
+    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1},
+    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+    #     },
+    # },
+    # "CoNiOH2S-noH-slab": {
+    #     "poscar": str(poscar_path / "CoNiOH2-322-S-noH-slab-001.vasp"),
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+    #         "NELECT": 281,  # 正交 # 6*9+6*10+23*1+23*6+1*6 = 6*(9+10)+23+24*6 = 114+23+144=281
+    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+    #     },
+    # },
     "CoNiOH2S-noH-slab-flip": {
-        "poscar": str(poscar_path / "CoNiOH2-322-S-noH-slab-00-1.vasp"),
+        "poscar": poscar_path / "CoNiOH2-322-S-noH-slab-00-1.vasp",
         "incar": {
             "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
             "NELECT": 281,
@@ -133,8 +136,9 @@ from pymatgen.core import Structure
 
 
 def run_tick(name: str, device: str = "cpu", rerun: bool = False):
-    flow_dir = Path("/tmp")
+    flow_dir = Path("/nfs_ssd/tmp")
     store_dir = root_dir / "data" / name
+    prev_dirs = [store_dir / "3-static", store_dir / "2-relax_2", store_dir / "1-relax_1"]
     json_path = store_dir / "band_out.json"
 
     # Skip if already done
@@ -144,10 +148,10 @@ def run_tick(name: str, device: str = "cpu", rerun: bool = False):
 
     log.info(f"Structure {name} start")
 
-    if rerun and store_dir.exists():
-        shutil.rmtree(store_dir)
+    # if rerun and store_dir.exists():
+    #     shutil.rmtree(store_dir)
 
-    structure = Structure.from_file(structs[name]["poscar"])
+    structure = Structure.from_file(str(structs[name]["poscar"]))
 
     try:
         worker = NscfWorker(
@@ -164,6 +168,7 @@ def run_tick(name: str, device: str = "cpu", rerun: bool = False):
         worker.run_flow(
             name=name,
             structure=structure,
+            prev_dir=next((d for d in prev_dirs if d.exists()), None),
             flow_dir=flow_dir,
             store_dir=store_dir,
             resume=not rerun,
@@ -199,7 +204,7 @@ def submit_jobs(device: str = "cpu", rerun: bool = False):
             output_log=output_log,
             nodes=1,
             ntasks=32,
-            memory="100G",
+            memory="150G",
             conda_env=conda_env,
             module_name="vasp-cpu",
         ) if device == "cpu" else manager.get_gpu_config(

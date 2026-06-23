@@ -97,7 +97,8 @@ SYSTEM_COLORS = {
 ZVAL = {"Co": 9.0, "Ni": 10.0, "O": 6.0, "H": 1.0, "S": 6.0}
 
 # Output directory (separate from input data/)
-OUTPUT_DIR = Path("output")
+DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
+OUTPUT_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/doping-output")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1716,7 +1717,7 @@ def export_all_data(results: dict, output_dir: Path):
     # ── Magnetic check (raw INCAR/OUTCAR values) ──
     mag_check = {}
     for name in ["CoNiHOS-Co3", "CoNiHOS-Co3-noH"]:
-        d = Path("data") / name / "3-static"  # input data — always under data/
+        d = DATA_DIR / name / "3-static"
         entry = {"name": name, "label": SYSTEM_LABELS[name]}
         incar_path = d / "INCAR.gz"
         if incar_path.exists():
@@ -1778,7 +1779,7 @@ def main():
                         help="Skip all figure generation")
     args = parser.parse_args()
 
-    base_dir = Path("data")
+    base_dir = DATA_DIR
     dirs = {name: base_dir / name for name in SYSTEMS_ALL}
 
     print("=" * 80)

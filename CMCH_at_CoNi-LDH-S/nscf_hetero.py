@@ -38,7 +38,7 @@ GLOBAL_INCAR = {
     "BMIX_MAG": 1e-4,
     "LREAL": "Auto",
     "KPAR": 4,
-    "NCORE": 2,
+    "NCORE": 4,
     "GGA": "PE",
     "IVDW": 12,
     "LDAU": True,
@@ -57,8 +57,8 @@ RELAX_INCAR = {
     "IBRION": 2,
     "ISIF": 2,
     "NELM": 100,
-    "NSW": 50,
-    "EDIFFG": -0.02,
+    "NSW": 100,
+    "EDIFFG": -0.05,
 }
 
 STATIC_INCAR = {
@@ -72,6 +72,8 @@ STATIC_INCAR = {
     "LWAVE": True,
     "LCHARG": True,
     "LORBIT": 11,
+    "LDIPOL": True,
+    "IDIPOL": 3,
 }
 
 NSCF_INCAR = {
@@ -80,22 +82,23 @@ NSCF_INCAR = {
     "NSW": 0,
     "ICHARG": 11,
     "LORBIT": 11,
+    "KPAR": 2,
+    "NCORE": 8,
 }
 
 
 root_dir = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
 hetero_path = root_dir / "data" / "heterostructures"
-
 structs = {
-    "hetero_intrinsic": {
-        "poscar": str(hetero_path / "hetero_intrinsic.vasp"),
-        "incar": {
-            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6},
-            "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1},
-            "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
-        },
-    },
+    # "hetero_intrinsic": {
+    #     "poscar": str(hetero_path / "hetero_intrinsic.vasp"),
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6},
+    #         "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1},
+    #         "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
+    #     },
+    # },
     "hetero_s_doped": {
         "poscar": str(hetero_path / "hetero_S_doped.vasp"),
         "incar": {
@@ -106,16 +109,16 @@ structs = {
             "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
         },
     },
-    "hetero_s_exposed": {
-        "poscar": str(hetero_path / "hetero_S_exposed.vasp"),
-        "incar": {
-            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
-            "NELECT": 629,
-            "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
-            "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
-        },
-    },
+    # "hetero_s_exposed": {
+    #     "poscar": str(hetero_path / "hetero_S_exposed.vasp"),
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
+    #         "NELECT": 629,
+    #         "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
+    #         "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
+    #     },
+    # },
 }
 
 # %%
@@ -124,7 +127,7 @@ from pymatgen.core import Structure
 
 
 def run_tick(name: str, device: str = "cpu", rerun: bool = False):
-    flow_dir = Path("/tmp")
+    flow_dir = Path("/nfs_ssd/tmp")
     store_dir = root_dir / "data" / name
     json_path = store_dir / "band_out.json"
 
@@ -190,7 +193,7 @@ def submit_jobs(device: str = "cpu", rerun: bool = False):
             output_log=output_log,
             nodes=1,
             ntasks=32,
-            memory="100G",
+            memory="150G",
             conda_env=conda_env,
             module_name="vasp-cpu",
         ) if device == "cpu" else manager.get_gpu_config(

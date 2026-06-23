@@ -156,7 +156,7 @@ class SlurmJobManager:
         if config.nodelist:
             cmd_parts.append(f"--nodelist={config.nodelist}")
         if config.dependency:
-            cmd_parts.append(f"--dependency=afterok:{config.dependency}")
+            cmd_parts.append(f"--dependency={config.dependency}")
         if config.gpus_per_task > 0:
             cmd_parts.append(f"--gpus-per-task={config.gpus_per_task}")
 
