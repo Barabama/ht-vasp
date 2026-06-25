@@ -98,6 +98,7 @@ gpu_config = SlurmConfig(
     nodes=1,
     ntasks=1,
     memory="20G",
+    partition="partGPU",
     conda_env=conda_env,
     module_name="vasp-gpu",
 )
@@ -107,6 +108,7 @@ cpu_config = SlurmConfig(
     nodes=1,
     ntasks=32,
     memory="150G",
+    partition="partCPU",
     conda_env=conda_env,
     module_name="vasp-cpu",
 )
@@ -238,9 +240,7 @@ def submit_jobs(rerun: bool = False):
     for name in structs:
         # submit static job
         static_job_name = f"{name}-static"
-        static_cmd = (
-            f"python {__file__} --tick {name} --static --device gpu {'--rerun' if rerun else ''}"
-        )
+        static_cmd = f"python {__file__} --tick {name} --static --device gpu {'--rerun' if rerun else ''}"
         static_log = str(root_dir / "logs" / f"{static_job_name}.log")
         gpu_config.job_name = static_job_name
         gpu_config.output_log = static_log
@@ -257,9 +257,7 @@ def submit_jobs(rerun: bool = False):
 
         # submit NSCF job dependent on static job
         nscf_job_name = f"{name}-nscf"
-        nscf_cmd = (
-            f"python {__file__} --tick {name} --nscf --device cpu {'--rerun' if rerun else ''}"
-        )
+        nscf_cmd = f"python {__file__} --tick {name} --nscf --device cpu {'--rerun' if rerun else ''}"
         nscf_log = str(root_dir / "logs" / f"{nscf_job_name}.log")
         cpu_config.job_name = nscf_job_name
         cpu_config.output_log = nscf_log

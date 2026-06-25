@@ -57,6 +57,7 @@ RELAX_INCAR = {
     "ISIF": 3,
     "NELM": 100,
     "NSW": 100,
+    "EDIFF": 1e-5,
     "EDIFFG": -0.05,
 }
 
@@ -92,6 +93,7 @@ gpu_config = SlurmConfig(
     nodes=1,
     ntasks=1,
     memory="20G",
+    partition="partGPU",
     conda_env=conda_env,
     module_name="vasp-gpu",
 )
@@ -101,21 +103,22 @@ cpu_config = SlurmConfig(
     nodes=1,
     ntasks=32,
     memory="100G",
+    partition="partCPU",
     conda_env=conda_env,
     module_name="vasp-cpu",
 )
 
 poscar_path = root_dir / "data" / "poscars"
 structs = {
-    # "CoMnH2CO5": {
-    #     "poscar": str(poscar_path / "CoMnH2CO5-311.vasp"),
-    #     "incar": {
-    #         "MAGMOM": {"Co": 3.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
-    #         "LDAUL": {"Co": 2, "Mn": 2, "C": -1, "H": -1, "O": -1},
-    #         "LDAUU": {"Co": 3.32, "Mn": 5.00},
-    #         "LDAUJ": {"Co": 0.0, "Mn": 0.0},
-    #     },
-    # },
+    "CoMnH2CO5": {
+        "poscar": str(poscar_path / "CoMnH2CO5-311.vasp"),
+        "incar": {
+            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
+            "LDAUL": {"Co": 2, "Mn": 2, "C": -1, "H": -1, "O": -1},
+            "LDAUU": {"Co": 3.32, "Mn": 5.00},
+            "LDAUJ": {"Co": 0.0, "Mn": 0.0},
+        },
+    },
     "CoNiOH2": {
         "poscar": str(poscar_path / "CoNiOH2-322.vasp"),
         "incar": {
@@ -125,17 +128,17 @@ structs = {
             "LDAUJ": {"Co": 0.0, "Ni": 0.0},
         },
     },
-    # "CoNiOH2S-noH": {
-    #     "poscar": str(poscar_path / "CoNiOH2-322-S-noH.vasp"),
-    #     "incar": {
-    #         "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
-    #         # "NELECT": 422, # 六方 # 9*9 + 9*10 + 35*6 + 35*1 + 1*6
-    #         "NELECT": 563,  # 正交 # 12*9+12*10+47*1+47*6+1*6 = 12*(9+10)+47+48*6 = 228+47+288=563
-    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
-    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
-    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
-    #     },
-    # },
+    "CoNiOH2S-noH": {
+        "poscar": str(poscar_path / "CoNiOH2-322-S-noH.vasp"),
+        "incar": {
+            "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+            # "NELECT": 422, # 六方 # 9*9 + 9*10 + 35*6 + 35*1 + 1*6
+            "NELECT": 563,  # 正交 # 12*9+12*10+47*1+47*6+1*6 = 12*(9+10)+47+48*6 = 228+47+288=563
+            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+            "LDAUU": {"Co": 3.32, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+        },
+    },
 }
 
 
