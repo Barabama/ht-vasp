@@ -1,37 +1,111 @@
 #!/usr/bin/env python3
-"""构建 CMCH(010) @ CoNi-LDH-S(001) 异质结
+"""构建 gap=1.0 异质结 + 匹配晶格 slab (Level 2)
 
-CMCH = 基底(substrate, 下层), LDH = 薄膜(film, 上层)
+输出 (data/poscars/):
+  3 个异质结: hetero_intrinsic, hetero_S_doped, hetero_S_exposed
+  4 个应变slab: CMCH_strained, LDH_strained, LDH_S_strained, LDH_S_flip_strained
 
-Interface.from_slabs 会 flip film (film_coords[:,2] *= -1.0):
-  film原底面 → 异质结顶面(真空侧)
-  film原顶面 → 异质结底面(界面侧)
+所有 7 个体系使用同一公共晶格 (avg_a, avg_b)，保证 NGXF/NGYF 一致。
 
-因此:
-  slab-001 (S在原底面 z≈2.7): flip后 S在顶面 → S远离CMCH → 掺杂异质结 ✅
-  slab-00-1 (S在原顶面 z≈5.4): flip后 S在底面 → S靠近CMCH → 暴露掺杂异质结 ✅
+用法:
+  python build_heterostructure.py                    # 全部生成
+  python build_heterostructure.py --gap 1.0          # 指定gap
+  python build_heterostructure.py --ttf-frac 0.18    # TTF阈值(分数坐标)
+  python build_heterostructure.py --check            # 验证POSCAR
 """
 
+import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 from pymatgen.core import Structure, Lattice
 from pymatgen.core.interface import Interface
 
-DATA = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
-OUTDIR = DATA / "heterostructures"
+# ── 路径 ──────────────────────────────────────────────────────────────────
+ROOT = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
+DATA = ROOT / "data"
+OUTDIR = DATA / "poscars"
 OUTDIR.mkdir(exist_ok=True)
 
+# ── 默认参数 ──────────────────────────────────────────────────────────────
+DEFAULT_GAP = 1.0
+DEFAULT_TTF_FRAC = 0.20   # 分数坐标 z < 0.20 的 CMCH 原子 → TTF
+VAC_BOTTOM = 2.0          # 底部真空 (Å)
+VAC_TOP = 12.0            # 顶部真空 (Å)
+TOTAL_C = 28.0            # 总 c 轴 (Å)
 
-def load_optimized(name):
-    with open(DATA / name / "static_out.json") as f:
-        d = json.load(f)
-    return Structure.from_dict(d["output"]["structure"])
+# ── slab 加载配置 ──────────────────────────────────────────────────────────
+SLAB_CONFIGS = {
+    "CMCH": {
+        "file": "CoMnH2CO5-slab",
+        "strained_out": "CMCH_strained.vasp",
+        "substrate": True,
+    },
+    "LDH": {
+        "file": "CoNiOH2-slab",
+        "strained_out": "LDH_strained.vasp",
+        "substrate": False,
+    },
+    "LDH_S": {
+        "file": "CoNiOH2S-noH-slab",
+        "strained_out": "LDH_S_strained.vasp",
+        "substrate": False,
+    },
+    "LDH_S_flip": {
+        "file": "CoNiOH2S-noH-slab-flip",
+        "strained_out": "LDH_S_flip_strained.vasp",
+        "substrate": False,
+        "swap_ab": True,
+    },
+}
+
+HETERO_CONFIGS = [
+    {
+        "name": "intrinsic",
+        "film": "LDH",
+        "out": "hetero_intrinsic.vasp",
+        "label": "本征异质结",
+    },
+    {
+        "name": "S_doped",
+        "film": "LDH_S",
+        "out": "hetero_S_doped.vasp",
+        "label": "S掺杂 (S在真空侧)",
+    },
+    {
+        "name": "S_exposed",
+        "film": "LDH_S_flip",
+        "out": "hetero_S_exposed.vasp",
+        "label": "S暴露 (S在界面侧)",
+    },
+]
 
 
-def swap_ab(slab):
-    """交换 slab 的 a/b 轴"""
+# ═══════════════════════════════════════════════════════════════════════
+# 1. 加载 slab
+# ═══════════════════════════════════════════════════════════════════════
+
+def load_slabs() -> dict[str, Structure]:
+    """从 static_out.json 读取所有优化后 slab。"""
+    slabs = {}
+    for key, cfg in SLAB_CONFIGS.items():
+        path = DATA / cfg["file"] / "static_out.json"
+        with open(path) as f:
+            d = json.load(f)
+        s = Structure.from_dict(d["output"]["structure"])
+
+        if cfg.get("swap_ab"):
+            s = _swap_ab(s)
+
+        slabs[key] = s
+        print(f"  加载 {cfg['file']:<30s}  a={s.lattice.a:.4f}  b={s.lattice.b:.4f}  atoms={len(s)}")
+    return slabs
+
+
+def _swap_ab(slab: Structure) -> Structure:
+    """交换 a/b 轴。"""
     old = slab.lattice
     new_lat = Lattice.from_parameters(
         old.b, old.a, old.c,
@@ -39,169 +113,255 @@ def swap_ab(slab):
     )
     frac = slab.frac_coords.copy()
     frac[:, [0, 1]] = frac[:, [1, 0]]
-    return Structure(
-        new_lat, slab.species, frac,
-        site_properties=slab.site_properties,
-        coords_are_cartesian=False,
-    )
+    return Structure(new_lat, slab.species, frac,
+                     site_properties=slab.site_properties,
+                     coords_are_cartesian=False)
 
 
-def strain_to(slab, target_a, target_b):
-    """应变 slab 面内 a/b 到目标值 (保持分数坐标)"""
+# ═══════════════════════════════════════════════════════════════════════
+# 2. 公共晶格
+# ═══════════════════════════════════════════════════════════════════════
+
+def compute_common_lattice(slabs: dict) -> tuple[float, float]:
+    """用 CMCH + LDH 计算公共晶格。"""
+    cmch = slabs["CMCH"]
+    ldh = slabs["LDH"]
+    avg_a = (cmch.lattice.a + ldh.lattice.a) / 2
+    avg_b = (cmch.lattice.b + ldh.lattice.b) / 2
+    return avg_a, avg_b
+
+
+def strain_to(slab: Structure, target_a: float, target_b: float) -> Structure:
+    """应变 slab 面内 a/b 到目标值 (保持分数坐标)。"""
     old = slab.lattice
     new_lat = Lattice.from_parameters(
         target_a, target_b, old.c,
         old.alpha, old.beta, old.gamma,
     )
-    return Structure(
-        new_lat, slab.species, slab.frac_coords,
-        site_properties=slab.site_properties,
-        coords_are_cartesian=False,
-    )
+    return Structure(new_lat, slab.species, slab.frac_coords,
+                     site_properties=slab.site_properties,
+                     coords_are_cartesian=False)
 
 
-# -----------------------------------------------------------
-# 1. 读取优化后 slab
-# -----------------------------------------------------------
-cmch = load_optimized("CoMnH2CO5-slab")           # 基底 CMCH(010)
-ldh = load_optimized("CoNiOH2-slab")               # 薄膜 LDH(001) 本征
-ldh_s = load_optimized("CoNiOH2S-noH-slab")        # 薄膜 LDH-S(001) S在原底面
-ldh_s_flip = load_optimized("CoNiOH2S-noH-slab-flip")  # 薄膜 LDH-S(00-1) S在原顶面
+# ═══════════════════════════════════════════════════════════════════════
+# 3. 构建异质结
+# ═══════════════════════════════════════════════════════════════════════
 
-# 修复: slab-00-1 的 a/b 被 MS 交换了，换回来对齐 CMCH
-ldh_s_flip = swap_ab(ldh_s_flip)
+def build_hetero(substrate: Structure, film: Structure,
+                 gap: float, avg_a: float, avg_b: float,
+                 ttf_frac: float) -> Structure:
+    """构建一个异质结。
 
-print("=== 原始 slab (修正后) ===")
-for label, s in [
-    ("CMCH 基底", cmch), ("LDH 本征", ldh),
-    ("LDH-S(001)", ldh_s), ("LDH-S(00-1) a/b已换", ldh_s_flip),
-]:
-    print(f"  {label}: a={s.lattice.a:.3f} b={s.lattice.b:.3f} γ={s.lattice.gamma:.2f}°")
+    Args:
+        substrate: CMCH 基底
+        film: LDH 薄膜
+        gap: 初始界面间距 (Å)
+        avg_a, avg_b: 公共晶格参数
+        ttf_frac: 分数坐标 TTF 阈值
 
-# -----------------------------------------------------------
-# 2. 平均晶格匹配
-# -----------------------------------------------------------
-avg_a = (cmch.lattice.a + ldh.lattice.a) / 2
-avg_b = (cmch.lattice.b + ldh.lattice.b) / 2
+    Returns:
+        含 selective_dynamics 的结构。
+    """
+    cmch_m = strain_to(substrate, avg_a, avg_b)
+    film_m = strain_to(film, avg_a, avg_b)
 
-print(f"\n=== 晶格匹配 ===")
-print(f"  a: {cmch.lattice.a:.3f} / {ldh.lattice.a:.3f} → avg={avg_a:.3f}  (各~6%应变)")
-print(f"  b: {cmch.lattice.b:.3f} / {ldh.lattice.b:.3f} → avg={avg_b:.3f}  (各~0.1%应变)")
-
-cmch_m = strain_to(cmch, avg_a, avg_b)
-ldh_m = strain_to(ldh, avg_a, avg_b)
-ldh_s_m = strain_to(ldh_s, avg_a, avg_b)
-ldh_s_flip_m = strain_to(ldh_s_flip, avg_a, avg_b)
-
-# -----------------------------------------------------------
-# 3. 构建 3 个异质结
-# -----------------------------------------------------------
-GAP = 2.0
-VAC_BOTTOM = 2.0    # 基底底部真空
-VAC_TOP = 12.0       # 薄膜顶部真空
-TOTAL_C = 28.0
-
-# 计算实际需要的 vacuum_over_film (Interface.from_slabs 的 c = material + gap + vacuum_over_film)
-# material = sub_thick + film_thick
-sub_thick = cmch_m.cart_coords[:, 2].max() - cmch_m.cart_coords[:, 2].min()
-film_thick = ldh_m.cart_coords[:, 2].max() - ldh_m.cart_coords[:, 2].min()
-extra_vac = VAC_BOTTOM + VAC_TOP  # 额外真空 (Interface.from_slabs center后上下均分)
-
-configs = {
-    "intrinsic": {
-        "film": ldh_m,
-        "label": "本征异质结",
-        "out": "hetero_intrinsic.vasp",
-    },
-    "s_doped": {
-        "film": ldh_s_m,
-        "label": "掺杂异质结 (S在真空侧, 远离CMCH)",
-        "out": "hetero_S_doped.vasp",
-    },
-    "s_exposed": {
-        "film": ldh_s_flip_m,
-        "label": "暴露掺杂异质结 (S在界面侧, 靠近CMCH)",
-        "out": "hetero_S_exposed.vasp",
-    },
-}
-
-for key, cfg in configs.items():
     iface = Interface.from_slabs(
         substrate_slab=cmch_m,
-        film_slab=cfg["film"],
-        gap=GAP,
-        vacuum_over_film=extra_vac,
+        film_slab=film_m,
+        gap=gap,
+        vacuum_over_film=VAC_BOTTOM + VAC_TOP,
         center_slab=True,
     )
 
-    # 调整: shift 使基底底部 = VAC_BOTTOM + 设总 c = TOTAL_C
     zs = iface.cart_coords[:, 2]
     labels = np.array(iface.site_properties["interface_label"])
-
-    sub_zs = zs[labels == "substrate"]
-    film_zs = zs[labels == "film"]
-
-    shift = VAC_BOTTOM - sub_zs.min()
-    print(f"    z min: sub = {sub_zs.min()}, film = {film_zs.min()}, shift = {shift}")
+    shift = VAC_BOTTOM - zs[labels == "substrate"].min()
 
     coords_new = iface.cart_coords.copy()
     coords_new[:, 2] += shift
-
     new_lat = Lattice.from_parameters(
         iface.lattice.a, iface.lattice.b, TOTAL_C,
         iface.lattice.alpha, iface.lattice.beta, iface.lattice.gamma,
     )
-    iface_final = Structure(
-        new_lat, iface.species, coords_new,
-        site_properties=iface.site_properties,
-        coords_are_cartesian=True,
-    )
+    result = Structure(new_lat, iface.species, coords_new,
+                       site_properties=iface.site_properties,
+                       coords_are_cartesian=True)
 
-    # 选择性动力学: CMCH 底部 ~half 固定(F F F), 其余可移动(T T T)
-    zs_final = iface_final.cart_coords[:, 2]
-    labels_final = np.array(iface_final.site_properties["interface_label"])
+    # 选择性动力学: TTF
+    zs_final = result.cart_coords[:, 2]
+    labels_final = np.array(result.site_properties["interface_label"])
     sub_mask = labels_final == "substrate"
-    sub_zs = zs_final[sub_mask]
-
-    # CMCH z 中点: 下半固定, 上半可动
-    sub_z_mid = (sub_zs.min() + sub_zs.max()) / 2
-    n_fixed = int(np.sum(sub_zs < sub_z_mid))
-    n_free = len(iface_final) - n_fixed
 
     sd = []
-    for i in range(len(iface_final)):
-        if sub_mask[i] and zs_final[i] < sub_z_mid:
-            sd.append([False, False, False])  # F F F = 固定
+    for i in range(len(result)):
+        if sub_mask[i] and result.frac_coords[i, 2] < ttf_frac:
+            sd.append([True, True, False])    # TTF
         else:
-            sd.append([True, True, True])     # T T T = 可移动
+            sd.append([True, True, True])     # TTT
 
-    iface_final.add_site_property("selective_dynamics", sd)
+    result.add_site_property("selective_dynamics", sd)
+    return result
 
-    outpath = OUTDIR / cfg["out"]
-    iface_final.to(outpath, fmt="poscar")
 
-    # 报告
-    film_zs = zs_final[~sub_mask]
-    true_gap = film_zs.min() - sub_zs.max()
-    print(f"\n  ✓ {cfg['label']}")
-    print(f"    POSCAR: {outpath}")
-    print(f"    atoms={len(iface_final)}, formula={iface_final.composition.formula}")
-    print(f"    CMCH z: {sub_zs.min():.2f}-{sub_zs.max():.2f} (thick={sub_zs.max()-sub_zs.min():.2f})")
-    print(f"    LDH  z: {film_zs.min():.2f}-{film_zs.max():.2f} (thick={film_zs.max()-film_zs.min():.2f})")
-    print(f"    界面间隙(O/H终端): {true_gap:.2f} Å")
-    print(f"    底真空: {sub_zs.min():.2f}, 顶真空: {TOTAL_C - film_zs.max():.2f}")
-    print(f"    选择性动力学: {n_fixed} 固定(F F F) + {n_free} 可动(T T T)")
-    print(f"    固定范围: CMCH z < {sub_z_mid:.2f} Å (底部下半)")
+# ═══════════════════════════════════════════════════════════════════════
+# 4. 构建应变 slab
+# ═══════════════════════════════════════════════════════════════════════
 
-    # S 验证
-    s_idx = [i for i, s in enumerate(iface_final) if s.species_string == "S"]
-    if s_idx:
-        s_z = zs_final[s_idx[0]]
-        film_mid = (film_zs.min() + film_zs.max()) / 2
-        d_to_interface = s_z - sub_zs.max()
-        if s_z < film_mid:
-            print(f"    S z={s_z:.2f} (距界面{d_to_interface:.2f}Å) → **界面侧** (靠近CMCH) ✓")
+def build_strained_slab(slab: Structure, avg_a: float, avg_b: float,
+                        ttf_frac: float) -> Structure:
+    """将 slab 应变到公共晶格，加真空，设 TTF 约束。"""
+    s = strain_to(slab, avg_a, avg_b)
+    z_min = s.cart_coords[:, 2].min()
+
+    new_lat = Lattice.from_parameters(
+        s.lattice.a, s.lattice.b, TOTAL_C,
+        s.lattice.alpha, s.lattice.beta, s.lattice.gamma,
+    )
+    coords_new = s.cart_coords.copy()
+    coords_new[:, 2] += VAC_BOTTOM - z_min
+
+    result = Structure(new_lat, s.species, coords_new,
+                       coords_are_cartesian=True)
+
+    sd = []
+    for i in range(len(result)):
+        if result.frac_coords[i, 2] < ttf_frac:
+            sd.append([True, True, False])    # TTF
         else:
-            print(f"    S z={s_z:.2f} → **真空侧** (远离CMCH) ✓")
+            sd.append([True, True, True])     # TTT
 
-print(f"\n=== 完成 ===")
+    result.add_site_property("selective_dynamics", sd)
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 5. 验证
+# ═══════════════════════════════════════════════════════════════════════
+
+def check_poscars() -> bool:
+    """验证所有 POSCAR 的晶格和 TTF 约束。"""
+    files = [
+        "hetero_intrinsic.vasp", "hetero_S_doped.vasp", "hetero_S_exposed.vasp",
+        "CMCH_strained.vasp", "LDH_strained.vasp",
+        "LDH_S_strained.vasp", "LDH_S_flip_strained.vasp",
+    ]
+
+    print(f"\n{'='*65}")
+    print(f"  POSCAR 验证")
+    print(f"{'='*65}")
+    print(f"  {'文件':<32s}  {'a':>8s}  {'b':>8s}  {'atoms':>6s}  {'TTF':>6s}  {'TTT':>6s}")
+    print(f"  {'─'*32}  {'─'*8}  {'─'*8}  {'─'*6}  {'─'*6}  {'─'*6}")
+
+    all_ok = True
+    ref_a = ref_b = None
+
+    for fname in files:
+        path = OUTDIR / fname
+        if not path.exists():
+            print(f"  ❌ {fname}: 文件不存在")
+            all_ok = False
+            continue
+
+        s = Structure.from_file(path)
+        a, b = s.lattice.a, s.lattice.b
+
+        if ref_a is None:
+            ref_a, ref_b = a, b
+        elif abs(a - ref_a) > 0.001 or abs(b - ref_b) > 0.001:
+            print(f"  ⚠️ {fname}: 晶格不一致! a={a:.4f} b={b:.4f} vs ref a={ref_a:.4f} b={ref_b:.4f}")
+            all_ok = False
+
+        if "selective_dynamics" in s.site_properties:
+            sd = s.site_properties["selective_dynamics"]
+            ttf = sum(1 for d in sd if list(d) == [True, True, False])
+            ttt = sum(1 for d in sd if list(d) == [True, True, True])
+            other = len(sd) - ttf - ttt
+            if other:
+                print(f"  ❌ {fname}: 有非 TTF/TTT 约束 (other={other})")
+                all_ok = False
+        else:
+            ttf, ttt = 0, len(s)
+
+        print(f"  {'✅' if path.exists() else '❌'} {fname:<30s}  {a:>8.4f}  {b:>8.4f}  {len(s):>6d}  {ttf:>6d}  {ttt:>6d}")
+
+    if all_ok and ref_a:
+        print(f"\n  ✅ 全部通过 — 所有体系晶格一致 (a={ref_a:.4f}, b={ref_b:.4f})")
+    else:
+        print(f"\n  ⚠️ 有错误需要修正")
+
+    return all_ok
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 6. 主函数
+# ═══════════════════════════════════════════════════════════════════════
+
+def main():
+    parser = argparse.ArgumentParser(description="构建 gap=1.0 异质结 + 匹配晶格 slab")
+    parser.add_argument("--gap", type=float, default=DEFAULT_GAP,
+                        help=f"初始界面间距 (默认 {DEFAULT_GAP})")
+    parser.add_argument("--ttf-frac", type=float, default=DEFAULT_TTF_FRAC,
+                        help=f"TTF 分数坐标阈值 (默认 {DEFAULT_TTF_FRAC})")
+    parser.add_argument("--check", action="store_true",
+                        help="验证已生成的 POSCAR")
+    args = parser.parse_args()
+
+    if args.check:
+        check_poscars()
+        return
+
+    # ── 加载 slab ──
+    print("=== 加载优化后 slab ===")
+    slabs = load_slabs()
+
+    # ── 公共晶格 ──
+    avg_a, avg_b = compute_common_lattice(slabs)
+    print(f"\n公共晶格: avg_a={avg_a:.4f}  avg_b={avg_b:.4f}")
+    for key, s in slabs.items():
+        ea = (avg_a - s.lattice.a) / s.lattice.a * 100
+        eb = (avg_b - s.lattice.b) / s.lattice.b * 100
+        print(f"  {key:<20s}  εa={ea:+.2f}%  εb={eb:+.2f}%")
+
+    # ── 构建 3 个异质结 ──
+    print(f"\n=== 构建异质结 (gap={args.gap}) ===")
+    for cfg in HETERO_CONFIGS:
+        substrate = slabs["CMCH"]
+        film = slabs[cfg["film"]]
+        struct = build_hetero(substrate, film, args.gap, avg_a, avg_b, args.ttf_frac)
+
+        sub_zs = struct.cart_coords[:, 2][
+            np.array(struct.site_properties["interface_label"]) == "substrate"
+        ]
+        cmch_top = sub_zs.max()
+        film_zs = struct.cart_coords[:, 2][
+            np.array(struct.site_properties["interface_label"]) == "film"
+        ]
+        true_gap = film_zs.min() - cmch_top
+
+        outpath = OUTDIR / cfg["out"]
+        struct.to(str(outpath), fmt="poscar")
+        print(f"  ✅ {cfg['label']:<20s} → {outpath.name}")
+        print(f"     界面间隙={true_gap:.2f} Å  atoms={len(struct)}")
+
+    # ── 构建 4 个应变 slab ──
+    print(f"\n=== 构建应变 slab ===")
+    for key, cfg in SLAB_CONFIGS.items():
+        s = slabs[key]
+        struct = build_strained_slab(s, avg_a, avg_b, args.ttf_frac)
+        z_min = struct.cart_coords[:, 2].min()
+        z_max = struct.cart_coords[:, 2].max()
+
+        outpath = OUTDIR / cfg["strained_out"]
+        struct.to(str(outpath), fmt="poscar")
+        print(f"  ✅ {key:<20s} → {outpath.name}")
+        print(f"     z=[{z_min:.2f}, {z_max:.2f}]  height={z_max-z_min:.2f}  atoms={len(struct)}")
+
+    # ── 最终验证 ──
+    print(f"\n{'='*55}")
+    check_poscars()
+    print(f"\n完成！")
+    print(f"输出目录: {OUTDIR}")
+
+
+if __name__ == "__main__":
+    main()

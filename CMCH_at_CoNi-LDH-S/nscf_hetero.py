@@ -1,27 +1,26 @@
-# %%
-
 import json
+import time
 import shutil
 import logging
 import argparse
 from pathlib import Path
-
-from htvasp.workflows import NscfWorker
-from htvasp.slurm import SlurmJobManager
+from pymatgen.core import Structure
+from htvasp.workflows import StaticWorker, NscfWorker
+from htvasp.slurm import SlurmJobManager, SlurmConfig
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
 
 # GPU VASP for relax + static (fast)
 VASP_ARGS_GPU = {
-    "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-gpu && srun vasp_std'",
-    "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-gpu && srun vasp_gam'",
+    "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module purge && module load vasp-gpu && srun vasp_std'",
+    "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module purge && module load vasp-gpu && srun vasp_gam'",
 }
 
 # CPU VASP for NSCF (band/DOS) — avoid GPU memory overflow with dense k-points
 VASP_ARGS_CPU = {
-    "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_std'",
-    "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module load vasp-cpu && srun vasp_gam'",
+    "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module purge && module load vasp-cpu && srun vasp_std'",
+    "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module purge && module load vasp-cpu && srun vasp_gam'",
 }
 
 GLOBAL_INCAR = {
@@ -57,8 +56,11 @@ RELAX_INCAR = {
     "IBRION": 2,
     "ISIF": 2,
     "NELM": 100,
-    "NSW": 100,
+    "NSW": 150,
+    "EDIFF": 1e-5,
     "EDIFFG": -0.05,
+    "LDIPOL": True,
+    "IDIPOL": 3,
 }
 
 STATIC_INCAR = {
@@ -88,19 +90,40 @@ NSCF_INCAR = {
 
 
 root_dir = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
-hetero_path = root_dir / "data" / "heterostructures"
+flow_dir = Path("/nfs_ssd/tmp")
+conda_env = str(root_dir.parent / ".conda")
+gpu_config = SlurmConfig(
+    job_name="gpu_job",
+    output_log="gpu_job.log",
+    nodes=1,
+    ntasks=1,
+    memory="20G",
+    conda_env=conda_env,
+    module_name="vasp-gpu",
+)
+cpu_config = SlurmConfig(
+    job_name="cpu_job",
+    output_log="cpu_job.log",
+    nodes=1,
+    ntasks=32,
+    memory="150G",
+    conda_env=conda_env,
+    module_name="vasp-cpu",
+)
+
+poscar_path = root_dir / "data" / "poscars"
 structs = {
-    # "hetero_intrinsic": {
-    #     "poscar": str(hetero_path / "hetero_intrinsic.vasp"),
-    #     "incar": {
-    #         "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6},
-    #         "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1},
-    #         "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
-    #         "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
-    #     },
-    # },
+    "hetero_intrinsic": {
+        "poscar": poscar_path / "hetero_intrinsic.vasp",
+        "incar": {
+            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6},
+            "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1},
+            "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
+        },
+    },
     "hetero_s_doped": {
-        "poscar": str(hetero_path / "hetero_S_doped.vasp"),
+        "poscar": poscar_path / "hetero_S_doped.vasp",
         "incar": {
             "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
             "NELECT": 629,  # Mn_pv(13): 6*13+12*9+6*10+35*1+6*4+1*6+53*6 = 78+108+60+35+24+6+318
@@ -109,46 +132,77 @@ structs = {
             "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
         },
     },
-    # "hetero_s_exposed": {
-    #     "poscar": str(hetero_path / "hetero_S_exposed.vasp"),
-    #     "incar": {
-    #         "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
-    #         "NELECT": 629,
-    #         "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
-    #         "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
-    #         "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
-    #     },
-    # },
+    "hetero_s_exposed": {
+        "poscar": poscar_path / "hetero_S_exposed.vasp",
+        "incar": {
+            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
+            "NELECT": 629,
+            "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
+            "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
+        },
+    },
 }
 
-# %%
 
-from pymatgen.core import Structure
+def run_static(name: str, device: str = "gpu", rerun: bool = False) -> int:
+    store_dir = root_dir / "data" / name
+    json_path = store_dir / "static_out.json"
+
+    # Skip if already done
+    if not rerun and json_path.exists():
+        log.info(f"StaticWorker for Structure {name} already done")
+        return 0
+
+    log.info(f"StaticWorker for Structure {name} start")
+
+    structure = Structure.from_file(structs[name]["poscar"])
+    try:
+        static_worker = StaticWorker(
+            vasp_args=VASP_ARGS_CPU if device == "cpu" else VASP_ARGS_GPU,
+            global_incar={**GLOBAL_INCAR, **structs[name]["incar"]},
+            relax_incar=RELAX_INCAR,
+            static_incar=STATIC_INCAR,
+        )
+        static_worker.run_flow(
+            name=name,
+            structure=structure,
+            prev_dir=store_dir / "3-static",
+            flow_dir=flow_dir,
+            store_dir=store_dir,
+            resume=not rerun,
+        )
+        static_output = static_worker.get_result("static") or {}
+        static_worker.write_result(static_output, store_dir / "static_out.json")
+    except Exception as e:
+        log.error(f"StaticWorker for Structure {name} failed")
+        log.error(e)
+        return 1
+
+    log.info(f"StaticWorker for Structure {name} done")
+    return 0
 
 
-def run_tick(name: str, device: str = "cpu", rerun: bool = False):
-    flow_dir = Path("/nfs_ssd/tmp")
+def run_nscf(name: str, device: str = "cpu", rerun: bool = False) -> int:
     store_dir = root_dir / "data" / name
     json_path = store_dir / "band_out.json"
 
     # Skip if already done
     if not rerun and json_path.exists():
-        log.info(f"Structure {name} already done")
-        return
+        log.info(f"NscfWorker for Structure {name} already done")
+        return 0
 
-    log.info(f"Structure {name} start")
+    log.info(f"NscfWorker for Structure {name} start")
 
-    if rerun and store_dir.exists():
-        shutil.rmtree(store_dir)
+    with open(store_dir / "static_out.json", "r", encoding="utf-8") as f:
+        static_output = json.load(f)
 
-    structure = Structure.from_file(structs[name]["poscar"])
+    structure = Structure.from_dict(static_output["output"]["structure"])
 
     try:
         worker = NscfWorker(
             vasp_args=VASP_ARGS_CPU if device == "cpu" else VASP_ARGS_GPU,
             global_incar={**GLOBAL_INCAR, **structs[name]["incar"]},
-            relax_incar=RELAX_INCAR,
-            static_incar=STATIC_INCAR,
             nscf_band_incar=NSCF_INCAR,
             nscf_dos_incar=NSCF_INCAR,
             band_kpath_kwargs={"path_type": "hinuma"},
@@ -158,13 +212,11 @@ def run_tick(name: str, device: str = "cpu", rerun: bool = False):
         worker.run_flow(
             name=name,
             structure=structure,
+            prev_dir=store_dir / "3-static",
             flow_dir=flow_dir,
             store_dir=store_dir,
             resume=not rerun,
         )
-        static_output = worker.get_result("static") or {}
-        worker.write_result(static_output, store_dir / "static_out.json")
-
         dos_output = worker.get_dos_result() or {}
         worker.write_result(dos_output, store_dir / "dos_out.json")
 
@@ -172,64 +224,73 @@ def run_tick(name: str, device: str = "cpu", rerun: bool = False):
         worker.write_result(band_output, store_dir / "band_out.json")
 
     except Exception as e:
-        log.error(f"Structure {name} failed")
+        log.error(f"NscfWorker for Structure {name} failed")
         log.error(e)
+        return 1
 
-    log.info(f"Structure {name} done")
+    log.info(f"NscfWorker for Structure {name} done")
+    return 0
 
 
-def submit_jobs(device: str = "cpu", rerun: bool = False):
+def submit_jobs(rerun: bool = False):
     manager = SlurmJobManager()
-    conda_env = str(root_dir.parent / ".conda")
-    workdir = str(root_dir)
 
     for name in structs:
-        job_name = f"{name}-nscf"
-        command = f"python {__file__} --tick {name} --device {device} {'--rerun' if rerun else ''}"
-        output_log = str(root_dir / "logs" / f"{job_name}.log")
-
-        config = manager.get_cpu_config(
-            job_name=job_name,
-            output_log=output_log,
-            nodes=1,
-            ntasks=32,
-            memory="150G",
-            conda_env=conda_env,
-            module_name="vasp-cpu",
-        ) if device == "cpu" else manager.get_gpu_config(
-            job_name=job_name,
-            output_log=output_log,
-            nodes=1,
-            ntasks=1,
-            memory="20G",
-            conda_env=conda_env,
-            module_name="vasp-gpu",
+        # submit static job
+        static_job_name = f"{name}-static"
+        static_cmd = (
+            f"python {__file__} --tick {name} --static --device gpu {'--rerun' if rerun else ''}"
         )
-
-        jid = manager.submit_command(
-            command=command,
-            config=config,
-            workdir=workdir,
+        static_log = str(root_dir / "logs" / f"{static_job_name}.log")
+        gpu_config.job_name = static_job_name
+        gpu_config.output_log = static_log
+        static_jid = manager.submit_command(
+            command=static_cmd,
+            config=gpu_config,
+            workdir=root_dir,
         )
-        if not jid:
-            log.error(f"Failed to submit nscf job for {name}")
-        else:
-            log.info(f"Submitted nscf job for {name} with ID {jid}")
+        time.sleep(1)
+        if not static_jid:
+            log.error(f"Failed to submit static job for {name}")
+            continue
+        log.info(f"Submitted static job for {name} with ID {static_jid}")
 
+        # submit NSCF job dependent on static job
+        nscf_job_name = f"{name}-nscf"
+        nscf_cmd = (
+            f"python {__file__} --tick {name} --nscf --device cpu {'--rerun' if rerun else ''}"
+        )
+        nscf_log = str(root_dir / "logs" / f"{nscf_job_name}.log")
+        cpu_config.job_name = nscf_job_name
+        cpu_config.output_log = nscf_log
+        cpu_config.dependency = f"afterok:{static_jid}"
+        nscf_jid = manager.submit_command(
+            command=nscf_cmd,
+            config=cpu_config,
+            workdir=root_dir,
+        )
+        time.sleep(1)
+        if not nscf_jid:
+            log.error(f"Failed to submit NSCF job for {name}")
+            continue
+        log.info(f"Submitted NSCF job for {name} with ID {nscf_jid} depending on {static_jid}")
 
-# %%
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Heterostructure Nscf workflow")
     parser.add_argument("--slurm", action="store_true", help="Submit to Slurm")
+    parser.add_argument("--static", action="store_true", help="Run static calculation")
+    parser.add_argument("--nscf", action="store_true", help="Run NSCF calculation")
     parser.add_argument("--tick", type=str, help="Run tick for structure name")
     parser.add_argument("--device", type=str, default="cpu", help="Use cpu/gpu")
     parser.add_argument("--rerun", action="store_true", help="Re-run calculations")
     args = parser.parse_args()
 
     if args.slurm:
-        submit_jobs(device=args.device, rerun=args.rerun)
-    elif args.tick:
-        run_tick(args.tick, device=args.device, rerun=args.rerun)
+        submit_jobs(rerun=args.rerun)
+    if args.static:
+        run_static(args.tick, device=args.device, rerun=args.rerun)
+    elif args.nscf:
+        run_nscf(args.tick, device=args.device, rerun=args.rerun)
     else:
         parser.print_help()

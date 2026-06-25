@@ -30,7 +30,7 @@ GLOBAL_INCAR = {
     "NELM": 100,
     "EDIFF": 1e-6,
     "ISPIN": 2,
-    "MAGMOM": {"Co": 3.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
+    "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
     "AMIX": 0.1,
     "BMIX": 1e-4,
     "AMIX_MAG": 0.4,
@@ -44,10 +44,10 @@ GLOBAL_INCAR = {
     "LDAUTYPE": 2,
     "LDAUPRINT": 1,
     "LASPH": True,
-    "LMAXMIX": 4,  # d-electrons in Co, Mn
-    "LDAUL": {"Co": 2, "Mn": 2, "C": -1, "H": -1, "O": -1},
-    "LDAUU": {"Co": 3.32, "Mn": 5.00},
-    "LDAUJ": {"Co": 0.0, "Mn": 0.0},
+    "LMAXMIX": 4,
+    "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
+    "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
+    "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
 }
 
 RELAX_INCAR = {
