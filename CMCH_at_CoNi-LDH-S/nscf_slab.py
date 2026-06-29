@@ -36,8 +36,8 @@ GLOBAL_INCAR = {
     "AMIX_MAG": 0.4,
     "BMIX_MAG": 1e-4,
     "LREAL": "Auto",
-    "KPAR": 4,
-    "NCORE": 4,
+    # "KPAR": 4,
+    # "NCORE": 4,
     "GGA": "PE",
     "IVDW": 12,
     "LDAU": True,
@@ -85,7 +85,7 @@ NSCF_INCAR = {
     "ICHARG": 11,
     "LORBIT": 11,
     "KPAR": 2,
-    "NCORE": 8,
+    "NCORE": 4,
 }
 
 
@@ -99,6 +99,7 @@ gpu_config = SlurmConfig(
     ntasks=1,
     memory="20G",
     partition="partGPU",
+    gpus_per_task=1,
     conda_env=conda_env,
     module_name="vasp-gpu",
 )
@@ -107,7 +108,7 @@ cpu_config = SlurmConfig(
     output_log="cpu_job.log",
     nodes=1,
     ntasks=32,
-    memory="150G",
+    memory="100G",
     partition="partCPU",
     conda_env=conda_env,
     module_name="vasp-cpu",
@@ -178,7 +179,7 @@ def run_static(name: str, device: str = "gpu", rerun: bool = False) -> int:
         static_worker.run_flow(
             name=name,
             structure=structure,
-            prev_dir=store_dir / "3-static",
+            # prev_dir=store_dir / "3-static",
             flow_dir=flow_dir,
             store_dir=store_dir,
             resume=not rerun,

@@ -36,8 +36,8 @@ GLOBAL_INCAR = {
     "AMIX_MAG": 0.4,
     "BMIX_MAG": 1e-4,
     "LREAL": "Auto",
-    "KPAR": 4,
-    "NCORE": 4,
+    # "KPAR": 4,
+    # "NCORE": 4,
     "GGA": "PE",
     "IVDW": 12,
     "LDAU": True,
@@ -94,6 +94,7 @@ gpu_config = SlurmConfig(
     ntasks=1,
     memory="20G",
     partition="partGPU",
+    gpus_per_task=1,
     conda_env=conda_env,
     module_name="vasp-gpu",
 )

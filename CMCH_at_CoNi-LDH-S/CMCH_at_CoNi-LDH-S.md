@@ -72,7 +72,7 @@ CMCH 的结构原型 Co₂(OH)₂CO₃（mp-1202876）含有两种 Co 配位位�
 
 替换比例：Co₈ → Co₄Mn₄（化学式 CoMn(CO₃)(OH)₂），与实验合成配比一致。
 
-### 4.4 S 掺杂 LDH 的筛选结果（comp_s_doping.py）
+### 4.3 S 掺杂 LDH 的筛选结果（comp_s_doping.py）
 
 对 5 种 S 掺杂构型的对比分析：
 
@@ -93,22 +93,35 @@ CMCH 的结构原型 Co₂(OH)₂CO₃（mp-1202876）含有两种 Co 配位位�
 
 S 掺杂主要效应：S 的电负性（2.58）低于 O（3.44），取代后 S→M 电子转移方向与 OH⁻ 相反，导致 M 的电子密度微调，Co/Ni 氧化态升高。<img src="" width="0" height="0">
 
-### 4.3 异质结建模策略
+### 4.4 异质结建模策略
 
 异质结的构建流程如下：
 
 ```
 1. LDH(001) slab 和 CMCH(010) slab 各自在自然晶格下 relax
-2. 取平均面内晶格 avg_a, avg_b → 对两 slab 施加应变
-3. Interface.from_slabs(gap=2.0) 构建初始界面
+2. 取平均面内晶格 avg_a=10.3255, avg_b=9.4602 → 对两 slab 施加应变
+3. Interface.from_slabs(gap=1.0) 构建初始界面（经 gap 扫描确认 1.0 为最优初始间距）
 4. 全弛豫（ISIF=2）：CMCH 底部 TTF（固定 z，释放面内应变），LDH 全开
-5. 再跑 static + DOS + band + LOCPOT_dipole
+5. 再跑 static + DOS + band
 ```
 
 三个异质结的区别仅在于 LDH 层中 S 的位置：
 - **hetero_intrinsic**: LDH 无 S
 - **hetero_s_doped**: S 位于 LDH 层板内部（远离 CMCH 界面）
 - **hetero_s_exposed**: S 位于 LDH 层板底侧（靠近 CMCH 界面）
+
+### 4.5 晶格一致策略（Level 2）
+
+为使所有体系的 NGXF/NGYF 网格一致（实现 3D 差分电荷密度），7 个 Level 2 体系使用**同一组面内晶格**：
+
+| 参数 | 值 |
+|:----|:---|
+| avg_a | **10.3255 Å** |
+| avg_b | **9.4602 Å** |
+| 真空层 | **c = 28.0 Å** |
+| TTF 阈值 | `frac_z < 0.16` 的 CMCH 原子 → TTF（xy 自由，z 固定） |
+
+7 个 POSCAR 由 `build_heterostructure.py` 自动生成，置于 `data/heterostructures/`。
 
 ---
 
@@ -145,7 +158,7 @@ S 掺杂主要效应：S 的电负性（2.58）低于 O（3.44），取代后 S�
 
 ## 五、当前计算进度
 
-### 已完成的计算体系（10 个）
+### 已完成的计算体系（14 个）
 
 #### Layer 0: 结构准备（步骤1）
 
@@ -155,30 +168,44 @@ S 掺杂主要效应：S 的电负性（2.58）低于 O（3.44），取代后 S�
 
 #### Layer 1: Bulk 优化（步骤2，3个体系 ✅）
 
-| 体系         | 目录                  | S 掺杂? | DOS/能带? |     Band gap     |   静态能量   |
-| ------------ | --------------------- | :------: | :-------: | :---------------: | :-----------: |
-| CoNiOH2      | `data/CoNiOH2`      | ❌ 本征 |    ✅    | **2.93 eV** | ✅ store.json |
-| CoNiOH2S-noH | `data/CoNiOH2S-noH` | ✅ S²⁻ |    ✅    | **0.08 eV** | ✅ store.json |
-| CoMnH2CO5    | `data/CoMnH2CO5`    | ❌ 基底 |    ✅    |        —        |      ✅      |
+| 体系 | 目录 | S 掺杂? | DOS/能带? | Band gap | 静态能量 |
+| --- | --- | :---: | :---: | :---: | :---: |
+| CoNiOH2 | `data/CoNiOH2` | ❌ 本征 | ✅ | **2.93 eV** | -326.34 eV |
+| CoNiOH2S-noH | `data/CoNiOH2S-noH` | ✅ S²⁻ | ✅ | **0.08 eV** | -319.51 eV |
+| CoMnH2CO5 | `data/CoMnH2CO5` | ❌ 基底 | ✅ | — | -376.24 eV |
 
 > 🔬 **关键发现：** S 掺杂使带隙从 2.93 eV（本征）骤降至 0.08 eV（S²⁻ 掺杂）。这是 S-3p 在禁带中引入缺陷能级的**直接 DFT 证据**，完美支撑实验论文的"禁带缺陷能级 → 电导率提升"的核心机制。
 
 #### Layer 2: Slab 优化（步骤3，4个体系 ✅）
 
-| 体系                   | 目录                            |    S 掺杂?    | DOS/band? | LOCPOT? |
-| ---------------------- | ------------------------------- | :-----------: | :-------: | :-----: |
-| CoNiOH2-slab           | `data/CoNiOH2-slab`           |    ❌ 本征    |    ✅    |   ✅   |
-| CoNiOH2S-noH-slab      | `data/CoNiOH2S-noH-slab`      | ✅ S 远离表面 |    ✅    |   ✅   |
-| CoNiOH2S-noH-slab-flip | `data/CoNiOH2S-noH-slab-flip` | ✅ S 靠近表面 |    ✅    |   ✅   |
-| CoMnH2CO5-slab         | `data/CoMnH2CO5-slab`         |    ❌ 基底    |    ✅    |   ✅   |
+| 体系 | 目录 | S 掺杂? | DOS/band? |
+| --- | --- | :---: | :---: |
+| CoNiOH2-slab | `data/CoNiOH2-slab` | ❌ 本征 | ✅ |
+| CoNiOH2S-noH-slab | `data/CoNiOH2S-noH-slab` | ✅ S 远离表面 | ✅ |
+| CoNiOH2S-noH-slab-flip | `data/CoNiOH2S-noH-slab-flip` | ✅ S 靠近表面 | ✅ |
+| CoMnH2CO5-slab | `data/CoMnH2CO5-slab` | ❌ 基底 | ✅ |
 
-#### Layer 3: 异质结优化（步骤4，3个体系 ✅）
+#### Layer 3: 初始异质结优化（步骤4，3个体系 ✅，gap=2.0）
 
-| 体系             | 目录                      | S 位置                           |
-| ---------------- | ------------------------- | -------------------------------- |
-| hetero_intrinsic | `data/hetero_intrinsic` | ❌ 无 S                          |
-| hetero_s_doped   | `data/hetero_s_doped`   | ✅ S 在 LDH 内部，远离 CMCH 界面 |
-| hetero_s_exposed | `data/hetero_s_exposed` | ✅ S 在 LDH 底侧，靠近 CMCH 界面 |
+| 体系 | 目录 | S 位置 |
+| --- | --- | --- |
+| hetero_intrinsic (gap=2.0) | `data/hetero_intrinsic` | ❌ 无 S |
+| hetero_s_doped (gap=2.0) | `data/hetero_s_doped` | ✅ S 在 LDH 内部，远离 CMCH 界面 |
+| hetero_s_exposed (gap=2.0) | `data/hetero_s_exposed` | ✅ S 在 LDH 底侧，靠近 CMCH 界面 |
+
+#### Layer 4: 晶格一致优化（Level 2，7个体系 ✅，gap=1.0，共同面内晶格）
+
+| 体系 | 类型 | 目录 | 总能 (eV) | Bandgap (eV) | 原子数 |
+|:----|:----|:----|:---------:|:-----------:|:-----:|
+| **hetero_intrinsic** | 异质结 | `data/hetero_intrinsic` | -713.87 | **0.745** | 120 |
+| **hetero_s_doped** | 异质结 | `data/hetero_s_doped` | -707.02 | **0.388** | 119 |
+| **hetero_s_exposed** | 异质结 | `data/hetero_s_exposed` | -707.75 | **0.293** | 119 |
+| **CMCH_strained** | 单板 | `data/CMCH_strained` | -396.93 | **2.438** | 60 |
+| **LDH_strained** | 单板 | `data/LDH_strained` | -314.60 | **1.685** | 60 |
+| **LDH_S_strained** | 单板 | `data/LDH_S_strained` | -307.37 | **0.152** | 59 |
+| **LDH_S_flip_strained** | 单板 | `data/LDH_S_flip_strained` | -307.31 | **0.294** | 59 |
+
+> **注意：** 所有 4 个 strained slab 与 3 个 gap=1.0 异质结共享同一组面内晶格（a=10.3255, b=9.4602），确保 NGXF/NGYF 一致，为 3D 差分电荷密度计算做好准备。异质结的 relax+static 结果因 NscfWorker 的 `shutil.rmtree` 覆盖而丢失，已从 dos_out.json 恢复 static_out.json。
 
 ---
 
@@ -229,86 +256,68 @@ S 掺杂主要效应：S 的电负性（2.58）低于 O（3.44），取代后 S�
 
 ---
 
-## 八、重构方案：晶格一致的异质结 workflow
+## 八、Level 2 完成状态及下一步
 
-### 数据可用性总览
+### 数据可用性总览（更新于 Level 2 完成后）
 
-| 分析项 | 所需数据 | Bulk(3) | Slab-Natural(4) | Slab-Matched(待补) | Hetero(3) |
-|:------|:--------|:-------:|:--------------:|:----------------:|:---------:|
-| 总能量 | store.json | ✅ | ✅ | ❌ 待补 | ✅ |
-| 弛豫结构 | CONTCAR | ✅ | ✅ | ❌ 待补 | ✅ |
-| DOS/PDOS | dos_out.json | ✅(gap:2.93→0.08eV) | ✅ | ❌ 待补 | ✅ |
-| 能带 | band_out.json | ✅ | ✅ | ❌ 待补 | ✅ |
-| LOCPOT(功函数) | 3-static/LOCPOT* | ❌ | ✅ | ❌ 待补 | ✅ |
-| CHGCAR | 3-static/CHGCAR* | ✅ | ✅ | ❌ 待补 | ✅ |
-| AECCAR0+2(Bader) | 3-static/AECCAR* | ✅ | ✅ | ❌ 待补 | ✅ |
+| 分析项 | 所需数据 | Bulk(3) | Slab-Natural(4) | Slab-Matched(4) | Hetero Level 2(3) |
+|:------|:--------|:-------:|:--------------:|:---------------:|:-----------------:|
+| 总能量 | store.json / dos_out.json | ✅ | ✅ | ✅ | ✅ |
+| 弛豫结构 | CONTCAR | ✅ | ✅ | ✅ | ✅ |
+| DOS/PDOS | dos_out.json | ✅(gap:2.93→0.08eV) | ✅ | ✅ | ✅ |
+| 能带 | band_out.json | ✅ | ✅ | ✅ | ✅ |
+| CHGCAR | 3-static/CHGCAR* | ✅ | ✅ | ✅ | ⚠️ 被 nscf 覆盖 |
+| AECCAR0+2(Bader) | 3-static/AECCAR* | ✅ | ✅ | ✅ | ⚠️ 待恢复 |
 
-### 待补充计算
+> **注意：** 异质结的 3-static 目录因 NscfWorker 的 `shutil.rmtree+move` 机制被覆盖，需重新导出。Slab-Matched 的 3-static 目录完整保留。
 
-1. **O 空位计算**（如需验证实验的 O 空位机制）
-   - 选取 slab 或 hetero_s_doped，删去一个 O 重新 relax
-   - 计算 `E_vac = E_defect + ½E(O₂) - E_perfect`
-   - 对比有/无 S 掺杂时的 O 空位形成能
+### 下一步分析任务
 
-### 应立即开始的计算（先补充 Slab-Matched 数据）
-
-**优先级 1: gap=1.0 对比 relax + 分离 strained slab**
+**A. 能带对齐（Band Alignment）**
 
 ```
-Step 1: 构建 hetero gap=1.0 → relax (ISIF=2, NSW=50)
-Step 2: 对比 gap=1.0 vs 2.0 的 relax 后总能量+间距 → 选最优
-Step 3: 从 hetero CONTCAR 提取 slab → *-Matched
-Step 4: *-Matched slab relax + static + DOS/band + LOCPOT_dipole
-Step 5: 更新能带对齐 baseline
-Step 6: 3D 差分电荷密度
+优先级: ★★★★
+体系: 3 个 hetero + 4 个 strained slab（Level 2 数据）
 ```
 
-**B. 界面性质组（Planar Average 差分电荷密度 + 界面结合能）**
+更新 `postprocessing/band_alignment.py` 使用 Level 2 数据，计算 core-level 对齐和带阶。
+
+**B. 界面性质组（电荷差分 + 界面结合能）**
 
 ```
 优先级: ★★★★
 体系: 3 个 hetero + 对应的 4 个 slab
 ```
 
-5. **Planar Average 差分电荷密度** — 分析界面电荷重分布
+5. **3D 差分电荷密度 + Planar Average** — 分析界面电荷重分布
 
-   **背景：** 构建异质结时 slab 和 hetero 的 a/b 晶格做了 `strain_to(avg_a, avg_b)`，导致
-   slab 与 hetero 的 3D FFT 网格（NGXF/NGYF/NGZF）全部不同，无法直接做 3D 差分。
+   **背景：** Level 2 所有体系使用同一组面内晶格（a=10.3255, b=9.4602），
+   NGXF/NGYF 一致 → **可以直接做 3D 差分电荷密度**。
 
-   **方案（1D 对齐差分）：**
+   **方案：**
 
    ```
-   ① 对 hetero、slab_A(CMCH)、slab_B(LDH) 的 CHGCAR 各自做 planar average → ρ(z)
-   ② z 坐标是连续空间坐标（Å），三个体系现在都是 1D 曲线
-   ③ 从 hetero 的结构确定 CMCH 和 LDH 各自占据的 z 区间
-   ④ 将 slab_A 的 ρ(z) 缩放到 hetero 中 CMCH 的 z 区间（scipy.interpolate）
-   ⑤ 将 slab_B 的 ρ(z) 缩放到 hetero 中 LDH 的 z 区间
-   ⑥ Δρ(z) = ρ_hetero(z) - ρ_CMCH_scaled(z) - ρ_LDH_scaled(z)
-   ⑦ 积分 Δρ(z)dz → 界面净电荷转移方向与总量（e⁻/Å²）
+   ① 从 slab 和 hetero 的 CHGCAR 读取电荷密度 ρ(r)
+   ② 将 slab_A(CMCH) 和 slab_B(LDH) 插值到 hetero 的 NGXF×NGYF×NGZF 网格
+   ③ Δρ(r) = ρ_hetero(r) - ρ_CMCH_interp(r) - ρ_LDH_interp(r)
+   ④ Planar average: Δρ(z) = (1/A) ∬ Δρ(r) dx dy
+   ⑤ Bader 分析：Δρ(r) 积分 → 界面净电荷转移
    ```
 
-   **可靠性评估：**
-
-   - Δρ(z) 的峰形与电荷流向（界面积累/耗尽）✅ 可信
-   - 本征 vs S 掺杂 vs S 暴露的差异比较 ✅ 可信（系统误差抵消）
-   - 定量绝对值 ±20% ⚠️ 半定量
-
-   **工具链：** `Chgcar.get_average_along_axis(2)` + `scipy.interpolate.interp1d`，无需额外安装。
 6. **界面结合能**
 
    - `E_bind = E_hetero - E_LDH_slab - E_CMCH_slab`
    - S 掺杂增强还是削弱界面？
 
-**C. 磁性分析组**
+**C. 电子结构深入分析组**
 
 ```
 优先级: ★★★
-体系: 所有 10 体系
 ```
 
-7. 总磁矩对比：bulk → slab → hetero
-8. Co/Ni 局域磁矩：S 掺杂影响
-9. 界面磁性变化
+7. **Bader 电荷分析** — 已有所有体系的 CHGCAR，`BaderAnalysis.from_path()`
+8. **功函数计算** — 从 LOCPOT 提取真空能级
+9. **磁性分析** — 总磁矩、Co/Ni 局域磁矩、界面磁性变化
 
 **D. 结构分析组**
 
@@ -346,10 +355,13 @@ Bulk DOS 对比: 本征 2.93 eV → S 掺杂 0.08 eV 带隙
 
 ## 十、待做清单
 
-- [ ] **gap=1.0 对比 relax** — 验证最优 gap，确认 1.74 Å 是否全局最小
-- [ ] **Bader 电荷分析** — 已有数据，`BaderAnalysis.from_path()`
-- [ ] **分离 strained slab** — 从 hetero CONTCAR 提取 `*-Matched`
-- [ ] **strained slab relax + static + DOS/band** — 补 Level 2 数据
-- [ ] **能带对齐改用 Level 2** — 更新 band_alignment.py
-- [ ] **3D 差分电荷密度** — NGXF/Y 一致后直接相减
-- [ ] **O 空位形成能** — 选项，验证"氧空位"机制
+- [x] **gap=1.0 对比 relax** — 已完成，gap=1.0 选定为生产参数
+- [x] **分离 strained slab** — `build_heterostructure.py` 独立生成 4 个 strained slab
+- [x] **strained slab relax + static + DOS/band** — Level 2 全部 7 体系完成
+- [ ] **Bader 电荷分析** — 已有 slab CHGCAR，`BaderAnalysis.from_path()`
+- [ ] **能带对齐（Level 2）** — 更新 band_alignment.py，计算带阶和 core-level 对齐
+- [ ] **3D 差分电荷密度** — NGXF/Y 一致，可直接做 3D 差分 + planar average
+- [ ] **界面结合能** — `E_bind = E_hetero - E_CMCH - E_LDH`
+- [ ] **功函数计算** — 从 LOCPOT 提取真空能级
+- [ ] **晶格膨胀定量** — 提取 relax 后晶胞参数，验证 XRD 峰移
+- [ ] **O 空位形成能** — 选项，验证实验"氧空位"机制
