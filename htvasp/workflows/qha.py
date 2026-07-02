@@ -63,6 +63,8 @@ class QhaWorker(Worker):
         phonon_incar: dict[str, Any] | None = None,
         temperature_range: tuple[int, int, int] = (0, 3000, 50),
         supercell_matrix: tuple = ((2, 0, 0), (0, 2, 0), (0, 0, 2)),
+        linear_strain: tuple = (-0.05, 0.05),
+        number_of_frames: int = 8,
         **kwargs,
     ):
         super().__init__(
@@ -167,9 +169,10 @@ class QhaWorker(Worker):
             initial_relax_maker=initial_relax_maker,
             eos_relax_maker=eos_relax_maker,
             phonon_maker=phonon_maker,
-            min_length=None,
-            number_of_frames=8,
+            linear_strain=linear_strain,
+            number_of_frames=number_of_frames,
             ignore_imaginary_modes=True,
+            min_length=None,
         )
 
     def _make_flow(self, structure: Structure, prev_dir: Path | str | None = None) -> Flow:

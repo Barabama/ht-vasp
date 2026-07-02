@@ -157,7 +157,7 @@ def submit_jobs(force: bool = False):
             command=f"python {__file__} --tick {name} {'--force' if force else ''}",
             config=config,
             conda_env="htvasp",
-            workdir=".",
+            work_dir=".",
         )
         if not job_id:
             log.error(f"Failed to submit job for {name}")

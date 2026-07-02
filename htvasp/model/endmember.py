@@ -3,31 +3,45 @@ HT-VASP - Endmember model
 """
 
 import logging
+import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 from mp_api.client import MPRester
 from pymatgen.core import Element, Structure
 
 log = logging.getLogger(__name__)
 
-api_key = "bqqHJQWs8wPyDZnrTgtsWNLevLmIq4MU"
-# R2DVZbmPrn13eLgqq4kOO5pNGsvS85MV
+load_dotenv()
+
+api_key = os.getenv("MP_API_KEY", "")
+if not api_key:
+    raise ValueError("MP_API_KEY not set in .env file or environment variables")
 
 class Endmember:
-    def __init__(self, api_key: str = api_key):
+    def __init__(
+            self, 
+            api_key: str = api_key, 
+            phase_func: dict| None = None,
+            elem_mpid: dict | None = None,
+        ):
         self.api_key = api_key
-        self.elem_mpid = {
-            "Co": "mp-54",  # HCP
-            "Cr": "mp-90",  # BCC
-            "Fe": "mp-13",  # BCC
-            "Mn": "mp-1055908",  # BCC
-            "Ni": "mp-23",  # FCC
-        }
-        self.phase_func = {
+        self.phase_func = phase_func or {
             "SER": self.get_ser,
             "BCC": self.get_bcc,
             "FCC": self.get_fcc,
             "HCP": self.get_hcp,
+        }
+        self.elem_mpid = elem_mpid or {
+            "Al": "mp-134",     # FCC
+            "Co": "mp-54",      # HCP
+            "Cr": "mp-90",      # BCC
+            "Fe": "mp-13",      # BCC
+            "Mn": "mp-1055908", # BCC
+            "Nb": "mp-75",      # BCC
+            "Ni": "mp-23",      # FCC
+            "Ti": "mp-46",      # HCP
+            "V": "mp-146",      # BCC
         }
 
     def get_structure(self, mpid: str) -> Structure:
@@ -40,7 +54,7 @@ class Endmember:
         """
         with MPRester(self.api_key) as mpr:
             structure = mpr.get_structure_by_material_id(mpid)
-        return structure
+        return structure[0] if isinstance(structure, list) else structure
 
     def get_ser(self, element: str) -> Structure:
         """

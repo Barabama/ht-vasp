@@ -107,7 +107,7 @@ class SlurmJobManager:
         config: SlurmConfig | None = None,
         conda_env: str = "",
         module_name: str = "",
-        workdir: Path | str = "",
+        work_dir: Path | str = "",
     ) -> str | None:
         """Submit a job via sbatch --wrap.
 
@@ -116,14 +116,14 @@ class SlurmJobManager:
             config: Slurm configuration (conda_env/module_name read from here as fallback).
             conda_env: Conda environment name (overrides config.conda_env if set).
             module_name: Module name(s) to load (overrides config.module_name if set).
-            workdir: Working directory.
+            work_dir: Working directory.
 
         Returns:
             Job ID string, or None on failure.
         """
         config = config or self._default_cpu_config()
-        workdir = Path(workdir).resolve()
-        workdir.mkdir(parents=True, exist_ok=True)
+        work_dir = Path(work_dir).resolve()
+        work_dir.mkdir(parents=True, exist_ok=True)
 
         # Resolve env/module: explicit param > config field
         _conda_env = conda_env or config.conda_env
@@ -167,7 +167,7 @@ class SlurmJobManager:
             result = subprocess.run(
                 cmd,
                 shell=True,
-                cwd=workdir,
+                cwd=work_dir,
                 capture_output=True,
                 text=True,
                 check=True,
@@ -190,7 +190,7 @@ class SlurmJobManager:
                 "job_id": job_id,
                 "command": command,
                 "config": config,
-                "workdir": str(workdir),
+                "work_dir": str(work_dir),
             }
         )
         return job_id

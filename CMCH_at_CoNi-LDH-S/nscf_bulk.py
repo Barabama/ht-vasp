@@ -56,7 +56,7 @@ RELAX_INCAR = {
     "IBRION": 2,
     "ISIF": 3,
     "NELM": 100,
-    "NSW": 100,
+    "NSW": 150,
     "EDIFF": 1e-5,
     "EDIFFG": -0.05,
 }
@@ -80,7 +80,7 @@ NSCF_INCAR = {
     "ICHARG": 11,
     "LORBIT": 11,
     "KPAR": 2,
-    "NCORE": 8,
+    "NCORE": 4,
 }
 
 
@@ -103,7 +103,7 @@ cpu_config = SlurmConfig(
     output_log="cpu_job.log",
     nodes=1,
     ntasks=32,
-    memory="100G",
+    memory="120G",
     partition="partCPU",
     conda_env=conda_env,
     module_name="vasp-cpu",
@@ -147,14 +147,23 @@ def run_static(name: str, device: str = "gpu", rerun: bool = False) -> int:
     store_dir = root_dir / "data" / name
     json_path = store_dir / "static_out.json"
 
-    # Skip if already done
-    if not rerun and json_path.exists():
-        log.info(f"StaticWorker for Structure {name} already done")
-        return 0
+    # # Skip if already done
+    # if not rerun and json_path.exists():
+    #     log.info(f"StaticWorker for Structure {name} already done")
+    #     return 0
 
     log.info(f"StaticWorker for Structure {name} start")
 
-    structure = Structure.from_file(structs[name]["poscar"])
+# Use relaxed structure from static_out.json if available (much faster convergence)
+    json_path = store_dir / "static_out.json"
+    if json_path.exists():
+        with open(json_path) as f:
+            static_data = json.load(f)
+        structure = Structure.from_dict(static_data["output"]["structure"])
+        log.info(f"Using relaxed structure from {json_path}")
+    else:
+        structure = Structure.from_file(structs[name]["poscar"])
+        log.info(f"Using initial structure from POSCAR")
     try:
         static_worker = StaticWorker(
             vasp_args=VASP_ARGS_CPU if device == "cpu" else VASP_ARGS_GPU,
@@ -165,7 +174,7 @@ def run_static(name: str, device: str = "gpu", rerun: bool = False) -> int:
         static_worker.run_flow(
             name=name,
             structure=structure,
-            prev_dir=store_dir / "3-static",
+            # prev_dir=store_dir / "3-static",
             flow_dir=flow_dir,
             store_dir=store_dir,
             resume=not rerun,
@@ -240,7 +249,7 @@ def submit_jobs(rerun: bool = False):
         static_jid = manager.submit_command(
             command=static_cmd,
             config=gpu_config,
-            workdir=root_dir,
+            work_dir=root_dir,
         )
         time.sleep(1)
         if not static_jid:
@@ -258,7 +267,7 @@ def submit_jobs(rerun: bool = False):
         nscf_jid = manager.submit_command(
             command=nscf_cmd,
             config=cpu_config,
-            workdir=root_dir,
+            work_dir=root_dir,
         )
         time.sleep(1)
         if not nscf_jid:

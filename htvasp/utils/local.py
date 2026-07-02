@@ -128,7 +128,7 @@ def run_locally_custom(
         with cd(job_dir):
             response, stop_jobflow = _run_job(
                 job, parents, store, completed_uuids,
-                stopped_parents, errored, raise_immediately, responses
+                stopped_parents, errored, raise_immediately, responses, root_dir
             )
 
         if response is not None:
@@ -154,6 +154,7 @@ def _run_job(
     errored: set[str],
     raise_immediately: bool,
     responses: dict[str, dict[int, jobflow.Response]],
+    root_dir: Path | None = None,
 ) -> tuple[Response | None, bool]:
     """Run a single job with all checks and error handling.
 
@@ -166,6 +167,7 @@ def _run_job(
         errored: Set of errored job uuids.
         raise_immediately: Whether to raise on error.
         responses: Response accumulator.
+        root_dir: Root directory for recursive diversion sub-flows.
 
     Returns:
         Tuple of (response, should_stop_jobflow).
@@ -216,12 +218,53 @@ def _run_job(
     if response.stop_jobflow:
         return None, True
 
-    # Handle diversions
-    for diversion in (response.replace, response.detour, response.addition):
+    # Handle diversions — run sub-flows recursively
+    for diversion_type, diversion in (("replace", response.replace), ("detour", response.detour), ("addition", response.addition)):
         if diversion is None:
             continue
-        # Note: Diversion handling would require recursive call, simplified here
-        log.warning(f"Diversion detected for {job.name}, but not fully supported in resume mode")
+
+        if isinstance(diversion, (Flow, Job)):
+            log.info(f"Handling {diversion_type} diversion for {job.name}")
+
+            sub_responses = run_locally_custom(
+                diversion,
+                log_fmt=False,
+                store=store,
+                root_dir=root_dir,
+                ensure_success=False,
+                allow_external_references=True,
+                raise_immediately=raise_immediately,
+                resume=False,
+            )
+
+            # Merge sub-responses into parent responses
+            for uuid, idx_responses in sub_responses.items():
+                responses[uuid].update(idx_responses)
+
+            # For replace/detour, the sub-flow/job's output becomes the original job's output
+            if diversion_type in ("replace", "detour"):
+                if isinstance(diversion, Flow):
+                    resolved = _resolve_output(diversion.output, store)
+                elif isinstance(diversion, Job):
+                    try:
+                        resolved = store.get_output(
+                            uuid=diversion.uuid, which=diversion.index, load=True
+                        )
+                    except Exception:
+                        resolved = None
+                else:
+                    resolved = None
+
+                if resolved is not None:
+                    doc = store.query_one({"uuid": job.uuid})
+                    if doc is not None:
+                        doc["output"] = resolved
+                        store.update(doc, key="uuid")
+                    response.output = resolved
+
+            continue
+
+        log.warning(f"Unknown diversion type for {job.name}: {type(diversion)}")
 
     return response, False
 
@@ -398,6 +441,20 @@ def _load_completed_output(job: Job, store: JobStore) -> Response | None:
     except Exception as e:
         log.warning(f"Failed to load output for {job.name}: {e}")
         return None
+
+
+def _resolve_output(obj, store):
+    """Recursively resolve OutputReferences from a store."""
+    if isinstance(obj, OutputReference):
+        try:
+            return store.get_output(uuid=obj.uuid, which=obj.index, load=True)
+        except Exception:
+            return None
+    elif isinstance(obj, dict):
+        return {k: _resolve_output(v, store) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return type(obj)(_resolve_output(v, store) for v in obj)
+    return obj
 
 
 def _execute_job_safe(job: Job, store: JobStore, errored: set[str]) -> Response | None:
