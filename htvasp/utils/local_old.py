@@ -81,25 +81,6 @@ def run_locally(
     responses: dict[str, dict[int, jobflow.Response]] = defaultdict(dict)
     stop_jobflow = False
 
-    def _get_job_dir(job: Job) -> Path:
-        """Generate directory for a job with sequential naming."""
-        nonlocal global_prefix
-        name = job.name.replace(" ", "_")
-
-        if name not in name_counter:
-            # New name: assign new prefix
-            name_counter[name] = 1
-            dir_name = f"{global_prefix}-{name}"
-            global_prefix += 1
-        else:
-            # Existing name: increment suffix counter
-            name_counter[name] += 1
-            dir_name = f"{global_prefix - 1}-{name}-{name_counter[name]}"
-
-        job_dir = root_dir / dir_name
-        job_dir.mkdir(parents=True, exist_ok=True)
-        return job_dir
-
     def _run_job(job: Job, parents: list[str]) -> tuple[Response | None, bool]:
         """Run a single job."""
         nonlocal stop_jobflow
@@ -126,6 +107,7 @@ def run_locally(
                 response = job.run(store=store)
             except Exception:
                 import traceback
+
                 logger.info(f"{job.name} failed with exception:\n{traceback.format_exc()}")
                 errored.add(job.uuid)
                 return None, False
@@ -144,15 +126,39 @@ def run_locally(
 
         diversion_responses = []
         if response.replace is not None:
+            # first run any restarts
             diversion_responses.append(_run(response.replace))
+
         if response.detour is not None:
+            # next any detours
             diversion_responses.append(_run(response.detour))
+
         if response.addition is not None:
+            # finally any additions
             diversion_responses.append(_run(response.addition))
 
         if not all(diversion_responses):
             return None, False
         return response, False
+
+    def _get_job_dir(job: Job) -> Path:
+        """Generate directory for a job with sequential naming."""
+        nonlocal global_prefix
+        name = job.name.replace(" ", "_")
+
+        if name not in name_counter:
+            # New name: assign new prefix
+            name_counter[name] = 1
+            dir_name = f"{global_prefix}-{name}"
+            global_prefix += 1
+        else:
+            # Existing name: increment suffix counter
+            name_counter[name] += 1
+            dir_name = f"{global_prefix - 1}-{name}-{name_counter[name]}"
+
+        job_dir = root_dir / dir_name
+        job_dir.mkdir(parents=True, exist_ok=True)
+        return job_dir
 
     def _run(root_flow) -> bool:
         """Run a flow."""
