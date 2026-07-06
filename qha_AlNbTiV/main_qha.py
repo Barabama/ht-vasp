@@ -61,16 +61,16 @@ STRUCTURE_NAMES = [
     # "SER-Nb",
     # "SER-Ti",
     # "SER-V",
-    "BCC-Al-Al", # has problem
+    # "BCC-Al-Al",
     # "BCC-Al-Nb",
     # "BCC-Al-Ti",
     # "BCC-Al-V",
     # "BCC-Nb-Nb",
-    # "BCC-Nb-Ti", # has problem
+    # "BCC-Nb-Ti",
     # "BCC-Nb-V",
     # "BCC-Ti-Ti",
-    # "BCC-Ti-V",
-    # "BCC-V-V", # has problem
+    "BCC-Ti-V",
+    # "BCC-V-V",
 ]
 
 

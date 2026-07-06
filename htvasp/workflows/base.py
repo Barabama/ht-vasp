@@ -172,18 +172,22 @@ class Worker:
             # Move flow_dir to store_dir
             try:
                 if store_dir.exists():
-                    shutil.rmtree(store_dir)
-                shutil.move(str(flow_dir), str(store_dir))
+                    shutil.copytree(str(flow_dir), str(store_dir), dirs_exist_ok=True)
+                    shutil.rmtree(str(flow_dir))
+                else:
+                    shutil.move(str(flow_dir), str(store_dir))
                 log.info(f"Moved results to {store_dir}")
             except Exception as move_error:
                 log.error(f"Failed to move results to store_dir: {move_error}")
 
-    def get_result(self, output_job_name: str) -> dict[str, Any] | None:
+    def _query_store(self, output_job_name: str) -> dict[str, Any] | None:
         """
-        Get the result from the specified job.
+        Query the store for a job matching the name regex and return its output.
+
+        Does NOT close the store — the caller is responsible for calling close().
 
         Args:
-            output_job_name: Name of the job to get the result from
+            output_job_name: Name regex to match against job names
         Returns:
             Output from the specified job or None if not found or failed
         """
@@ -200,14 +204,24 @@ class Worker:
             if not job:
                 log.error(f"No job matching '{output_job_name}' found")
                 return None
-            output = self.store.get_output(uuid=job["uuid"], which="last", load=True)
-            return output
+            return self.store.get_output(uuid=job["uuid"], which="last", load=True)
         except Exception as e:
             log.error(f"Failed to get result for job '{output_job_name}': {e}")
             log.error(traceback.format_exc())
             return None
-        finally:
-            self.close()
+
+    def get_result(self, output_job_name: str) -> dict[str, Any] | None:
+        """
+        Get the result from the specified job, then close the store.
+
+        Args:
+            output_job_name: Name of the job to get the result from
+        Returns:
+            Output from the specified job or None if not found or failed
+        """
+        result = self._query_store(output_job_name)
+        self.close()
+        return result
 
     def write_result(self, data: dict | None, json_path: Path | str):
         if not data:
