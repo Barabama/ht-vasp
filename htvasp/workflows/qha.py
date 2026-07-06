@@ -28,7 +28,7 @@ class QhaData(TypedDict):
     name: str
     structure: dict[str, Any]
     bulk_modulus: float  # DFT E0 GPa
-    volumes: float  # EOS
+    volumes: list[float]  # EOS
     temperatures: list[float]  # T K
     thermal_expansion: list[float]  # K^(-1)
     bulk_modulus_temperature: list[float]  # B(T) GPa
@@ -37,7 +37,7 @@ class QhaData(TypedDict):
     gruneisen_temperature: list[float]  # γ(T)
     volume_temperature: list[float]  # V(T)
     free_energies: list[float]  # F(V,T) kJ/mol
-    deformation_energies: list[float]  # E0(T) kJ/mol
+    deformation_energies: list[float]  # E0(V) eV
     entropies: list[list[float]]  # S(V,T)
     heat_capacities: list[list[float]]  # Cv(V,T) J/mol/K
     helmholtz_volume: list[list[float]]  # A(V,T)
@@ -183,20 +183,24 @@ class QhaWorker(Worker):
         )
 
     def get_result(self, output_job_name: str = "analyze_free_energy") -> dict[str, Any] | None:
-        """Override to include deformation energies."""
-        result = super().get_result(output_job_name)
+        """Override to include deformation energies, sorted by volume ascending."""
+        result = self._query_store(output_job_name)
         if result is not None:
             result["deformation_energies"] = self._get_deformation_energies()
+        self.close()
         return result
 
     def _get_deformation_energies(self) -> list[float]:
-        """Helper function to extract deformation energies from the store."""
+        """
+        Extract deformation energies from the store, sorted by volume ascending.
+
+        Returns energies (eV) matching the order of ``analyze_free_energy``'s ``volumes``.
+        """
         try:
             if not self.store:
                 raise ValueError("Store is not initialized. Run the flow first.")
-            self.store.connect()
 
-            deformation_energies = []
+            entries: list[tuple[int, float, float]] = []  # (deform_index, volume, energy)
             for doc in self.store.query(
                 criteria={"name": {"$regex": r"phonon static eos deformation \d+"}},
                 properties=["uuid", "name"],
@@ -208,11 +212,14 @@ class QhaWorker(Worker):
                     log.warning(f"Could not extract deformation index from job name: {name}")
                     continue
                 output = self.store.get_output(uuid=uuid, which="last", load=True)
-                deformation_energies.append(output["output"]["energy"])
-            return deformation_energies
+                volume = output.get("volume", 0.0)
+                energy = output["output"]["energy"]
+                entries.append((int(match.group(1)), volume, energy))
+
+            # Sort by volume ascending, matching the order used by analyze_free_energy
+            entries.sort(key=lambda x: x[1])
+            return [e for _, _, e in entries]
         except Exception as e:
             log.error(f"Failed to get deformation energies: {e}")
             log.error(traceback.format_exc())
             return []
-        finally:
-            self.close()
