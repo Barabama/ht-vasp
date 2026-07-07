@@ -1,25 +1,12 @@
 """
-能带对齐（Band Offset）分析 — 平均势法
-
-原理 (Van de Walle & Martin):
-  孤立 slab 的 VBM/CBM 以自身 E_F 为参考。异质结中两个材料的 E_F 对齐后，
-  需要找到与 E_F 无关的参考势来比较二者的带边偏移。
-
-  参考势 = LOCPOT planar average 在体相区域的平均值
-
-  对于 slab: V_ref = V(z) 在 slab 中心体相区的平均值
-  对于 hetero: 分别提取两材料体相区的 V_ref_het
-  ΔV = V_ref_het - V_ref_slab  → 该材料在异质结中的静电势偏移
-  VBM_het = VBM_slab + ΔV,  CBM_het = CBM_slab + ΔV
-
-用法:
-  python band_alignment.py                          # 分析3个异质结
-  python band_alignment.py --het hetero_intrinsic    # 单个异质结
+能带对齐（Band Offset）分析 — 平均势法 (Van de Walle & Martin)
 
 输出:
-  终端: 能带对齐参数表
-  output/band_alignment.png / .pdf (能带对齐图)
-  output/locpot_bulk_regions.png / .pdf (体相区标识图)
+  output/band_alignment.csv       能带对齐参数表 (Origin/Excel 用)
+  output/locpot_planar_*.csv      静电势曲线数据
+  output/band_alignment.json      完整数值存档
+  output/band_alignment.png       能带对齐图
+  output/locpot_bulk_regions.png  体相区标识图
 """
 
 import argparse
@@ -34,7 +21,7 @@ from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
+from matplotlib.patches import Patch
 from monty.json import MontyDecoder
 from pymatgen.core import Structure
 from pymatgen.io.vasp.outputs import Locpot
@@ -43,30 +30,31 @@ warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
 
-plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11, "axes.linewidth": 1.2, "figure.dpi": 100})
+plt.rcParams.update({
+    "font.family": "sans-serif", "font.size": 11, "axes.linewidth": 1.2, "figure.dpi": 100,
+    "mathtext.default": "regular",
+})
 
 DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
 OUTPUT_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/postprocessing/output")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# 异质结 -> (LDH slab, CMCH slab)
+# 异质结 -> (LDH slab, CMCH slab) — Level 2 应变 slab（共同晶格）
 HETERO_MAP = {
-    "hetero_intrinsic": ("CoNiOH2-slab", "CoMnH2CO5-slab"),
-    "hetero_s_doped": ("CoNiOH2S-noH-slab", "CoMnH2CO5-slab"),
-    "hetero_s_exposed": ("CoNiOH2S-noH-slab-flip", "CoMnH2CO5-slab"),
+    "hetero_intrinsic": ("LDH_strained", "CMCH_strained"),
+    "hetero_s_doped": ("LDH_S_strained", "CMCH_strained"),
+    "hetero_s_exposed": ("LDH_S_flip_strained", "CMCH_strained"),
 }
 
 SYSTEM_LABELS = {
-    "CoNiOH2-slab": "CoNiOH2 (Slab)",
-    "CoNiOH2S-noH-slab": "CoNiOH2S (Slab)",
-    "CoNiOH2S-noH-slab-flip": "CoNiOH2S (Slab-flip)",
-    "CoMnH2CO5-slab": "CoMnH2CO5 (Slab)",
+    "CMCH_strained": "CMCH (Strained)",
+    "LDH_strained": "CoNiOH2 (Strained)",
+    "LDH_S_strained": "CoNiOH2S (Strained)",
+    "LDH_S_flip_strained": "CoNiOH2S (Strained-flip)",
     "hetero_intrinsic": "Intrinsic Het.",
     "hetero_s_doped": "S-Doped Het.",
     "hetero_s_exposed": "S-Exposed Het.",
 }
-
-SLAB_CMCH = "CoMnH2CO5-slab"
 
 
 # ═══════════════════════════════════════════════
@@ -158,20 +146,6 @@ def read_vbm_cbm(name: str) -> tuple[float | None, float | None]:
 # ═══════════════════════════════════════════════
 # Core: find bulk-like regions
 # ═══════════════════════════════════════════════
-
-def _get_element_summary(struct: Structure) -> dict:
-    """返回每种元素在 z 方向的分布范围."""
-    elem_info = {}
-    for i, site in enumerate(struct):
-        sym = site.species_string
-        z = site.coords[2]
-        if sym not in elem_info:
-            elem_info[sym] = {"z_min": z, "z_max": z, "indices": []}
-        elem_info[sym]["z_min"] = min(elem_info[sym]["z_min"], z)
-        elem_info[sym]["z_max"] = max(elem_info[sym]["z_max"], z)
-        elem_info[sym]["indices"].append(i)
-    return elem_info
-
 
 def find_slab_bulk_region(avg: np.ndarray, ngz: int, struct: Structure) -> tuple[int, int]:
     """slab 体相区域: z 方向中间 40%."""
@@ -340,17 +314,18 @@ def compute_band_offset(het_name: str) -> dict:
         else:
             band_type = "Type III (broken gap)"
 
-    cbm_str = f"{het_cbm_ldh:.4f}" if het_cbm_ldh else "N/A"
-    cb_off_str = f"{cb_offset:+.4f}" if cb_offset else "N/A"
-    gap_str = f"{gap_ldh:.4f}" if gap_ldh else "N/A"
+    cbm_cmch_str = f"{het_cbm_cmch:.4f}" if het_cbm_cmch else "N/A"
+    cbm_ldh_str  = f"{het_cbm_ldh:.4f}"  if het_cbm_ldh  else "N/A"
+    cb_off_str   = f"{cb_offset:+.4f}"   if cb_offset    else "N/A"
+    gap_ldh_str  = f"{gap_ldh:.4f}"      if gap_ldh      else "N/A"
 
     print(f"\n  {'':─^60}")
     print(f"  {het_name}  ({SYSTEM_LABELS.get(het_name, '')})")
     print(f"  {'':─^60}")
     print(f"  {'':<15s}  {'CMCH':>12s}  {'LDH':>12s}")
     print(f"  {'VBM (eV)':<15s}  {het_vbm_cmch:>12.4f}  {het_vbm_ldh:>12.4f}")
-    print(f"  {'CBM (eV)':<15s}  {cbm_str:>12s}  {cbm_str if het_cbm_ldh else 'N/A':>12s}")
-    print(f"  {'Gap (eV)':<15s}  {gap_cmch if gap_cmch else 0:>12.4f}  {gap_str:>12s}")
+    print(f"  {'CBM (eV)':<15s}  {cbm_cmch_str:>12s}  {cbm_ldh_str:>12s}")
+    print(f"  {'Gap (eV)':<15s}  {(cbm_cmch - vbm_cmch) if cbm_cmch else 0:>12.4f}  {gap_ldh_str:>12s}")
     print(f"  {'VB offset (eV)':<15s}  {vb_offset:+12.4f}")
     cb_text = f"{cb_offset:+.4f}" if cb_offset is not None else "N/A"
     print(f"  {'CB offset (eV)':<15s}  {cb_text:>12s}")
@@ -402,7 +377,7 @@ def plot_band_alignment(results: dict):
         log.warning("No band alignment data to plot")
         return
 
-    fig, ax = plt.subplots(figsize=(9, 5))
+    fig, ax = plt.subplots(figsize=(9, 5.5))
 
     n = len(data)
     bar_width = 0.25
@@ -431,50 +406,71 @@ def plot_band_alignment(results: dict):
         ax.bar(x + bar_width / 2, gap_l, bar_width, bottom=vbm_l,
                color=colors[1], alpha=0.85, edgecolor="k", lw=0.5)
 
-        # Label values
-        ax.text(x - bar_width / 2, vbm_c - 0.15, f"{vbm_c:.2f}", ha="center", va="top", fontsize=7)
-        ax.text(x - bar_width / 2, vbm_c + gap_c + 0.05, f"{cbm_c:.2f}" if cbm_c else "N/A",
-                ha="center", va="bottom", fontsize=7)
-        ax.text(x + bar_width / 2, vbm_l - 0.15, f"{vbm_l:.2f}", ha="center", va="top", fontsize=7)
-        ax.text(x + bar_width / 2, vbm_l + gap_l + 0.05, f"{cbm_l:.2f}" if cbm_l else "N/A",
-                ha="center", va="bottom", fontsize=7)
+        # Label VBM inside bottom of bar, CBM above top of bar
+        ax.text(x - bar_width / 2, vbm_c - 0.12,
+                f"VBM {vbm_c:.2f}", ha="center", va="top", fontsize=7.5)
+        if cbm_c:
+            ax.text(x - bar_width / 2, vbm_c + gap_c + 0.08,
+                    f"CBM {cbm_c:.2f}", ha="center", va="bottom", fontsize=7.5)
+        else:
+            ax.text(x - bar_width / 2, vbm_c + gap_c + 0.08,
+                    "CBM N/A", ha="center", va="bottom", fontsize=7.5)
 
-        # VB offset annotation
-        mid = x
+        ax.text(x + bar_width / 2, vbm_l - 0.12,
+                f"VBM {vbm_l:.2f}", ha="center", va="top", fontsize=7.5)
+        if cbm_l:
+            ax.text(x + bar_width / 2, vbm_l + gap_l + 0.08,
+                    f"CBM {cbm_l:.2f}", ha="center", va="bottom", fontsize=7.5)
+        else:
+            ax.text(x + bar_width / 2, vbm_l + gap_l + 0.08,
+                    "CBM N/A", ha="center", va="bottom", fontsize=7.5)
+
+        # Gap annotation inside each bar
+        if gap_c > 0:
+            ax.text(x - bar_width / 2, vbm_c + gap_c / 2,
+                    f"{gap_c:.2f}", ha="center", va="center", fontsize=6.5,
+                    color="white", fontweight="bold")
+        if gap_l > 0:
+            ax.text(x + bar_width / 2, vbm_l + gap_l / 2,
+                    f"{gap_l:.2f}", ha="center", va="center", fontsize=6.5,
+                    color="white", fontweight="bold")
+
+        # VB offset: horizontal double-headed arrow between VBM levels
         vo = d["vb_offset"]
-        ax.annotate(f"VB off: {vo:+.3f} eV",
-                    xy=(mid, (vbm_c + vbm_l) / 2),
-                    xytext=(mid + 0.5, (vbm_c + vbm_l) / 2 + 0.5),
-                    fontsize=8, ha="center",
-                    arrowprops=dict(arrowstyle="->", color="gray", lw=0.8),
-                    bbox=dict(boxstyle="round,pad=0.2", fc="lightyellow", alpha=0.8, ec="none"))
+        ax.annotate("", xy=(x + bar_width / 2, vbm_l), xytext=(x - bar_width / 2, vbm_c),
+                    arrowprops=dict(arrowstyle="<->", color="#555555", lw=1.0,
+                                    shrinkA=0, shrinkB=0))
+        mid_y = (vbm_c + vbm_l) / 2
+        ax.text(x, mid_y + 0.18, f"VB off: {vo:+.3f} eV",
+                ha="center", va="bottom", fontsize=8,
+                bbox=dict(boxstyle="round,pad=0.2", fc="lightyellow", alpha=0.85, ec="none"))
 
         # Type annotation
-        ax.text(x, max(vbm_c, vbm_l) + max(gap_c, gap_l) + 0.3,
+        ax.text(x, max(vbm_c, vbm_l) + max(gap_c, gap_l) + 0.35,
                 d["band_type"], ha="center", fontsize=8, fontstyle="italic",
                 bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7, ec="gray"))
 
     ax.set_xticks(x_base)
     ax.set_xticklabels(labels, fontsize=10)
-    ax.set_ylabel("Energy (eV)")
-    ax.set_title("Band Alignment — Heterojunctions", fontweight="bold")
-    ax.legend(["CMCH (substrate)", "LDH (film)"], fontsize=9)
+    ax.set_ylabel("Energy (eV) vs. CMCH bulk reference", fontsize=11)
+    ax.set_title("Band Alignment — Heterojunctions", fontweight="bold", fontsize=12)
+    ax.legend(["CMCH (substrate)", "LDH (film)"], fontsize=9, loc="upper center",
+              ncol=2, framealpha=0.8)
     ax.axhline(0, color="k", ls="--", lw=0.6, alpha=0.4)
     ax.grid(True, alpha=0.2, axis="y")
 
     plt.tight_layout()
-    fig.savefig(OUTPUT_DIR / "band_alignment.png", dpi=200, bbox_inches="tight")
-    fig.savefig(OUTPUT_DIR / "band_alignment.pdf", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "band_alignment.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
-    log.info("Plot → output/band_alignment.{png,pdf}")
+    log.info("Plot → output/band_alignment.png")
 
     # Second plot: electrostatic potential showing bulk regions
     plot_bulk_regions(results)
 
 
 def plot_bulk_regions(results: dict):
-    """静电势曲线 + 体相区域标注."""
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    """静电势曲线 + 体相区域标注（含界面位置与原始网格点）."""
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
     hets = ["hetero_intrinsic", "hetero_s_doped", "hetero_s_exposed"]
 
     for ax_idx, het_name in enumerate(hets):
@@ -486,26 +482,158 @@ def plot_bulk_regions(results: dict):
             continue
 
         grid = np.linspace(0, r["c_het"], r["ngz_het"])
-        ax.plot(grid, r["avg_het"], "k-", lw=0.8)
+        avg = np.array(r["avg_het"])
+
+        # Raw grid points (faint) + smooth line
+        ax.scatter(grid, avg, s=1.5, c="#cccccc", zorder=1, label="Raw grid")
+        ax.plot(grid, avg, "k-", lw=0.8, zorder=2)
 
         # Shade bulk regions
         sc, ec = r["cmch_region"]
         sl, el = r["ldh_region"]
-        ax.axvspan(grid[sc], grid[ec], color="blue", alpha=0.1, label="CMCH bulk")
-        ax.axvspan(grid[sl], grid[el], color="green", alpha=0.1, label="LDH bulk")
+        ax.axvspan(grid[sc], grid[ec], color="blue", alpha=0.08, zorder=0)
+        ax.axvspan(grid[sl], grid[el], color="green", alpha=0.08, zorder=0)
 
-        ax.set_xlabel("z (Å)")
-        ax.set_ylabel("V(z) (eV)")
+        # Bulk region edge markers
+        for idx, c, lab in [(sc, "blue", "CMCH bulk"), (ec, "blue", None),
+                            (sl, "green", "LDH bulk"), (el, "green", None)]:
+            ax.axvline(grid[idx], color=c, ls=":", lw=0.7, alpha=0.5, zorder=0)
+
+        # Interface midpoint vertical dashed line
+        cmch_top_z = grid[ec] if ec < len(grid) else grid[-1]
+        ldh_bot_z  = grid[sl] if sl < len(grid) else grid[0]
+        interface_z = (cmch_top_z + ldh_bot_z) / 2
+        ax.axvline(interface_z, color="red", ls="--", lw=1.0, alpha=0.7, zorder=3)
+        ax.text(interface_z, avg.max(), "Interface",
+                ha="center", va="bottom", fontsize=7.5,
+                color="red", rotation=90, zorder=4)
+
+        # Legend entries
+        legend_handles = [
+            Patch(facecolor="blue", alpha=0.15, edgecolor="blue", label="CMCH bulk region"),
+            Patch(facecolor="green", alpha=0.15, edgecolor="green", label="LDH bulk region"),
+            plt.Line2D([0], [0], color="red", ls="--", lw=1.0, label="Interface"),
+        ]
+
+        ax.set_xlabel("z / Å", fontsize=11)
+        ax.set_ylabel("V(z) / eV", fontsize=11)
         ax.set_title(r["label"], fontsize=10, fontweight="bold")
+        ax.tick_params(labelsize=9)
         ax.grid(True, alpha=0.2)
         if ax_idx == 2:
-            ax.legend(fontsize=7)
+            ax.legend(handles=legend_handles, fontsize=8, loc="upper right")
+
+    # Shared footnote
+    fig.text(0.5, -0.02,
+             "Bulk regions: central 40% of each slab z-range, excluding 3 Å interfacial buffer.",
+             ha="center", fontsize=8, fontstyle="italic", color="gray")
 
     plt.tight_layout()
-    fig.savefig(OUTPUT_DIR / "locpot_bulk_regions.png", dpi=200, bbox_inches="tight")
-    fig.savefig(OUTPUT_DIR / "locpot_bulk_regions.pdf", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "locpot_bulk_regions.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
-    log.info("Plot → output/locpot_bulk_regions.{png,pdf}")
+    log.info("Plot → output/locpot_bulk_regions.png")
+
+
+# ═══════════════════════════════════════════════
+# Data export (CSV / JSON)
+# ═══════════════════════════════════════════════
+
+def export_band_alignment_csv(results: dict):
+    """导出能带对齐汇总表 → output/band_alignment.csv"""
+    rows = []
+    for h in ["hetero_intrinsic", "hetero_s_doped", "hetero_s_exposed"]:
+        r = results.get(h)
+        if not r or "error" in r:
+            continue
+        rows.append({
+            "heterojunction": r["label"],
+            "VBM_CMCH (eV)": r["vbm_cmch"],
+            "CBM_CMCH (eV)": r.get("cbm_cmch"),
+            "gap_CMCH (eV)": (r["cbm_cmch"] - r["vbm_cmch"]) if r.get("cbm_cmch") else None,
+            "VBM_LDH (eV)": r["vbm_ldh"],
+            "CBM_LDH (eV)": r.get("cbm_ldh"),
+            "gap_LDH (eV)": (r["cbm_ldh"] - r["vbm_ldh"]) if r.get("cbm_ldh") else None,
+            "VB_offset (eV)": r["vb_offset"],
+            "CB_offset (eV)": r.get("cb_offset"),
+            "dV_CMCH (eV)": r["dv_cmch"],
+            "dV_LDH (eV)": r["dv_ldh"],
+            "band_type": r["band_type"],
+        })
+
+    header = list(rows[0].keys())
+    with open(OUTPUT_DIR / "band_alignment.csv", "w") as f:
+        f.write(",".join(header) + "\n")
+        for row in rows:
+            vals = [f"{row[k]}" if row[k] is not None else "N/A" for k in header]
+            f.write(",".join(vals) + "\n")
+    log.info("Data  → output/band_alignment.csv")
+
+
+def export_locpot_csv(results: dict):
+    """每个异质结导出 z / V(z) / region_mask → output/locpot_planar_{het}.csv"""
+    hets = ["hetero_intrinsic", "hetero_s_doped", "hetero_s_exposed"]
+    for het_name in hets:
+        r = results.get(het_name)
+        if not r or "error" in r:
+            continue
+
+        ngz = r["ngz_het"]
+        c   = r["c_het"]
+        avg = np.array(r["avg_het"])
+        sc, ec = r["cmch_region"]
+        sl, el = r["ldh_region"]
+
+        grid = np.linspace(0, c, ngz)
+        # region_mask: 0=none, 1=CMCH, 2=LDH
+        mask = np.zeros(ngz, dtype=int)
+        mask[sc:ec] = 1
+        mask[sl:el] = 2
+
+        with open(OUTPUT_DIR / f"locpot_planar_{het_name}.csv", "w") as f:
+            f.write("z_Ang,V_eV,region\n")
+            region_labels = {0: "none", 1: "CMCH_bulk", 2: "LDH_bulk"}
+            for iz in range(ngz):
+                f.write(f"{grid[iz]:.4f},{avg[iz]:.4f},{region_labels[mask[iz]]}\n")
+    log.info("Data  → output/locpot_planar_*.csv")
+
+
+def _to_serializable(obj):
+    """递归转换 numpy 类型为 Python 原生类型，供 json.dump 使用."""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, (np.floating, np.integer)):
+        return float(obj) if isinstance(obj, np.floating) else int(obj)
+    if isinstance(obj, dict):
+        return {k: _to_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_to_serializable(v) for v in obj]
+    return obj
+
+
+def export_results_json(results: dict):
+    """完整计算结果 → output/band_alignment.json（含 avg_het 曲线数据）"""
+    with open(OUTPUT_DIR / "band_alignment.json", "w") as f:
+        json.dump(_to_serializable(results), f, indent=2, ensure_ascii=False)
+    log.info("Data  → output/band_alignment.json")
+
+
+def load_results() -> dict | None:
+    """从 JSON 加载上次的结果（含 avg_het 曲线数据）."""
+    path = OUTPUT_DIR / "band_alignment.json"
+    if not path.exists():
+        return None
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        # avg_het 从 list 转为 np.array（JSON 反序列化为 list）
+        for h in data.values():
+            if "avg_het" in h and isinstance(h["avg_het"], list):
+                h["avg_het"] = np.array(h["avg_het"])
+        log.info("Loaded from %s", path.name)
+        return data
+    except Exception as e:
+        log.warning("Cannot load %s: %s", path.name, e)
+        return None
 
 
 # ═══════════════════════════════════════════════
@@ -515,20 +643,28 @@ def plot_bulk_regions(results: dict):
 def main():
     parser = argparse.ArgumentParser(description="Band alignment analysis")
     parser.add_argument("--het", type=str, help="指定异质结名称（默认全部）")
+    parser.add_argument("--no-plot", action="store_true", help="仅导出数据，不生成图片")
+    parser.add_argument("--force", action="store_true", help="强制重新计算（忽略已有 JSON）")
     args = parser.parse_args()
 
     hets = [args.het] if args.het else list(HETERO_MAP.keys())
 
-    log.info("Band alignment for %d heterojunctions", len(hets))
-    results = {}
-    for h in hets:
-        log.info("Processing %s ...", h)
-        r = compute_band_offset(h)
-        results[h] = r
-        if "error" in r:
-            log.warning("  ✗ %s: %s", h, r["error"])
-        else:
-            log.info("  ✓ %s: VB offset = %+.4f eV (%s)", h, r["vb_offset"], r["band_type"])
+    # 优先从 JSON 恢复（avg_het 曲线数据已包含在 JSON 中）
+    results = None if args.force else load_results()
+
+    if results is None:
+        log.info("Band alignment for %d heterojunctions", len(hets))
+        results = {}
+        for h in hets:
+            log.info("Processing %s ...", h)
+            r = compute_band_offset(h)
+            results[h] = r
+            if "error" in r:
+                log.warning("  ✗ %s: %s", h, r["error"])
+            else:
+                log.info("  ✓ %s: VB offset = %+.4f eV (%s)", h, r["vb_offset"], r["band_type"])
+    else:
+        log.info("Loaded %d heterojunction results from JSON", len(results))
 
     # Final summary
     print("\n" + "=" * 80)
@@ -545,9 +681,16 @@ def main():
             print(f"  {r['label']:<22s}  {r['vb_offset']:>+10.4f}  {cb:>10s}  "
                   f"{r['dv_cmch']:>+10.4f}  {r['dv_ldh']:>+10.4f}  {r['band_type']:<22s}")
 
+    # Data export
+    log.info("Exporting data...")
+    export_band_alignment_csv(results)
+    export_locpot_csv(results)
+    export_results_json(results)
+
     # Plots
-    log.info("Generating plots...")
-    plot_band_alignment(results)
+    if not args.no_plot:
+        log.info("Generating plots...")
+        plot_band_alignment(results)
     log.info("Done. Output → %s", OUTPUT_DIR)
 
 

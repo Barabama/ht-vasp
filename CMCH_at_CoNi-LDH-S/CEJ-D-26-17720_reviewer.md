@@ -115,11 +115,12 @@ and heterojunction interfaces, offering a valuable strategy for developing super
 materials.
 Keywords: F–doping, Built–in electric field, p-p heterojunction, Supercapacitors, Boost carrier
 density
+
 1. Introduction
-Driven by energy crises and environmental concerns, developing efficient energy storage systems
-is crucial for scaling renewable energy [1]. Supercapacitors, distinguished by superior power density,
-rapid charge–discharge rates, superior cyclability, as well as exemplary safety, have emerged as
-favorable candidates in the advanced energy storage landscape [2]. Nevertheless, their widespread
+   Driven by energy crises and environmental concerns, developing efficient energy storage systems
+   is crucial for scaling renewable energy [1]. Supercapacitors, distinguished by superior power density,
+   rapid charge–discharge rates, superior cyclability, as well as exemplary safety, have emerged as
+   favorable candidates in the advanced energy storage landscape [2]. Nevertheless, their widespread
 
 application remains severely constrained by an intrinsic deficiency in energy density [3]. Since active
 materials dictate supercapacitor performance, current research prioritizes designing novel electrodes
@@ -249,12 +250,8 @@ C ΔV
 
 –
 
-+
-
 = C –ΔV–
 m
-
-+
 
 (3)
 
@@ -1546,5 +1543,3 @@ Click here to access/download
 
 Supplementary material
 Supporting-ZZH.docx
-
-

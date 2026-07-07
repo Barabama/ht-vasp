@@ -1,5 +1,5 @@
 """
-DOS/PDOS 分析 — 10 体系电子结构对比
+DOS/PDOS 分析 — 10 体系电子结构对比 (Level 2)
 
 功能:
   1. TDOS 对比图 (Bulk / Slab / Hetero 三组)
@@ -8,9 +8,14 @@ DOS/PDOS 分析 — 10 体系电子结构对比
   4. PDOS at E_F (费米能级处轨道贡献)
   5. Key contrast: 本征 vs S 掺杂带隙崩塌
 
+体系:
+  Bulk (3):  CoNiOH2, CoNiOH2S-noH, CoMnH2CO5
+  Slab (4):  CMCH_strained, LDH_strained, LDH_S_strained, LDH_S_flip_strained
+  Hetero (3): hetero_intrinsic, hetero_s_doped, hetero_s_exposed
+
 用法:
-  python dos_analysis.py                          # 全量分析
-  python dos_analysis.py --systems CoNiOH2 CoNiOH2S-noH  # 指定体系
+  python dos_analysis.py                          # 全量分析 (Level 2)
+  python dos_analysis.py --systems LDH_strained   # 指定体系
 """
 
 import argparse
@@ -30,30 +35,28 @@ warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
 
-plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11, "axes.linewidth": 1.2})
+plt.rcParams.update({"font.family": "sans-serif", "font.size": 11, "axes.linewidth": 1.2})
 
 DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
 OUTPUT_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/postprocessing/output")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-SYSTEMS_BULK = ["CoNiOH2", "CoNiOH2S-noH", "CMCH_bulk"]
-SYSTEMS_SLAB = ["CMCH_strained", "LDH_strained", "LDH_S_strained", "LDH_S_flip_strained", "LDH2_strained"]
+SYSTEMS_BULK = ["CoNiOH2", "CoNiOH2S-noH", "CoMnH2CO5"]
+SYSTEMS_SLAB = ["CoNiOH2-slab", "CoNiOH2S-noH-slab", "CoNiOH2S-noH-slab-flip", "CoMnH2CO5-slab"]
 SYSTEMS_HETERO = ["hetero_intrinsic", "hetero_s_doped", "hetero_s_exposed"]
 SYSTEMS_ALL = SYSTEMS_BULK + SYSTEMS_SLAB + SYSTEMS_HETERO
 
 SYSTEM_LABELS = {
-    "CoNiOH2": "CoNiOH2 (Bulk)", "CoNiOH2S-noH": "CoNiOH2S (Bulk)", "CMCH_bulk": "CMCH (Bulk)",
-    "CMCH_strained": "CMCH (Strained)", "LDH_strained": "CoNiOH2 (Strained)",
-    "LDH_S_strained": "CoNiOH2S (Strained)", "LDH_S_flip_strained": "CoNiOH2S (Fliped)",
-    "LDH2_strained": "LDH Bilayer (Strained)",
+    "CoNiOH2": "CoNiOH2 (Bulk)", "CoNiOH2S-noH": "CoNiOH2S (Bulk)", "CoMnH2CO5": "CoMnH2CO5 (Bulk)",
+    "CoNiOH2-slab": "CoNiOH2 (Slab)", "CoNiOH2S-noH-slab": "CoNiOH2S (Slab)",
+    "CoNiOH2S-noH-slab-flip": "CoNiOH2S (Slab-flip)", "CoMnH2CO5-slab": "CoMnH2CO5 (Slab)",
     "hetero_intrinsic": "Intrinsic Het.", "hetero_s_doped": "S-Doped Het.", "hetero_s_exposed": "S-Exposed Het.",
 }
 
 SYSTEM_COLORS = {
-    "CoNiOH2": "#1f77b4", "CoNiOH2S-noH": "#2ca02c", "CMCH_bulk": "#d62728",
-    "CMCH_strained": "#d62728", "LDH_strained": "#1f77b4",
-    "LDH_S_strained": "#2ca02c", "LDH_S_flip_strained": "#ff7f0e",
-    "LDH2_strained": "#9467bd",
+    "CoNiOH2": "#1f77b4", "CoNiOH2S-noH": "#2ca02c", "CoMnH2CO5": "#d62728",
+    "CoNiOH2-slab": "#1f77b4", "CoNiOH2S-noH-slab": "#2ca02c",
+    "CoNiOH2S-noH-slab-flip": "#ff7f0e", "CoMnH2CO5-slab": "#d62728",
     "hetero_intrinsic": "#1f77b4", "hetero_s_doped": "#2ca02c", "hetero_s_exposed": "#9467bd",
 }
 
@@ -204,10 +207,11 @@ def print_summary(results: dict):
     if bg_p and bg_d:
         print(f"\n  ★ S doping bandgap collapse (Bulk): {bg_p:.3f} → {bg_d:.3f} eV  "
               f"(Δ = {bg_d - bg_p:+.3f})")
-    for name in SYSTEMS_HETERO:
+    print("  ★ Level 2 (common lattice) bandgaps:")
+    for name in SYSTEMS_HETERO + SYSTEMS_SLAB:
         bg = results.get(name, {}).get("bandgap")
         if bg is not None:
-            print(f"  ★ {SYSTEM_LABELS[name]} gap = {bg:.3f} eV")
+            print(f"      {SYSTEM_LABELS[name]:<25s} gap = {bg:.3f} eV")
 
 
 # ═══════════════════════════════════════════════
@@ -252,15 +256,14 @@ def plot_tdos_grouped(results: dict):
     axes[0].set_ylabel("DOS (states/eV)")
     fig.suptitle("Total DOS Comparison Across Layers", fontsize=14, fontweight="bold")
     plt.tight_layout(rect=[0, 0, 1, 0.95])
-    fig.savefig(OUTPUT_DIR / "tdos_grouped.png", dpi=200, bbox_inches="tight")
-    fig.savefig(OUTPUT_DIR / "tdos_grouped.pdf", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "tdos_grouped.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
-    log.info("Plot → output/tdos_grouped.{png,pdf}")
+    log.info("Plot → output/tdos_grouped.png")
 
 
 def plot_pdos_elemental(results: dict):
     """元素分辨 PDOS (Co-3d, Ni-3d, O-2p, S-3p)."""
-    focus = ["CoNiOH2", "CoNiOH2S-noH", "CoNiOH2-slab", "CoNiOH2S-noH-slab",
+    focus = ["CoNiOH2", "CoNiOH2S-noH", "LDH_strained", "LDH_S_strained",
              "hetero_intrinsic", "hetero_s_doped"]
 
     fig, axes = plt.subplots(len(focus), 1, figsize=(12, 3 * len(focus) + 1), sharex=True)
@@ -320,10 +323,9 @@ def plot_pdos_elemental(results: dict):
     fig.legend(handles=legend, fontsize=8, loc="upper right", framealpha=0.9, ncol=2)
     fig.suptitle("Element-Resolved PDOS", fontsize=14, fontweight="bold")
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    fig.savefig(OUTPUT_DIR / "pdos_elemental.png", dpi=200, bbox_inches="tight")
-    fig.savefig(OUTPUT_DIR / "pdos_elemental.pdf", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "pdos_elemental.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
-    log.info("Plot → output/pdos_elemental.{png,pdf}")
+    log.info("Plot → output/pdos_elemental.png")
 
 
 def plot_dcenter_scatter(results: dict):
@@ -351,9 +353,9 @@ def plot_dcenter_scatter(results: dict):
         ax.set_title(f"{elem} d-center vs Band Gap", fontsize=11, fontweight="bold")
         ax.grid(True, alpha=0.2)
     plt.tight_layout()
-    fig.savefig(OUTPUT_DIR / "dcenter_vs_gap.png", dpi=200, bbox_inches="tight")
-    fig.savefig(OUTPUT_DIR / "dcenter_vs_gap.pdf", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "dcenter_vs_gap.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
+    log.info("Plot → output/dcenter_vs_gap.{png,pdf}")
 
 
 # ═══════════════════════════════════════════════
@@ -363,20 +365,34 @@ def plot_dcenter_scatter(results: dict):
 def main():
     parser = argparse.ArgumentParser(description="DOS/PDOS analysis")
     parser.add_argument("--systems", type=str, nargs="+", help="体系名（默认全部）")
-    parser.add_argument("--skip-plots", action="store_true", help="跳过绘图")
+    parser.add_argument("--no-plot", action="store_true", help="仅导出数据，不生成图片")
+    parser.add_argument("--force", action="store_true", help="强制重新计算（忽略已有 JSON）")
     args = parser.parse_args()
 
     systems = args.systems or SYSTEMS_ALL
 
-    log.info("DOS/PDOS analysis for %d systems", len(systems))
-    results = {}
-    for name in systems:
-        r = analyze_system(name)
-        results[name] = r
-        if r.get("has_dos"):
-            log.info("  ✓ %s: gap=%.3f, d-Co=%.3f", name, r["bandgap"], r.get("d_center_Co", 0))
-        else:
-            log.warning("  ✗ %s: no DOS data", name)
+    # 优先从 JSON 恢复（标量指标）
+    results = None if args.force else load_results()
+
+    if results is None:
+        log.info("DOS/PDOS analysis for %d systems", len(systems))
+        results = {}
+        for name in systems:
+            r = analyze_system(name)
+            results[name] = r
+            if r.get("has_dos"):
+                log.info("  ✓ %s: gap=%.3f, d-Co=%.3f", name, r["bandgap"], r.get("d_center_Co", 0))
+            else:
+                log.warning("  ✗ %s: no DOS data", name)
+    else:
+        log.info("Loaded %d system results from JSON", len(results))
+        # 绘图时需补充 CompleteDos 对象（JSON 中未存储）
+        if not args.no_plot:
+            for name, r in results.items():
+                if r.get("has_dos") and "dos" not in r:
+                    dos = load_dos_object(name)
+                    if dos is not None:
+                        r["dos"] = dos
 
     print_summary(results)
 
@@ -386,7 +402,12 @@ def main():
     export_results_json(results)
     export_dos_curves(results)
 
-    if not args.skip_plots:
+    # Data export
+    log.info("Exporting data...")
+    export_dos_csv(results)
+    export_results_json(results)
+
+    if not args.no_plot:
         log.info("Generating plots...")
         plot_tdos_grouped(results)
         plot_pdos_elemental(results)

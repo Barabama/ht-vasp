@@ -1,20 +1,19 @@
 """
-功函数分析 — 7 体系 (4 slab + 3 hetero)
+功函数分析 — 7 体系 (4 strained slab + 3 hetero, Level 2)
 
 从 LOCPOT_dipole.gz 提取 planar average 静电势，计算 Φ = V_vacuum - E_Fermi
 
-用法:
-  python work_function_analysis.py                         # 全部分析
-  python work_function_analysis.py --systems CoNiOH2-slab  # 指定体系
-
 输出:
-  终端: 功函数对比表
-  output/wf_profile.png / .pdf  (静电势曲线叠加图)
-  output/wf_comparison.png / .pdf  (柱状图)
+  output/work_function.csv           功函数汇总表 (Origin/Excel 用)
+  output/wf_profile_{name}.csv       各体系静电势曲线数据
+  output/work_function.json          完整数值存档
+  output/wf_profile.png              静电势曲线叠加图
+  output/wf_comparison.png           柱状图
 """
 
 import argparse
 import gzip
+import json
 import logging
 import os
 import shutil
@@ -24,7 +23,6 @@ from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import stats
 from pymatgen.io.vasp.outputs import Locpot, Outcar
 from pymatgen.analysis.surface_analysis import WorkFunctionAnalyzer
 from pymatgen.core import Structure
@@ -33,32 +31,35 @@ warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
 
-plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11, "axes.linewidth": 1.2, "figure.dpi": 100})
+plt.rcParams.update({
+    "font.family": "sans-serif", "font.size": 11, "axes.linewidth": 1.2, "figure.dpi": 100,
+    "mathtext.default": "regular",
+})
 
 DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
 OUTPUT_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/postprocessing/output")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 SYSTEMS_WF = [
-    "CoNiOH2-slab", "CoNiOH2S-noH-slab", "CoNiOH2S-noH-slab-flip", "CoMnH2CO5-slab",
+    "CMCH_strained", "LDH_strained", "LDH_S_strained", "LDH_S_flip_strained",
     "hetero_intrinsic", "hetero_s_doped", "hetero_s_exposed",
 ]
 
 SYSTEM_LABELS = {
-    "CoNiOH2-slab": "CoNiOH2 (Slab)",
-    "CoNiOH2S-noH-slab": "CoNiOH2S (Slab)",
-    "CoNiOH2S-noH-slab-flip": "CoNiOH2S (Slab-flip)",
-    "CoMnH2CO5-slab": "CoMnH2CO5 (Slab)",
+    "CMCH_strained": "CMCH (Strained)",
+    "LDH_strained": "CoNiOH2 (Strained)",
+    "LDH_S_strained": "CoNiOH2S (Strained)",
+    "LDH_S_flip_strained": "CoNiOH2S (Strained-flip)",
     "hetero_intrinsic": "Intrinsic Het.",
     "hetero_s_doped": "S-Doped Het.",
     "hetero_s_exposed": "S-Exposed Het.",
 }
 
 SYSTEM_COLORS = {
-    "CoNiOH2-slab": "#1f77b4",
-    "CoNiOH2S-noH-slab": "#2ca02c",
-    "CoNiOH2S-noH-slab-flip": "#ff7f0e",
-    "CoMnH2CO5-slab": "#d62728",
+    "CMCH_strained": "#d62728",
+    "LDH_strained": "#1f77b4",
+    "LDH_S_strained": "#2ca02c",
+    "LDH_S_flip_strained": "#ff7f0e",
     "hetero_intrinsic": "#1f77b4",
     "hetero_s_doped": "#2ca02c",
     "hetero_s_exposed": "#9467bd",
@@ -172,7 +173,7 @@ def extract_wf(name: str) -> dict:
 def plot_wf_profiles(results: dict):
     """静电势曲线叠加 (含真空水平标注)."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    groups = [("Slab", ["CoNiOH2-slab", "CoNiOH2S-noH-slab", "CoNiOH2S-noH-slab-flip", "CoMnH2CO5-slab"]),
+    groups = [("Slab", ["CMCH_strained", "LDH_strained", "LDH_S_strained", "LDH_S_flip_strained"]),
               ("Hetero", ["hetero_intrinsic", "hetero_s_doped", "hetero_s_exposed"])]
 
     for ax, (gname, systems) in zip(axes, groups):
@@ -186,21 +187,19 @@ def plot_wf_profiles(results: dict):
             c = struct.lattice.c
             grid = np.linspace(0, c, r["ngz"])
             ax.plot(grid, r["locpot_avg"], lw=1.0, color=SYSTEM_COLORS[name], label=SYSTEM_LABELS[name])
-            # vacuum level line
             ax.axhline(r["vacuum_level"], color=SYSTEM_COLORS[name], ls=":", lw=0.7, alpha=0.5)
 
         ax.axhline(0, color="gray", ls="--", lw=0.5, alpha=0.3)
-        ax.set_xlabel("z (Å)")
-        ax.set_ylabel("V(z) (eV)")
+        ax.set_xlabel("z / Å", fontsize=11)
+        ax.set_ylabel("V(z) / eV", fontsize=11)
         ax.set_title(f"Electrostatic Potential — {gname}", fontweight="bold")
         ax.legend(fontsize=7, framealpha=0.8)
         ax.grid(True, alpha=0.2)
 
     plt.tight_layout()
-    fig.savefig(OUTPUT_DIR / "wf_profile.png", dpi=200, bbox_inches="tight")
-    fig.savefig(OUTPUT_DIR / "wf_profile.pdf", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "wf_profile.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
-    log.info("Plot → output/wf_profile.{png,pdf}")
+    log.info("Plot → output/wf_profile.png")
 
 
 def _get_structure(name: str) -> Structure | None:
@@ -240,10 +239,95 @@ def plot_wf_comparison(results: dict):
     ax.set_ylim(0, max(vals) * 1.25)
 
     plt.tight_layout()
-    fig.savefig(OUTPUT_DIR / "wf_comparison.png", dpi=200, bbox_inches="tight")
-    fig.savefig(OUTPUT_DIR / "wf_comparison.pdf", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "wf_comparison.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
-    log.info("Plot → output/wf_comparison.{png,pdf}")
+    log.info("Plot → output/wf_comparison.png")
+
+
+# ═══════════════════════════════════════════════
+# Data export (CSV / JSON)
+# ═══════════════════════════════════════════════
+
+def export_wf_csv(results: dict):
+    """功函数汇总表 → output/work_function.csv"""
+    rows = []
+    for name in SYSTEMS_WF:
+        r = results.get(name)
+        if not r or "error" in r:
+            continue
+        rows.append({
+            "system": name,
+            "label": r["label"],
+            "work_function (eV)": r["work_function"],
+            "vacuum_level (eV)": r["vacuum_level"],
+            "efermi (eV)": r["efermi"],
+            "dipole_correction": r.get("has_dipole_correction", False),
+        })
+
+    header = list(rows[0].keys())
+    with open(OUTPUT_DIR / "work_function.csv", "w") as f:
+        f.write(",".join(header) + "\n")
+        for row in rows:
+            f.write(",".join(str(row[k]) for k in header) + "\n")
+    log.info("Data  → output/work_function.csv")
+
+
+def export_locpot_csv(results: dict):
+    """各体系 z / V(z) → output/wf_profile_{name}.csv"""
+    for name in SYSTEMS_WF:
+        r = results.get(name)
+        if not r or "error" in r or "locpot_avg" not in r:
+            continue
+        struct = _get_structure(name)
+        if struct is None:
+            continue
+        c = struct.lattice.c
+        grid = np.linspace(0, c, r["ngz"])
+        avg = np.array(r["locpot_avg"])
+
+        with open(OUTPUT_DIR / f"wf_profile_{name}.csv", "w") as f:
+            f.write("z_Ang,V_eV\n")
+            for iz in range(r["ngz"]):
+                f.write(f"{grid[iz]:.4f},{avg[iz]:.4f}\n")
+    log.info("Data  → output/wf_profile_*.csv")
+
+
+def _to_serializable(obj):
+    """递归转换 numpy 类型为 Python 原生类型，供 json.dump 使用."""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, (np.floating, np.integer)):
+        return float(obj) if isinstance(obj, np.floating) else int(obj)
+    if isinstance(obj, dict):
+        return {k: _to_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_to_serializable(v) for v in obj]
+    return obj
+
+
+def export_results_json(results: dict):
+    """完整数值存档 → output/work_function.json（含 locpot_avg 曲线数据）"""
+    with open(OUTPUT_DIR / "work_function.json", "w") as f:
+        json.dump(_to_serializable(results), f, indent=2, ensure_ascii=False)
+    log.info("Data  → output/work_function.json")
+
+
+def load_results() -> dict | None:
+    """从 JSON 加载上次的结果（含 locpot_avg 曲线数据）."""
+    path = OUTPUT_DIR / "work_function.json"
+    if not path.exists():
+        return None
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        for r in data.values():
+            if "locpot_avg" in r and isinstance(r["locpot_avg"], list):
+                r["locpot_avg"] = np.array(r["locpot_avg"])
+        log.info("Loaded from %s", path.name)
+        return data
+    except Exception as e:
+        log.warning("Cannot load %s: %s", path.name, e)
+        return None
 
 
 # ═══════════════════════════════════════════════
@@ -253,20 +337,28 @@ def plot_wf_comparison(results: dict):
 def main():
     parser = argparse.ArgumentParser(description="Work function analysis")
     parser.add_argument("--systems", type=str, nargs="+", help="体系名")
+    parser.add_argument("--no-plot", action="store_true", help="仅导出数据，不生成图片")
+    parser.add_argument("--force", action="store_true", help="强制重新计算（忽略已有 JSON）")
     args = parser.parse_args()
 
     systems = args.systems or SYSTEMS_WF
 
-    log.info("Work function analysis for %d systems", len(systems))
-    results = {}
-    for name in systems:
-        r = extract_wf(name)
-        results[name] = r
-        if "error" in r:
-            log.warning("  ✗ %s: %s", name, r["error"])
-        else:
-            dc = " (dipole)" if r.get("has_dipole_correction") else ""
-            log.info("  ✓ %s: Φ = %.4f eV%s", name, r["work_function"], dc)
+    # 优先从 JSON 恢复（locpot_avg 曲线数据已包含在 JSON 中）
+    results = None if args.force else load_results()
+
+    if results is None:
+        log.info("Work function analysis for %d systems", len(systems))
+        results = {}
+        for name in systems:
+            r = extract_wf(name)
+            results[name] = r
+            if "error" in r:
+                log.warning("  ✗ %s: %s", name, r["error"])
+            else:
+                dc = " (dipole)" if r.get("has_dipole_correction") else ""
+                log.info("  ✓ %s: Φ = %.4f eV%s", name, r["work_function"], dc)
+    else:
+        log.info("Loaded %d system results from JSON", len(results))
 
     # Print table
     print("\n" + "=" * 80)
@@ -274,7 +366,7 @@ def main():
     print("=" * 80)
     print(f"  {'System':<28s}  {'Φ (eV)':>10s}  {'V_vac':>10s}  {'E_Fermi':>10s}  {'Correction':>12s}")
     print(f"  {'─'*28}  {'─'*10}  {'─'*10}  {'─'*10}  {'─'*12}")
-    for name in systems:
+    for name in SYSTEMS_WF:
         r = results.get(name, {})
         if "error" in r:
             print(f"  {SYSTEM_LABELS.get(name, name):<28s}  ERROR: {r['error']}")
@@ -284,8 +376,8 @@ def main():
                   f"{r['vacuum_level']:>10.4f}  {r['efermi']:>10.4f}  {dc:>12s}")
 
     # Key comparisons
-    print("\n── Key Contrasts ──")
-    names_slab = ["CoNiOH2-slab", "CoNiOH2S-noH-slab", "CoNiOH2S-noH-slab-flip"]
+    print("\n── Key Contrasts (Level 2, common lattice) ──")
+    names_slab = ["LDH_strained", "LDH_S_strained", "LDH_S_flip_strained"]
     vals = [results[n].get("work_function") for n in names_slab]
     labels = ["Pristine LDH", "S-doped LDH", "S-doped LDH (flip)"]
     if all(v is not None for v in vals):
@@ -298,10 +390,21 @@ def main():
         print(f"  Hetero: intrinsic={vh[0]:.3f}, s_doped={vh[1]:.3f}, s_exposed={vh[2]:.3f}")
         print(f"  S doping effect: Δ_intr_doped={vh[1]-vh[0]:+.3f}, Δ_intr_exposed={vh[2]-vh[0]:+.3f}")
 
+    if "CMCH_strained" in results and "error" not in results["CMCH_strained"]:
+        wf_cmch = results["CMCH_strained"]["work_function"]
+        print(f"  CMCH substrate: Φ = {wf_cmch:.3f} eV")
+
+    # Data export
+    log.info("Exporting data...")
+    export_wf_csv(results)
+    export_locpot_csv(results)
+    export_results_json(results)
+
     # Plots
-    log.info("Generating plots...")
-    plot_wf_profiles(results)
-    plot_wf_comparison(results)
+    if not args.no_plot:
+        log.info("Generating plots...")
+        plot_wf_profiles(results)
+        plot_wf_comparison(results)
     log.info("Done. Output → %s", OUTPUT_DIR)
 
 
