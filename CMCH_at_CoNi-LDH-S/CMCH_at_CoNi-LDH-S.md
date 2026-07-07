@@ -174,11 +174,25 @@ S 掺杂主要效应：S 的电负性（2.58）低于 O（3.44），取代后 S�
 
 #### Layer 3: 异质结优化（步骤4，3个体系 ✅）
 
-| 体系             | 目录                      | S 位置                           |
-| ---------------- | ------------------------- | -------------------------------- |
-| hetero_intrinsic | `data/hetero_intrinsic` | ❌ 无 S                          |
-| hetero_s_doped   | `data/hetero_s_doped`   | ✅ S 在 LDH 内部，远离 CMCH 界面 |
-| hetero_s_exposed | `data/hetero_s_exposed` | ✅ S 在 LDH 底侧，靠近 CMCH 界面 |
+| 体系 | 目录 | S 位置 |
+| --- | --- | --- |
+| hetero_intrinsic (gap=2.0) | `data/hetero_intrinsic` | ❌ 无 S |
+| hetero_s_doped (gap=2.0) | `data/hetero_s_doped` | ✅ S 在 LDH 内部，远离 CMCH 界面 |
+| hetero_s_exposed (gap=2.0) | `data/hetero_s_exposed` | ✅ S 在 LDH 底侧，靠近 CMCH 界面 |
+
+#### Layer 4: 晶格一致优化（Level 2，7个体系 ✅，gap=1.0，共同面内晶格）
+
+| 体系 | 类型 | 目录 | 总能 (eV) | Bandgap (eV) | 原子数 |
+|:----|:----|:----|:---------:|:-----------:|:-----:|
+| **hetero_intrinsic** | 异质结 | `data/hetero_intrinsic` | -714.54 | **0.745** | 120 |
+| **hetero_s_doped** | 异质结 | `data/hetero_s_doped` | -707.64 | **0.388** | 119 |
+| **hetero_s_exposed** | 异质结 | `data/hetero_s_exposed` | -707.48 | **0.293** | 119 |
+| **CMCH_strained** | 单板 | `data/CMCH_strained` | -396.93 | **2.438** | 60 |
+| **LDH_strained** | 单板 | `data/LDH_strained` | -314.60 | **1.685** | 60 |
+| **LDH_S_strained** | 单板 | `data/LDH_S_strained` | -307.37 | **0.152** | 59 |
+| **LDH_S_flip_strained** | 单板 | `data/LDH_S_flip_strained` | -307.31 | **0.294** | 59 |
+
+> **注意：** 所有 7 个体系共享同一组面内晶格（a=10.3255, b=9.4602），FFT 网格 (160,140,420) 全同，可直接做 3D 差分电荷密度。总能取自重跑后的 `static_out.json`（ALGO=Normal, EDIFF=1e-6）。
 
 ---
 
@@ -233,15 +247,67 @@ S 掺杂主要效应：S 的电负性（2.58）低于 O（3.44），取代后 S�
 
 ### 数据可用性总览
 
-| 分析项 | 所需数据 | Bulk(3) | Slab-Natural(4) | Slab-Matched(待补) | Hetero(3) |
-|:------|:--------|:-------:|:--------------:|:----------------:|:---------:|
-| 总能量 | store.json | ✅ | ✅ | ❌ 待补 | ✅ |
-| 弛豫结构 | CONTCAR | ✅ | ✅ | ❌ 待补 | ✅ |
-| DOS/PDOS | dos_out.json | ✅(gap:2.93→0.08eV) | ✅ | ❌ 待补 | ✅ |
-| 能带 | band_out.json | ✅ | ✅ | ❌ 待补 | ✅ |
-| LOCPOT(功函数) | 3-static/LOCPOT* | ❌ | ✅ | ❌ 待补 | ✅ |
-| CHGCAR | 3-static/CHGCAR* | ✅ | ✅ | ❌ 待补 | ✅ |
-| AECCAR0+2(Bader) | 3-static/AECCAR* | ✅ | ✅ | ❌ 待补 | ✅ |
+| 分析项 | 所需数据 | Bulk(3) | Slab-Natural(4) | Slab-Matched(4) | Hetero Level 2(3) |
+|:------|:--------|:-------:|:--------------:|:---------------:|:-----------------:|
+| 总能量 | static_out.json | ✅ | ✅ | ✅ | ✅ |
+| 弛豫结构 | CONTCAR | ✅ | ✅ | ✅ | ✅ |
+| DOS/PDOS | dos_out.json | ✅ | ✅ | ✅ | ✅ |
+| 能带 | band_out.json | ✅ | ✅ | ✅ | ✅ |
+| CHGCAR | 3-static/CHGCAR* | ✅ | ✅ | ✅ | ✅（重跑后恢复） |
+| LOCPOT | 3-static/LOCPOT* | ❌ | ✅ | ✅ | ✅（重跑后恢复） |
+| AECCAR0+2 | 3-static/AECCAR* | ✅ | ✅ | ✅ | ✅（重跑后恢复） |
+
+### 已完成的分析（postprocessing/）
+
+所有分析脚本已更新至 Level 2（共同晶格），输出位于 `postprocessing/output/`：
+
+#### A. 能带对齐（band_alignment.py）
+| 异质结 | VB offset (eV) | DV_CMCH (eV) | DV_LDH (eV) | 类型 |
+|:------|:-------------:|:-----------:|:----------:|:----|
+| Intrinsic Het. | −2.78 | +2.01 | −2.36 | **Type III** (broken gap) |
+| S-Doped Het. | +3.22 | +1.83 | +3.11 | **Type I** (straddling) |
+| S-Exposed Het. | +2.25 | +2.40 | +3.14 | **Type I** (straddling) |
+
+#### B. 功函数分析（work_function_analysis.py）
+| 体系 | Φ (eV) |
+|:----|:------|
+| CMCH_strained | **5.38** |
+| LDH_strained | **3.06** |
+| LDH_S_strained | **2.92** |
+| LDH_S_flip_strained | **3.62** |
+| hetero_intrinsic | **3.78** |
+| hetero_s_doped | **3.31** |
+| hetero_s_exposed | **3.89** |
+
+#### C. DOS/PDOS（dos_analysis.py）
+Level 2 带隙（共同晶格）：
+- CMCH_strained: **2.43 eV**, LDH_strained: **1.65 eV**
+- LDH_S_strained: **0.12 eV**, LDH_S_flip_strained: **0.27 eV**
+- hetero_intrinsic: **0.72 eV**, s_doped: **0.37 eV**, s_exposed: **0.26 eV**
+
+#### D. Bader 电荷分析（bader_analysis.py）
+- S 的电荷转移：−0.74～−0.81 e⁻（正值=失电子，S 呈正电性）
+- 异质结与对应 slab 的电荷转移趋势一致
+
+#### E. 界面差分电荷密度（charge_difference_3d.py）
+基于 **LOCPOT 静电势 Poisson 方程求解**（3D 网格 (160,140,420) 全同，无需插值）：
+直接 CHGCAR 减法不可行——核心电子密度在原子核附近 > 1000 e⁻/Å³，
+异质结与孤立 slab 间微小的原子位移会在此区域产生 4-5 个数量级的伪影。
+改用平面平均静电势差分 ΔV(z) → Poisson 方程反推 Δρ(z)：
+| 异质结 | 界面净电荷 (e⁻) | 界面位置 (Å) |
+|:------|:-------------:|:-----------:|
+| hetero_intrinsic | −0.81 | 8.86 |
+| hetero_s_doped | +3.54 | 8.86 |
+| hetero_s_exposed | −2.07 | 8.06 |
+
+#### F. 界面结合能（interface_binding.py）
+| 异质结 | E_bind (eV) | E_bind/area (eV/Å²) |
+|:------|:----------:|:-----------------:|
+| hetero_intrinsic | −3.01 | −0.031 |
+| hetero_s_doped | −3.34 | −0.034 |
+| hetero_s_exposed | −3.25 | −0.033 |
+
+> 所有 E_bind < 0 → 界面稳定。S 掺杂轻微增强界面结合（约 0.3 eV）。
 
 ### 待补充计算
 
@@ -346,10 +412,13 @@ Bulk DOS 对比: 本征 2.93 eV → S 掺杂 0.08 eV 带隙
 
 ## 十、待做清单
 
-- [ ] **gap=1.0 对比 relax** — 验证最优 gap，确认 1.74 Å 是否全局最小
-- [ ] **Bader 电荷分析** — 已有数据，`BaderAnalysis.from_path()`
-- [ ] **分离 strained slab** — 从 hetero CONTCAR 提取 `*-Matched`
-- [ ] **strained slab relax + static + DOS/band** — 补 Level 2 数据
-- [ ] **能带对齐改用 Level 2** — 更新 band_alignment.py
-- [ ] **3D 差分电荷密度** — NGXF/Y 一致后直接相减
-- [ ] **O 空位形成能** — 选项，验证"氧空位"机制
+- [x] **gap=1.0 对比 relax** — 已完成，gap=1.0 选定为生产参数
+- [x] **分离 strained slab** — `build_heterostructure.py` 独立生成 4 个 strained slab
+- [x] **strained slab relax + static + DOS/band** — Level 2 全部 7 体系完成
+- [x] **能带对齐（Level 2）** — band_alignment.py 已更新并运行，含带阶和静电势
+- [x] **3D 差分电荷密度** — 改用 LOCPOT 1D 法（CHGCAR 因原子数差异无法直接相减），含 ΔV(z)、Δρ(z)、界面偶极
+- [x] **界面结合能** — interface_binding.py 已编写完成
+- [x] **功函数计算** — work_function_analysis.py 已更新并运行
+- [x] **Bader 电荷分析** — bader_analysis.py 已更新至 Level 2 并运行，S ct ≈ −0.8 e⁻
+- [ ] **晶格膨胀定量** — 提取 relax 后晶胞参数，验证 XRD 峰移
+- [ ] **O 空位形成能** — 选项，验证实验"氧空位"机制

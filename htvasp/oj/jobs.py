@@ -107,11 +107,9 @@ def create_flip_jobs(
             )
             flip_jobs.append(flip_maker.make(structure))
             new_flip_dirs.append(str(new_flip_dir.resolve()))
-    finally:
-        for temp_dir in temp_flip_dirs:
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir)
-                log.debug(f"Cleaned up: {temp_dir}")
+    except Exception as e:
+        log.error(f"Failed to create flip jobs: {e}")
+        raise
 
     # Output: [job0.output, job1.output, ..., dir0, dir1, ...]
     output_list = [job.output for job in flip_jobs] + new_flip_dirs

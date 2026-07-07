@@ -16,6 +16,7 @@ DOS/PDOS 分析 — 10 体系电子结构对比
 import argparse
 import json
 import logging
+import os
 import warnings
 from pathlib import Path
 
@@ -35,22 +36,24 @@ DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
 OUTPUT_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/postprocessing/output")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-SYSTEMS_BULK = ["CoNiOH2", "CoNiOH2S-noH", "CoMnH2CO5"]
-SYSTEMS_SLAB = ["CoNiOH2-slab", "CoNiOH2S-noH-slab", "CoNiOH2S-noH-slab-flip", "CoMnH2CO5-slab"]
+SYSTEMS_BULK = ["CoNiOH2", "CoNiOH2S-noH", "CMCH_bulk"]
+SYSTEMS_SLAB = ["CMCH_strained", "LDH_strained", "LDH_S_strained", "LDH_S_flip_strained", "LDH2_strained"]
 SYSTEMS_HETERO = ["hetero_intrinsic", "hetero_s_doped", "hetero_s_exposed"]
 SYSTEMS_ALL = SYSTEMS_BULK + SYSTEMS_SLAB + SYSTEMS_HETERO
 
 SYSTEM_LABELS = {
-    "CoNiOH2": "CoNiOH2 (Bulk)", "CoNiOH2S-noH": "CoNiOH2S (Bulk)", "CoMnH2CO5": "CoMnH2CO5 (Bulk)",
-    "CoNiOH2-slab": "CoNiOH2 (Slab)", "CoNiOH2S-noH-slab": "CoNiOH2S (Slab)",
-    "CoNiOH2S-noH-slab-flip": "CoNiOH2S (Slab-flip)", "CoMnH2CO5-slab": "CoMnH2CO5 (Slab)",
+    "CoNiOH2": "CoNiOH2 (Bulk)", "CoNiOH2S-noH": "CoNiOH2S (Bulk)", "CMCH_bulk": "CMCH (Bulk)",
+    "CMCH_strained": "CMCH (Strained)", "LDH_strained": "CoNiOH2 (Strained)",
+    "LDH_S_strained": "CoNiOH2S (Strained)", "LDH_S_flip_strained": "CoNiOH2S (Fliped)",
+    "LDH2_strained": "LDH Bilayer (Strained)",
     "hetero_intrinsic": "Intrinsic Het.", "hetero_s_doped": "S-Doped Het.", "hetero_s_exposed": "S-Exposed Het.",
 }
 
 SYSTEM_COLORS = {
-    "CoNiOH2": "#1f77b4", "CoNiOH2S-noH": "#2ca02c", "CoMnH2CO5": "#d62728",
-    "CoNiOH2-slab": "#1f77b4", "CoNiOH2S-noH-slab": "#2ca02c",
-    "CoNiOH2S-noH-slab-flip": "#ff7f0e", "CoMnH2CO5-slab": "#d62728",
+    "CoNiOH2": "#1f77b4", "CoNiOH2S-noH": "#2ca02c", "CMCH_bulk": "#d62728",
+    "CMCH_strained": "#d62728", "LDH_strained": "#1f77b4",
+    "LDH_S_strained": "#2ca02c", "LDH_S_flip_strained": "#ff7f0e",
+    "LDH2_strained": "#9467bd",
     "hetero_intrinsic": "#1f77b4", "hetero_s_doped": "#2ca02c", "hetero_s_exposed": "#9467bd",
 }
 
@@ -351,7 +354,6 @@ def plot_dcenter_scatter(results: dict):
     fig.savefig(OUTPUT_DIR / "dcenter_vs_gap.png", dpi=200, bbox_inches="tight")
     fig.savefig(OUTPUT_DIR / "dcenter_vs_gap.pdf", bbox_inches="tight")
     plt.close(fig)
-    log.info("Plot → output/dcenter_vs_gap.{png,pdf}")
 
 
 # ═══════════════════════════════════════════════
@@ -377,6 +379,12 @@ def main():
             log.warning("  ✗ %s: no DOS data", name)
 
     print_summary(results)
+
+    # Data export
+    log.info("Exporting data...")
+    export_dos_csv(results)
+    export_results_json(results)
+    export_dos_curves(results)
 
     if not args.skip_plots:
         log.info("Generating plots...")

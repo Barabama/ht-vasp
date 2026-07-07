@@ -27,7 +27,7 @@ GLOBAL_INCAR = {
     "ENCUT": 520,
     "PREC": "Accurate",
     "ALGO": "Fast",
-    "NELM": 100,
+    "NELM": 200,
     "EDIFF": 1e-6,
     "ISPIN": 2,
     "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
@@ -36,8 +36,8 @@ GLOBAL_INCAR = {
     "AMIX_MAG": 0.4,
     "BMIX_MAG": 1e-4,
     "LREAL": "Auto",
-    "KPAR": 4,
-    "NCORE": 4,
+    # "KPAR": 4,
+    # "NCORE": 4,
     "GGA": "PE",
     "IVDW": 12,
     "LDAU": True,
@@ -48,6 +48,11 @@ GLOBAL_INCAR = {
     "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
     "LDAUU": {"Co": 3.32, "Mn": 3.90, "Ni": 6.20},
     "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
+    # VASPsol: 隐式溶剂（水）
+    "LSOL": True,
+    "EB_K": 78.4,          # 水的介电常数 (25°C)
+    "LAMBDA_D_K": 3.0,     # Debye 屏蔽长度 (Å)，碱性电解液典型值
+    "TAU": 0,              # Debye 模型
 }
 
 RELAX_INCAR = {
@@ -56,8 +61,7 @@ RELAX_INCAR = {
     "IBRION": 2,
     "ISIF": 2,
     "NELM": 100,
-    # "NSW": 150,
-    "NSW": 1,
+    "NSW": 150,
     "EDIFF": 1e-5,
     "EDIFFG": -0.05,
     "LDIPOL": True,
@@ -86,7 +90,7 @@ NSCF_INCAR = {
     "ICHARG": 11,
     "LORBIT": 11,
     "KPAR": 2,
-    "NCORE": 8,
+    "NCORE": 4,
 }
 
 
@@ -98,8 +102,9 @@ gpu_config = SlurmConfig(
     output_log="gpu_job.log",
     nodes=1,
     ntasks=1,
-    memory="10G",
+    memory="20G",
     partition="partGPU",
+    gpus_per_task=1,
     conda_env=conda_env,
     module_name="vasp-gpu",
 )
@@ -108,7 +113,7 @@ cpu_config = SlurmConfig(
     output_log="cpu_job.log",
     nodes=1,
     ntasks=32,
-    memory="150G",
+    memory="100G",
     partition="partCPU",
     conda_env=conda_env,
     module_name="vasp-cpu",
@@ -116,36 +121,85 @@ cpu_config = SlurmConfig(
 
 poscar_path = root_dir / "data" / "poscars"
 structs = {
-    "hetero_intrinsic": {
-        "old_store": root_dir / "data" / "hetero_intrinsic",
-        "poscar": poscar_path / "hetero_intrinsic.vasp",
+    # "OH_Co_pristine": {
+    #     "poscar": poscar_path / "OH_Co3_pristine.vasp",
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6},
+    #         "NELECT": 289,
+    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1},
+    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+    #     },
+    # },
+    # "OH_Ni_pristine": {
+    #     "poscar": poscar_path / "OH_Ni6_pristine.vasp",
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6},
+    #         "NELECT": 289,
+    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1},
+    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+    #     },
+    # },
+    # "OH_Co_S_doped_near": {
+    #     "poscar": poscar_path / "OH_Co3_S_doped.vasp",
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+    #         "NELECT": 288,  # 正交 # 6*9+6*10+24*1+24*6+1*6 = 6*(9+10)+24+25*6 = 114+24+150 = 288
+    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+    #     },
+    # },
+    # "OH_Ni_S_doped_near": {
+    #     "poscar": poscar_path / "OH_Ni6_S_doped.vasp",
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+    #         "NELECT": 288,
+    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+    #     },
+    # },
+    # "OH_Co_S_doped_far": {
+    #     "poscar": poscar_path / "OH_Co5_S_doped.vasp",
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+    #         "NELECT": 288,
+    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+    #     },
+    # },
+    # "OH_Ni_S_doped_far": {
+    #     "poscar": poscar_path / "OH_Ni1_S_doped.vasp",
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+    #         "NELECT": 288,
+    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+    #     },
+    # },
+    # S_flip: S在顶面（与OH吸附同侧）
+    "OH_Co_S_flip_near": {
+        "poscar": poscar_path / "OH_Co3_S_flip.vasp",
         "incar": {
-            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6},
-            "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1},
-            "LDAUU": {"Co": 3.32, "Mn": 3.90, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
+            "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+            "NELECT": 288,
+            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+            "LDAUU": {"Co": 3.32, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
         },
     },
-    "hetero_s_doped": {
-        "old_store": root_dir / "data" / "hetero_s_doped",
-        "poscar": poscar_path / "hetero_S_doped.vasp",
+    "OH_Ni_S_flip_near": {
+        "poscar": poscar_path / "OH_Ni6_S_flip.vasp",
         "incar": {
-            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
-            "NELECT": 629,  # Mn_pv(13): 6*13+12*9+6*10+35*1+6*4+1*6+53*6 = 78+108+60+35+24+6+318
-            "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
-            "LDAUU": {"Co": 3.32, "Mn": 3.90, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
-        },
-    },
-    "hetero_s_exposed": {
-        "old_store": root_dir / "data" / "hetero_s_exposed",
-        "poscar": poscar_path / "hetero_S_exposed.vasp",
-        "incar": {
-            "MAGMOM": {"Co": 3.0, "Mn": 5.0, "Ni": 2.0, "C": 0.6, "H": 0.6, "O": 0.6, "S": 0.6},
-            "NELECT": 629,
-            "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
-            "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
+            "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+            "NELECT": 288,
+            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+            "LDAUU": {"Co": 3.32, "Ni": 6.20},
+            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
         },
     },
 }
@@ -183,10 +237,6 @@ def run_static(name: str, device: str = "gpu", rerun: bool = False) -> int:
         static_worker.run_flow(
             name=name,
             structure=structure,
-        prev_dir = None if not old_json_path.exists() else old_json_path.parent / "3-static"
-        static_worker.run_flow(
-            name=name,
-            structure=structure,
             prev_dir=prev_dir,
             flow_dir=flow_dir,
             store_dir=store_dir,
@@ -203,60 +253,12 @@ def run_static(name: str, device: str = "gpu", rerun: bool = False) -> int:
     return 0
 
 
-def run_nscf(name: str, device: str = "cpu", rerun: bool = False) -> int:
-    store_dir = root_dir / "data" / name
-    json_path = store_dir / "band_out.json"
-
-    # Skip if already done
-    if not rerun and json_path.exists():
-        log.info(f"NscfWorker for Structure {name} already done")
-        return 0
-
-    log.info(f"NscfWorker for Structure {name} start")
-
-    with open(store_dir / "static_out.json", "r", encoding="utf-8") as f:
-        static_output = json.load(f)
-
-    structure = Structure.from_dict(static_output["output"]["structure"])
-
-    try:
-        worker = NscfWorker(
-            vasp_args=VASP_ARGS_CPU if device == "cpu" else VASP_ARGS_GPU,
-            global_incar={**GLOBAL_INCAR, **structs[name]["incar"]},
-            nscf_band_incar=NSCF_INCAR,
-            nscf_dos_incar=NSCF_INCAR,
-            band_kpath_kwargs={"path_type": "hinuma"},
-            relax_reciprocal_density=120,
-            static_reciprocal_density=150,
-        )
-        worker.run_flow(
-            name=name,
-            structure=structure,
-            prev_dir=store_dir / "3-static",
-            flow_dir=flow_dir,
-            store_dir=store_dir,
-            resume=not rerun,
-        )
-        dos_output = worker.get_dos_result() or {}
-        worker.write_result(dos_output, store_dir / "dos_out.json")
-
-        band_output = worker.get_band_result() or {}
-        worker.write_result(band_output, store_dir / "band_out.json")
-
-    except Exception as e:
-        log.error(f"NscfWorker for Structure {name} failed")
-        log.error(e)
-        return 1
-
-    log.info(f"NscfWorker for Structure {name} done")
-    return 0
-
 
 def submit_jobs(rerun: bool = False):
     manager = SlurmJobManager()
 
     for name in structs:
-        # submit static job
+        # submit static job — VASPsol 用 CPU（GPU 内存不足）
         static_job_name = f"{name}-static"
         static_cmd = f"python {__file__} --tick {name} --static --device gpu {'--rerun' if rerun else ''}"
         static_log = str(root_dir / "logs" / f"{static_job_name}.log")
@@ -265,7 +267,7 @@ def submit_jobs(rerun: bool = False):
         static_jid = manager.submit_command(
             command=static_cmd,
             config=gpu_config,
-            workdir=root_dir,
+            work_dir=root_dir,
         )
         time.sleep(1)
         if not static_jid:
@@ -273,30 +275,11 @@ def submit_jobs(rerun: bool = False):
             continue
         log.info(f"Submitted static job for {name} with ID {static_jid}")
 
-        # submit NSCF job dependent on static job
-        nscf_job_name = f"{name}-nscf"
-        nscf_cmd = f"python {__file__} --tick {name} --nscf --device cpu {'--rerun' if rerun else ''}"
-        nscf_log = str(root_dir / "logs" / f"{nscf_job_name}.log")
-        cpu_config.job_name = nscf_job_name
-        cpu_config.output_log = nscf_log
-        cpu_config.dependency = f"afterok:{static_jid}"
-        nscf_jid = manager.submit_command(
-            command=nscf_cmd,
-            config=cpu_config,
-            workdir=root_dir,
-        )
-        time.sleep(1)
-        if not nscf_jid:
-            log.error(f"Failed to submit NSCF job for {name}")
-            continue
-        log.info(f"Submitted NSCF job for {name} with ID {nscf_jid} depending on {static_jid}")
-
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Heterostructure Nscf workflow")
+    parser = argparse.ArgumentParser(description="OH absorption workflow")
     parser.add_argument("--slurm", action="store_true", help="Submit to Slurm")
     parser.add_argument("--static", action="store_true", help="Run static calculation")
-    parser.add_argument("--nscf", action="store_true", help="Run NSCF calculation")
     parser.add_argument("--tick", type=str, help="Run tick for structure name")
     parser.add_argument("--device", type=str, default="cpu", help="Use cpu/gpu")
     parser.add_argument("--rerun", action="store_true", help="Re-run calculations")
@@ -306,7 +289,5 @@ if __name__ == "__main__":
         submit_jobs(rerun=args.rerun)
     if args.static:
         run_static(args.tick, device=args.device, rerun=args.rerun)
-    elif args.nscf:
-        run_nscf(args.tick, device=args.device, rerun=args.rerun)
     else:
         parser.print_help()

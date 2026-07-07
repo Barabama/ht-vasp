@@ -46,7 +46,7 @@ GLOBAL_INCAR = {
     "LASPH": True,
     "LMAXMIX": 4,
     "LDAUL": {"Co": 2, "Mn": 2, "Ni": 2, "C": -1, "H": -1, "O": -1, "S": -1},
-    "LDAUU": {"Co": 3.32, "Mn": 5.00, "Ni": 6.20},
+    "LDAUU": {"Co": 3.32, "Mn": 3.90, "Ni": 6.20},
     "LDAUJ": {"Co": 0.0, "Mn": 0.0, "Ni": 0.0},
 }
 
@@ -56,7 +56,7 @@ RELAX_INCAR = {
     "IBRION": 2,
     "ISIF": 3,
     "NELM": 100,
-    "NSW": 100,
+    "NSW": 1,
     "EDIFF": 1e-5,
     "EDIFFG": -0.05,
 }
@@ -84,7 +84,7 @@ NSCF_INCAR = {
 }
 
 
-root_dir = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
+root_dir = Path(__file__).parent.resolve()
 flow_dir = Path("/nfs_ssd/tmp")
 conda_env = str(root_dir.parent / ".conda")
 gpu_config = SlurmConfig(
@@ -92,7 +92,7 @@ gpu_config = SlurmConfig(
     output_log="gpu_job.log",
     nodes=1,
     ntasks=1,
-    memory="20G",
+    memory="10G",
     partition="partGPU",
     conda_env=conda_env,
     module_name="vasp-gpu",
@@ -102,7 +102,7 @@ cpu_config = SlurmConfig(
     output_log="cpu_job.log",
     nodes=1,
     ntasks=32,
-    memory="100G",
+    memory="150G",
     partition="partCPU",
     conda_env=conda_env,
     module_name="vasp-cpu",
@@ -110,35 +110,40 @@ cpu_config = SlurmConfig(
 
 poscar_path = root_dir / "data" / "poscars"
 structs = {
-    "CoMnH2CO5": {
-        "poscar": str(poscar_path / "CoMnH2CO5-311.vasp"),
+    "CMCH_bulk": {
+        "old_store": root_dir / "data" / "CoMnH2CO5",
+        "poscar": poscar_path / "CoMnH2CO5-311.vasp",
         "incar": {
             "MAGMOM": {"Co": 3.0, "Mn": 5.0, "C": 0.6, "H": 0.6, "O": 0.6},
+            # "NELECT": 540 , # 12*9+12*7+24*1+12*4+60*6= 540
             "LDAUL": {"Co": 2, "Mn": 2, "C": -1, "H": -1, "O": -1},
-            "LDAUU": {"Co": 3.32, "Mn": 5.00},
+            "LDAUU": {"Co": 3.32, "Mn": 3.90},
             "LDAUJ": {"Co": 0.0, "Mn": 0.0},
+            "NBANDS": 600,
         },
     },
-    "CoNiOH2": {
-        "poscar": str(poscar_path / "CoNiOH2-322.vasp"),
-        "incar": {
-            "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6},
-            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1},
-            "LDAUU": {"Co": 3.32, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
-        },
-    },
-    "CoNiOH2S-noH": {
-        "poscar": str(poscar_path / "CoNiOH2-322-S-noH.vasp"),
-        "incar": {
-            "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
-            # "NELECT": 422, # 六方 # 9*9 + 9*10 + 35*6 + 35*1 + 1*6
-            "NELECT": 563,  # 正交 # 12*9+12*10+47*1+47*6+1*6 = 12*(9+10)+47+48*6 = 228+47+288=563
-            "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
-            "LDAUU": {"Co": 3.32, "Ni": 6.20},
-            "LDAUJ": {"Co": 0.0, "Ni": 0.0},
-        },
-    },
+    # "LDH_bulk": {
+    #     "old_store": root_dir / "data" / "CoNiOH2",
+    #     "poscar": poscar_path / "CoNiOH2-322.vasp",
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6},
+    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1},
+    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+    #     },
+    # },
+    # "LDH_S_bulk": {
+    #     "old_store": root_dir / "data" / "CoNiOH2S-noH",
+    #     "poscar": poscar_path / "CoNiOH2-322-S-noH.vasp",
+    #     "incar": {
+    #         "MAGMOM": {"Co": 3.0, "Ni": 2.0, "H": 0.6, "O": 0.6, "S": 0.6},
+    #         # "NELECT": 422, # 六方 # 9*9 + 9*10 + 35*6 + 35*1 + 1*6
+    #         "NELECT": 563,  # 正交 # 12*9+12*10+47*1+47*6+1*6 = 12*(9+10)+47+48*6 = 228+47+288=563
+    #         "LDAUL": {"Co": 2, "Ni": 2, "H": -1, "O": -1, "S": -1},
+    #         "LDAUU": {"Co": 3.32, "Ni": 6.20},
+    #         "LDAUJ": {"Co": 0.0, "Ni": 0.0},
+    #     },
+    # },
 }
 
 
@@ -153,7 +158,16 @@ def run_static(name: str, device: str = "gpu", rerun: bool = False) -> int:
 
     log.info(f"StaticWorker for Structure {name} start")
 
-    structure = Structure.from_file(structs[name]["poscar"])
+    # Use relaxed structure from static_out.json if available (much faster convergence)
+    old_json_path = structs[name].get("old_store", Path()) / "static_out.json"
+    if old_json_path.exists():
+        with open(old_json_path) as f:
+            static_data = json.load(f)
+        structure = Structure.from_dict(static_data["output"]["structure"])
+        log.info(f"Using relaxed structure from {old_json_path}")
+    else:
+        structure = Structure.from_file(structs[name]["poscar"])
+        log.info(f"Using initial structure from POSCAR")
     try:
         static_worker = StaticWorker(
             vasp_args=VASP_ARGS_CPU if device == "cpu" else VASP_ARGS_GPU,
