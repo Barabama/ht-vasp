@@ -36,8 +36,9 @@ plt.rcParams.update({
     "mathtext.default": "regular",
 })
 
-DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
-OUTPUT_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/postprocessing/output")
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
+OUTPUT_DIR = SCRIPT_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 SYSTEMS_WF = [
@@ -46,10 +47,10 @@ SYSTEMS_WF = [
 ]
 
 SYSTEM_LABELS = {
-    "CMCH_strained": "CMCH (Strained)",
-    "LDH_strained": "CoNiOH2 (Strained)",
-    "LDH_S_strained": "CoNiOH2S (Strained)",
-    "LDH_S_flip_strained": "CoNiOH2S (Strained-flip)",
+    "CMCH_strained": "CMCH_slab (Strained)",
+    "LDH_strained": "LDH_slab (Strained)",
+    "LDH_S_strained": "LDH_S_slab (Strained)",
+    "LDH_S_flip_strained": "LDH_S_slab (Strained-flip)",
     "hetero_intrinsic": "Intrinsic Het.",
     "hetero_s_doped": "S-Doped Het.",
     "hetero_s_exposed": "S-Exposed Het.",
@@ -60,8 +61,8 @@ SYSTEM_COLORS = {
     "LDH_strained": "#1f77b4",
     "LDH_S_strained": "#2ca02c",
     "LDH_S_flip_strained": "#ff7f0e",
-    "hetero_intrinsic": "#1f77b4",
-    "hetero_s_doped": "#2ca02c",
+    "hetero_intrinsic": "#333333",  # dark gray (was #1f77b4, same as LDH_strained)
+    "hetero_s_doped": "#e67e22",    # orange (was #2ca02c, same as LDH_S_strained)
     "hetero_s_exposed": "#9467bd",
 }
 
@@ -264,6 +265,9 @@ def export_wf_csv(results: dict):
             "dipole_correction": r.get("has_dipole_correction", False),
         })
 
+    if not rows:
+        log.warning("No valid results to export to CSV")
+        return
     header = list(rows[0].keys())
     with open(OUTPUT_DIR / "work_function.csv", "w") as f:
         f.write(",".join(header) + "\n")
@@ -358,7 +362,19 @@ def main():
                 dc = " (dipole)" if r.get("has_dipole_correction") else ""
                 log.info("  ✓ %s: Φ = %.4f eV%s", name, r["work_function"], dc)
     else:
-        log.info("Loaded %d system results from JSON", len(results))
+        missing = [s for s in systems if s not in results]
+        if missing:
+            log.info("Loading cache, but missing %d systems: %s", len(missing), missing)
+            for name in missing:
+                r = extract_wf(name)
+                results[name] = r
+                if "error" in r:
+                    log.warning("  ✗ %s: %s", name, r["error"])
+                else:
+                    dc = " (dipole)" if r.get("has_dipole_correction") else ""
+                    log.info("  ✓ %s: Φ = %.4f eV%s", name, r["work_function"], dc)
+        else:
+            log.info("Loaded %d system results from JSON", len(results))
 
     # Print table
     print("\n" + "=" * 80)

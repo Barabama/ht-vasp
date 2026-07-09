@@ -30,35 +30,79 @@ from pymatgen.core import Structure
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
 
-DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
-OUTPUT_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/postprocessing/output")
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
+OUTPUT_DIR = SCRIPT_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-BADER_BIN = "/nfs_ssd/softwares/bader/bin/bader"
+BADER_BIN = "bader"  # assume on PATH
+
+# 系统命名 → 数据目录映射（解耦命名与目录结构）
+DATA_DIR_MAP = {
+    "LDH_bulk": "CoNiOH2",
+    "LDH_S_bulk": "CoNiOH2S-noH",
+    "CMCH_bulk": "CMCH_bulk",
+    "CMCH_strained": "CMCH_strained",
+    "LDH_strained": "LDH_strained",
+    "LDH_S_strained": "LDH_S_strained",
+    "LDH_S_flip_strained": "LDH_S_flip_strained",
+    "LDH2_strained": "LDH2_strained",
+    "LDH_strained_Co+1": "LDH_strained_Co+1",
+    "LDH_strained_Co-1": "LDH_strained_Co-1",
+    "LDH_S_strained_Co+1": "LDH_S_strained_Co+1",
+    "LDH_S_strained_Co-1": "LDH_S_strained_Co-1",
+    "hetero_intrinsic": "hetero_intrinsic",
+    "hetero_s_doped": "hetero_s_doped",
+    "hetero_s_exposed": "hetero_s_exposed",
+}
 
 SYSTEMS_ALL = [
-    "CoNiOH2", "CoNiOH2S-noH", "CoMnH2CO5",
-    "CMCH_strained", "LDH_strained", "LDH_S_strained", "LDH_S_flip_strained",
+    "LDH_bulk", "LDH_S_bulk", "CMCH_bulk",
+    "CMCH_strained", "LDH_strained", "LDH_S_strained", "LDH_S_flip_strained", "LDH2_strained",
     "hetero_intrinsic", "hetero_s_doped", "hetero_s_exposed",
 ]
 
 SYSTEM_LABELS = {
-    "CoNiOH2": "CoNiOH2 (Bulk)", "CoNiOH2S-noH": "CoNiOH2S (Bulk)", "CoMnH2CO5": "CoMnH2CO5 (Bulk)",
-    "CMCH_strained": "CMCH (Strained)", "LDH_strained": "CoNiOH2 (Strained)",
-    "LDH_S_strained": "CoNiOH2S (Strained)", "LDH_S_flip_strained": "CoNiOH2S (Flipped)",
+    "LDH_bulk": "LDH (Bulk)", "LDH_S_bulk": "LDH+S (Bulk)", "CMCH_bulk": "CMCH (Bulk)",
+    "CMCH_strained": "CMCH (Strained)", "LDH_strained": "LDH (Strained)",
+    "LDH_S_strained": "LDH+S (Strained)", "LDH_S_flip_strained": "LDH+S (Strained-flip)",
+    "LDH2_strained": "LDH (Bilayer)",
     "hetero_intrinsic": "Intrinsic Het.", "hetero_s_doped": "S-Doped Het.", "hetero_s_exposed": "S-Exposed Het.",
 }
-
-ZVAL = {"Co": 9.0, "Ni": 10.0, "O": 6.0, "H": 1.0, "C": 4.0, "Mn": 7.0, "S": 6.0}
-
 
 # ═══════════════════════════════════════════════
 # Bader 分析
 # ═══════════════════════════════════════════════
 
+def _parse_potcar_zvals(potcar_gz_path: Path) -> dict[str, float]:
+    """从 POTCAR.gz 解析 ZVAL，避免硬编码错误（如 Mn_pv 的 ZVAL=13 而非 7）。"""
+    import gzip
+    zvals = {}
+    with gzip.open(potcar_gz_path, "rt") as f:
+        text = f.read()
+    for block in text.split("End of Dataset"):
+        titel = None
+        zval = None
+        for line in block.split("\n"):
+            if "TITEL" in line:
+                titel = line.strip().split()[-2]  # e.g. Co, Mn_pv
+            if "ZVAL" in line:
+                zval = float(line.strip().split("=")[-1].split()[0])
+        if titel and zval:
+            # Mn_pv → Mn (用元素符号前半部分匹配)
+            elem = titel.split("_")[0]
+            zvals[elem] = zval
+    return zvals
+
+
+def _dir(name: str) -> Path:
+    """返回系统名对应的数据目录（通过 DATA_DIR_MAP 解耦命名与目录路径）。"""
+    return DATA_DIR / DATA_DIR_MAP.get(name, name)
+
+
 def analyze_bader(name: str) -> dict:
     """对指定体系运行 Bader 分析，返回结果字典."""
-    static_dir = DATA_DIR / name / "3-static"
+    static_dir = _dir(name) / "3-static"
     if not static_dir.exists():
         return {"name": name, "error": f"3-static not found: {static_dir}"}
 
@@ -66,6 +110,9 @@ def analyze_bader(name: str) -> dict:
     for f in required:
         if not (static_dir / f).exists():
             return {"name": name, "error": f"Missing {f}"}
+
+    # 从 POTCAR 解析 ZVAL（取代硬编码的 ZVAL 字典）
+    potcar_zvals = _parse_potcar_zvals(static_dir / "POTCAR.gz")
 
     try:
         with tempfile.TemporaryDirectory(prefix=f"bader_{name}_") as tmpdir:
@@ -82,7 +129,10 @@ def analyze_bader(name: str) -> dict:
             n_atoms = len(bader.chgcar.structure)
             for i in range(n_atoms):
                 chg = bader.get_charge(i)
-                nelect = ZVAL.get(bader.chgcar.structure[i].species_string, 6.0)
+                elem = bader.chgcar.structure[i].species_string
+                if elem not in potcar_zvals:
+                    log.warning("ZVAL not found for element %s in POTCAR, falling back to 6.0", elem)
+                nelect = potcar_zvals.get(elem, 6.0)
                 result["charge"].append(float(chg))
                 result["charge_transfer"].append(float(nelect - chg))
 
@@ -110,7 +160,7 @@ def _gunzip(src: Path, dst: Path):
 
 def _load_cached_result(name: str) -> dict | None:
     """从 data/{name}/bader_analysis/bader_results.json 加载已有结果."""
-    path = DATA_DIR / name / "bader_analysis" / "bader_results.json"
+    path = _dir(name) / "bader_analysis" / "bader_results.json"
     if not path.exists():
         return None
     try:
@@ -122,13 +172,13 @@ def _load_cached_result(name: str) -> dict | None:
 
 def _save_cached_result(name: str, result: dict):
     """保存结果到 data/{name}/bader_analysis/bader_results.json."""
-    out_dir = DATA_DIR / name / "bader_analysis"
+    out_dir = _dir(name) / "bader_analysis"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "bader_results.json").write_text(json.dumps(result, indent=2))
 
 
 def _get_structure(name: str) -> Structure | None:
-    contcar = DATA_DIR / name / "3-static" / "CONTCAR.gz"
+    contcar = _dir(name) / "3-static" / "CONTCAR.gz"
     if not contcar.exists():
         return None
     try:

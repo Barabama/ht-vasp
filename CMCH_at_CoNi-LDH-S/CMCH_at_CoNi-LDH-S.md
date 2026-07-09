@@ -170,11 +170,11 @@ S 掺杂主要效应：S 的电负性（2.58）低于 O（3.44），取代后 S�
 
 | 体系 | 目录 | S 掺杂? | DOS/能带? | Band gap | 静态能量 |
 | --- | --- | :---: | :---: | :---: | :---: |
-| CoNiOH2 | `data/CoNiOH2` | ❌ 本征 | ✅ | **2.93 eV** | -326.34 eV |
-| CoNiOH2S-noH | `data/CoNiOH2S-noH` | ✅ S²⁻ | ✅ | **0.08 eV** | -319.51 eV |
+| CoNiOH2 | `data/CoNiOH2` | ❌ 本征 | ✅ | **2.91 eV** | -326.34 eV |
+| CoNiOH2S-noH | `data/CoNiOH2S-noH` | ✅ S²⁻ | ✅ | **0.05 eV**（半金属） | -319.51 eV |
 | CoMnH2CO5 | `data/CoMnH2CO5` | ❌ 基底 | ✅ | — | -376.24 eV |
 
-> 🔬 **关键发现：** S 掺杂使带隙从 2.93 eV（本征）骤降至 0.08 eV（S²⁻ 掺杂）。这是 S-3p 在禁带中引入缺陷能级的**直接 DFT 证据**，完美支撑实验论文的"禁带缺陷能级 → 电导率提升"的核心机制。
+> 🔬 **关键发现：** S 掺杂使 LDH 从绝缘体转变为半金属态（half-metallic）。体相 CoNiOH₂S 的总带隙为 0.05 eV，自旋分辨：spin-up 通道 1.37 eV，spin-down 通道 0.22 eV——S-3p 在一个自旋通道中引入缺陷能级导致费米能级处出现主导态密度。这是 S-3p 在禁带中引入缺陷能级的**直接 DFT 证据**，完美支撑实验论文的"禁带缺陷能级 → 电导率提升"的核心机制。
 
 #### Layer 2: Slab 优化（步骤3，4个体系 ✅）
 
@@ -193,19 +193,20 @@ S 掺杂主要效应：S 的电负性（2.58）低于 O（3.44），取代后 S�
 | hetero_s_doped (gap=2.0) | `data/hetero_s_doped` | ✅ S 在 LDH 内部，远离 CMCH 界面 |
 | hetero_s_exposed (gap=2.0) | `data/hetero_s_exposed` | ✅ S 在 LDH 底侧，靠近 CMCH 界面 |
 
-#### Layer 4: 晶格一致优化（Level 2，7个体系 ✅，gap=1.0，共同面内晶格）
+#### Layer 4: 晶格一致优化（Level 2，8个体系 ✅，gap=1.0，共同面内晶格）
 
-| 体系 | 类型 | 目录 | 总能 (eV) | Bandgap (eV) | 原子数 |
-|:----|:----|:----|:---------:|:-----------:|:-----:|
-| **hetero_intrinsic** | 异质结 | `data/hetero_intrinsic` | -714.54 | **0.745** | 120 |
-| **hetero_s_doped** | 异质结 | `data/hetero_s_doped` | -707.64 | **0.388** | 119 |
-| **hetero_s_exposed** | 异质结 | `data/hetero_s_exposed` | -707.48 | **0.293** | 119 |
-| **CMCH_strained** | 单板 | `data/CMCH_strained` | -396.93 | **2.438** | 60 |
-| **LDH_strained** | 单板 | `data/LDH_strained` | -314.60 | **1.685** | 60 |
-| **LDH_S_strained** | 单板 | `data/LDH_S_strained` | -307.37 | **0.152** | 59 |
-| **LDH_S_flip_strained** | 单板 | `data/LDH_S_flip_strained` | -307.31 | **0.294** | 59 |
+| 体系 | 类型 | 目录 | 总能 (eV) | Bandgap (eV) | 原子数 | 备注 |
+|:----|:----|:----|:---------:|:-----------:|:-----:|:----|
+| **hetero_intrinsic** | 异质结 | `data/hetero_intrinsic` | -715.86 | **1.064** | 120 | U_Mn=3.90 |
+| **hetero_s_doped** | 异质结 | `data/hetero_s_doped` | -708.79 | **0.393** | 119 | U_Mn=3.90 |
+| **hetero_s_exposed** | 异质结 | `data/hetero_s_exposed` | -707.72 | **0.278** | 119 | U_Mn=3.90 |
+| **CMCH_strained** | 单板 | `data/CMCH_strained` | -398.17 | **2.265** | 60 | U_Mn=3.90 |
+| **LDH_strained** | 单板 | `data/LDH_strained` | -314.60 | **1.653** | 60 | |
+| **LDH_S_strained** | 单板 | `data/LDH_S_strained` | -307.37 | **0.124** | 59 | 半金属 |
+| **LDH_S_flip_strained** | 单板 | `data/LDH_S_flip_strained` | -307.30 | **0.271** | 59 | |
+| **LDH2_strained** | 双层板 | `data/LDH2_strained` | -632.82 | **1.726** | 120 | 锚点验证 |
 
-> **注意：** 所有 7 个体系共享同一组面内晶格（a=10.3255, b=9.4602），FFT 网格 (160,140,420) 全同，可直接做 3D 差分电荷密度。总能取自重跑后的 `static_out.json`（ALGO=Normal, EDIFF=1e-6）。
+> **注意：** 所有 8 个体系共享同一组面内晶格（a=10.3255, b=9.4602），FFT 网格 (160,140,420) 全同，可直接做 3D 差分电荷密度。总能取自重跑后的 `static_out.json`（ALGO=Normal, EDIFF=1e-6）。S 掺杂体系（LDH_S_strained）的总带隙 0.124 eV 来自少数自旋通道，多数自旋通道在 E_F 处有显著态密度（半金属态），详见草稿 3.2 节。
 
 ---
 
@@ -285,19 +286,20 @@ S 掺杂主要效应：S 的电负性（2.58）低于 O（3.44），取代后 S�
 #### B. 功函数分析（work_function_analysis.py）
 | 体系 | Φ (eV) |
 |:----|:------|
-| CMCH_strained | **5.38** |
+| CMCH_strained | **5.18** |
 | LDH_strained | **3.06** |
 | LDH_S_strained | **2.92** |
 | LDH_S_flip_strained | **3.62** |
-| hetero_intrinsic | **3.78** |
-| hetero_s_doped | **3.31** |
+| hetero_intrinsic | **3.80** |
+| hetero_s_doped | **3.33** |
 | hetero_s_exposed | **3.89** |
 
 #### C. DOS/PDOS（dos_analysis.py）
 Level 2 带隙（共同晶格）：
-- CMCH_strained: **2.43 eV**, LDH_strained: **1.65 eV**
-- LDH_S_strained: **0.12 eV**, LDH_S_flip_strained: **0.27 eV**
-- hetero_intrinsic: **0.72 eV**, s_doped: **0.37 eV**, s_exposed: **0.26 eV**
+- CMCH_strained: **2.27 eV**, LDH_strained: **1.65 eV**
+- LDH_S_strained: **0.12 eV**（半金属态）, LDH_S_flip_strained: **0.27 eV**
+- LDH2_strained: **1.73 eV**（双层锚点）
+- hetero_intrinsic: **1.06 eV**, s_doped: **0.39 eV**, s_exposed: **0.28 eV**
 
 #### D. Bader 电荷分析（bader_analysis.py）
 - S 的电荷转移：−0.74～−0.81 e⁻（正值=失电子，S 呈正电性）
@@ -317,11 +319,11 @@ Level 2 带隙（共同晶格）：
 #### F. 界面结合能（interface_binding.py）
 | 异质结 | E_bind (eV) | E_bind/area (eV/Å²) |
 |:------|:----------:|:-----------------:|
-| hetero_intrinsic | −3.01 | −0.031 |
-| hetero_s_doped | −3.34 | −0.034 |
-| hetero_s_exposed | −3.25 | −0.033 |
+| hetero_intrinsic | −3.09 | −0.032 |
+| hetero_s_doped | −3.25 | −0.033 |
+| hetero_s_exposed | −2.25 | −0.023 |
 
-> 所有 E_bind < 0 → 界面稳定。S 掺杂轻微增强界面结合（约 0.3 eV）。
+> 所有 E_bind < 0 → 界面稳定。S 远离界面（s_doped）时界面结合强度略增 0.16 eV；S 暴露于界面（s_exposed）时结合减弱 0.84 eV，与 S 在界面区域引起的局域晶格畸变一致。
 
 ### 待补充计算
 
@@ -347,7 +349,7 @@ Level 2 带隙（共同晶格）：
     ↓ 验证
 Bader 电荷: S 失去 ~0.8 e（正电性，S<O 电负性差），Co 失 e⁻ ~0.01~0.02
     ↓ 解释
-Bulk DOS 对比: 本征 2.93 eV → S 掺杂 0.08 eV 带隙
+Bulk DOS 对比: 本征 2.91 eV → S 掺杂 0.05 eV 带隙（半金属态）
     ↓ S-3p 在禁带中引入缺陷态 → 费米能级处态密度↑
     ↓ 解释
 电化学: Rct 0.78→0.57 Ω (电导率提升)

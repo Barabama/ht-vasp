@@ -35,8 +35,9 @@ plt.rcParams.update({
     "mathtext.default": "regular",
 })
 
-DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
-OUTPUT_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/postprocessing/output")
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
+OUTPUT_DIR = SCRIPT_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # 异质结 -> (LDH slab, CMCH slab) — Level 2 应变 slab（共同晶格）
@@ -47,10 +48,10 @@ HETERO_MAP = {
 }
 
 SYSTEM_LABELS = {
-    "CMCH_strained": "CMCH (Strained)",
-    "LDH_strained": "CoNiOH2 (Strained)",
-    "LDH_S_strained": "CoNiOH2S (Strained)",
-    "LDH_S_flip_strained": "CoNiOH2S (Strained-flip)",
+    "CMCH_strained": "CMCH_slab (Strained)",
+    "LDH_strained": "LDH_slab (Strained)",
+    "LDH_S_strained": "LDH_S_slab (Strained)",
+    "LDH_S_flip_strained": "LDH_S_slab (Strained-flip)",
     "hetero_intrinsic": "Intrinsic Het.",
     "hetero_s_doped": "S-Doped Het.",
     "hetero_s_exposed": "S-Exposed Het.",
@@ -300,19 +301,19 @@ def compute_band_offset(het_name: str) -> dict:
     vb_offset = het_vbm_ldh - het_vbm_cmch
     cb_offset = (het_cbm_ldh - het_cbm_cmch) if (het_cbm_ldh and het_cbm_cmch) else None
 
-    # Type
-    # vb_offset > 0: LDH VBM 高于 CMCH VBM (straddling gap → Type I)
-    # vb_offset < 0: staggered → Type II
+    # Type classification
+    # Same sign (both VB and CB shift same direction) -> Type II (staggered)
+    # Opposite sign -> Type I (straddling)
+    # Broken gap (Type III): VBM of one exceeds CBM of the other
     band_type = "Type I (straddling)"
-    if cb_offset is not None:
-        if vb_offset > 0 and cb_offset > 0:
-            band_type = "Type I (straddling)"
-        elif vb_offset > 0 and cb_offset < 0:
-            band_type = "Type II (staggered)"
-        elif vb_offset < 0 and cb_offset > 0:
+    if (het_vbm_ldh is not None and het_cbm_cmch is not None and het_vbm_ldh > het_cbm_cmch) or \
+       (het_vbm_cmch is not None and het_cbm_ldh is not None and het_vbm_cmch > het_cbm_ldh):
+        band_type = "Type III (broken gap)"
+    elif cb_offset is not None:
+        if (vb_offset > 0 and cb_offset > 0) or (vb_offset < 0 and cb_offset < 0):
             band_type = "Type II (staggered)"
         else:
-            band_type = "Type III (broken gap)"
+            band_type = "Type I (straddling)"
 
     cbm_cmch_str = f"{het_cbm_cmch:.4f}" if het_cbm_cmch else "N/A"
     cbm_ldh_str  = f"{het_cbm_ldh:.4f}"  if het_cbm_ldh  else "N/A"
@@ -452,7 +453,7 @@ def plot_band_alignment(results: dict):
 
     ax.set_xticks(x_base)
     ax.set_xticklabels(labels, fontsize=10)
-    ax.set_ylabel("Energy (eV) vs. CMCH bulk reference", fontsize=11)
+    ax.set_ylabel("Energy (eV) — aligned to vacuum potential", fontsize=11)
     ax.set_title("Band Alignment — Heterojunctions", fontweight="bold", fontsize=12)
     ax.legend(["CMCH (substrate)", "LDH (film)"], fontsize=9, loc="upper center",
               ncol=2, framealpha=0.8)

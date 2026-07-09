@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OH⁻ 吸附能汇总计算（CHE 参考态 + VASPsol）
+"""*OH 吸附能汇总计算（CHE 参考态 + VASPsol）
 
 从已有 static_out.json 提取能量，计算 ΔE_ads(OH⁻)，
 输出汇总表供 Sabatier 分析。
@@ -20,8 +20,9 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
 
-DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
-OUTPUT_DIR = DATA_DIR.parent / "postprocessing" / "output"
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
+OUTPUT_DIR = SCRIPT_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── 能量获取 ═════════════════════════════════════════════════════

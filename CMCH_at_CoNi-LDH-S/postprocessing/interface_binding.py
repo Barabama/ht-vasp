@@ -32,8 +32,9 @@ log = logging.getLogger(__name__)
 
 plt.rcParams.update({"font.family": "sans-serif", "font.size": 11, "axes.linewidth": 1.2})
 
-DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
-OUTPUT_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/postprocessing/output")
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
+OUTPUT_DIR = SCRIPT_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 HETERO_MAP = {
@@ -73,7 +74,7 @@ def get_area(name: str) -> float | None:
     try:
         with gzip.open(path, "rt") as f:
             struct = Structure.from_str(f.read(), fmt="poscar")
-        return struct.lattice.a * struct.lattice.b
+        return np.linalg.norm(np.cross(struct.lattice.matrix[0], struct.lattice.matrix[1]))
     except Exception as e:
         log.warning("Failed to get area for %s: %s", name, e)
         return None
@@ -167,7 +168,7 @@ def load_results() -> dict | None:
 def plot_bar(results: dict):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
 
-    hets = list(HETERO_MAP.keys())
+    hets = [h for h in HETERO_MAP if h in results]
     labels = [SYSTEM_LABELS.get(h, h) for h in hets]
     bind_vals = [results[h].get("E_bind") for h in hets]
     area_vals = [results[h].get("E_bind_per_area") for h in hets]
@@ -177,7 +178,7 @@ def plot_bar(results: dict):
 
     ax1.bar(x, bind_vals, width, color=colors, alpha=0.85, edgecolor="k", lw=0.5)
     for i, v in enumerate(bind_vals):
-        ax1.text(i, v + (0.02 * max(bind_vals)),
+        ax1.text(i, v + (0.05 * abs(max(bind_vals))),
                  f"{v:.4f}", ha="center", va="bottom", fontsize=9, fontweight="bold")
     ax1.set_xticks(x)
     ax1.set_xticklabels(labels, fontsize=9, rotation=15, ha="right")
@@ -189,7 +190,7 @@ def plot_bar(results: dict):
     ax2.bar(x, area_vals, width, color=colors, alpha=0.85, edgecolor="k", lw=0.5)
     for i, v in enumerate(area_vals):
         if v is not None:
-            ax2.text(i, v + (0.02 * max(area_vals)),
+            ax2.text(i, v + (0.05 * abs(max(area_vals))),
                      f"{v:.6f}", ha="center", va="bottom", fontsize=9, fontweight="bold")
     ax2.set_xticks(x)
     ax2.set_xticklabels(labels, fontsize=9, rotation=15, ha="right")

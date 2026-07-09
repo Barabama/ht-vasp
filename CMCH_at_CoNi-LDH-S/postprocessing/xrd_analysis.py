@@ -20,7 +20,7 @@ def read_xrd(path):
                 t = float(parts[0])
                 i = float(parts[1])
                 data.append((t, i))
-            except:
+            except (ValueError, TypeError, IndexError):
                 continue
     arr = np.array(data)
     return arr[:, 0], arr[:, 1]
@@ -59,7 +59,8 @@ if __name__ == "__main__":
     parser.add_argument("--min-height", type=float, default=10)
     args = parser.parse_args()
 
-    d1 = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S")
+    SCRIPT_DIR = Path(__file__).resolve().parent
+    d1 = SCRIPT_DIR.parent
     for fname in ["s1-PH.txt", "s3-PH.txt"]:
         tt, inten = read_xrd(d1 / fname)
         peaks = find_peaks(tt, inten, args.min_prominence, args.min_height)

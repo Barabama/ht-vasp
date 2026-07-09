@@ -64,16 +64,16 @@ cpu_config = SlurmConfig(
 )
 
 molecules = {
-    # # H₂O 几何: O-H = 0.957 Å, H-O-H = 104.5°
-    # "h2o": Molecule(
-    #     ["O", "H", "H"],
-    #     [[0, 0, 0], [0, 0.757, 0.587], [0, -0.757, 0.587]],
-    # ),
-    # # H₂ 几何: H-H = 0.74 Å
-    # "h2": Molecule(
-    #     ["H", "H"],
-    #     [[0, 0, 0], [0, 0, 0.74]],
-    # ),
+    # H₂O 几何: O-H = 0.957 Å, H-O-H = 104.5°
+    "h2o": Molecule(
+        ["O", "H", "H"],
+        [[0, 0, 0], [0, 0.757, 0.587], [0, -0.757, 0.587]],
+    ),
+    # H₂ 几何: H-H = 0.74 Å
+    "h2": Molecule(
+        ["H", "H"],
+        [[0, 0, 0], [0, 0, 0.74]],
+    ),
     # OH 自由基: O-H = 0.97 Å, 自旋极化 + 偶极修正
     "oh_gas": Molecule(
         ["O", "H"],
@@ -180,9 +180,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.slurm:
         submit_jobs(args.rerun)
-    if args.check:
+    elif args.check:
         check_jobs()
-    if args.static:
+    elif args.static:
         run_gas_calc(args.static, rerun=args.rerun)
     else:
         parser.print_help()

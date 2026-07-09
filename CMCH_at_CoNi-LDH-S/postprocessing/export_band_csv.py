@@ -16,24 +16,37 @@ import numpy as np
 from monty.json import MontyDecoder
 from pymatgen.electronic_structure.bandstructure import Spin
 
-from pymatgen.electronic_structure.bandstructure import Spin
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
 
-DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
-OUTPUT_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/postprocessing/output")
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
+OUTPUT_DIR = SCRIPT_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+# 系统命名 → 数据目录映射（解耦命名与目录结构）
+DATA_DIR_MAP = {
+    "LDH_bulk": "CoNiOH2",
+    "LDH_S_bulk": "CoNiOH2S-noH",
+    "CMCH_bulk": "CMCH_bulk",
+    "CMCH_strained": "CMCH_strained",
+    "LDH_strained": "LDH_strained",
+    "LDH_S_strained": "LDH_S_strained",
+    "LDH_S_flip_strained": "LDH_S_flip_strained",
+    "hetero_intrinsic": "hetero_intrinsic",
+    "hetero_s_doped": "hetero_s_doped",
+    "hetero_s_exposed": "hetero_s_exposed",
+}
+
 SYSTEMS = [
-    "CoNiOH2", "CoNiOH2S-noH", "CoMnH2CO5",
-    "CMCH_strained", "LDH_strained", "LDH_S_strained", "LDH_S_flip_strained", "LDH2_strained",
+    "LDH_bulk", "LDH_S_bulk", "CMCH_bulk",
+    "CMCH_strained", "LDH_strained", "LDH_S_strained", "LDH_S_flip_strained",
     "hetero_intrinsic", "hetero_s_doped", "hetero_s_exposed",
 ]
 
 
 def export_band_structure(name: str):
-    path = DATA_DIR / name / "band_out.json"
+    path = DATA_DIR / DATA_DIR_MAP.get(name, name) / "band_out.json"
     if not path.exists():
         log.warning("  ✗ %s: no band_out.json", name)
         return False

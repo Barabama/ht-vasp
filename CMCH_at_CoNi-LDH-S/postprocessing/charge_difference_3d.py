@@ -43,8 +43,9 @@ log = logging.getLogger(__name__)
 
 plt.rcParams.update({"font.family": "sans-serif", "font.size": 11, "axes.linewidth": 1.2})
 
-DATA_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/data")
-OUTPUT_DIR = Path("/nfs_hdd/2025/gaominliang/ht-vasp/CMCH_at_CoNi-LDH-S/postprocessing/output")
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
+OUTPUT_DIR = SCRIPT_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 HETERO_MAP = {
@@ -54,13 +55,13 @@ HETERO_MAP = {
 }
 
 SYSTEM_LABELS = {
+    "CMCH_strained": "CMCH_slab (Strained)",
+    "LDH_strained": "LDH_slab (Strained)",
+    "LDH_S_strained": "LDH_S_slab (Strained)",
+    "LDH_S_flip_strained": "LDH_S_slab (Strained-flip)",
     "hetero_intrinsic": "Intrinsic Het.",
     "hetero_s_doped": "S-Doped Het.",
     "hetero_s_exposed": "S-Exposed Het.",
-    "CMCH_strained": "CMCH (Strained)",
-    "LDH_strained": "CoNiOH2 (Strained)",
-    "LDH_S_strained": "CoNiOH2S (Strained)",
-    "LDH_S_flip_strained": "CoNiOH2S (Fliped)",
 }
 
 COLORS = {"hetero_intrinsic": "#1f77b4", "hetero_s_doped": "#2ca02c", "hetero_s_exposed": "#ff7f0e"}
@@ -104,8 +105,12 @@ def load_locpot(name: str):
 
 def get_z_offset(s_ldh: Structure, s_het: Structure) -> float:
     """计算 LDH slab 在孤立 slab 与异质结之间的 z 偏移 (Å)."""
-    z_ldh = np.mean([s.coords[2] for s in s_ldh if s.species_string in ("Ni", "S")])
-    z_het = np.mean([s.coords[2] for s in s_het if s.species_string in ("Ni", "S")])
+    z_ldh_list = [s.coords[2] for s in s_ldh if s.species_string in ("Ni", "S")]
+    z_het_list = [s.coords[2] for s in s_het if s.species_string in ("Ni", "S")]
+    if not z_ldh_list or not z_het_list:
+        return 0.0
+    z_ldh = np.mean(z_ldh_list)
+    z_het = np.mean(z_het_list)
     return float(z_het - z_ldh)
 
 
@@ -142,11 +147,18 @@ def compute_interface_analysis(het_name: str) -> dict:
     v_ldh = f_ldh(grid_het - z_offset)
 
     # 3. ΔV(z)
-    delta_v = np.nan_to_num(avg_het - v_cmch - v_ldh, nan=0.0)
+    if np.any(np.isnan(v_ldh)):
+        log.warning("NaNs found in interpolated LDH potential — z_offset may be out of range")
+        v_ldh = np.nan_to_num(v_ldh, nan=0.0)
+    delta_v = avg_het - v_cmch - v_ldh
 
     # 4. 界面标记
-    cmch_top = max(s.coords[2] for s in s_het if s.species_string in ("Mn", "C"))
-    ldh_bot = min(s.coords[2] for s in s_het if s.species_string in ("Ni", "S"))
+    cmch_coords = [s.coords[2] for i, s in enumerate(s_het)
+                   if s.species_string in ("Mn", "C")]
+    ldh_coords = [s.coords[2] for i, s in enumerate(s_het)
+                  if s.species_string in ("Ni", "S")]
+    cmch_top = max(cmch_coords) if cmch_coords else 0.0
+    ldh_bot = min(ldh_coords) if ldh_coords else 0.0
     interface_z = float((cmch_top + ldh_bot) / 2)
     area = s_het.lattice.a * s_het.lattice.b
 
