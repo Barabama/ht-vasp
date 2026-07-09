@@ -1,27 +1,19 @@
 """HT-VASP OJ Workflow - Magnetic exchange calculation using total energy difference method."""
 
-import json
 import logging
-from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from jobflow import Flow
 from pymatgen.core import Structure
 
+from atomate2.vasp.jobs.core import RelaxMaker
+from atomate2.vasp.sets.core import RelaxSetGenerator
 from htvasp.oj.input_set import OJInputSetGenerator
 from htvasp.oj.maker import OJMaker
 from htvasp.workflows.base import Worker
 
 log = logging.getLogger(__name__)
-
-
-class DateTimeEncoder(json.JSONEncoder):
-    """JSON encoder that handles datetime objects."""
-
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
 
 
 class OJWorker(Worker):
@@ -85,4 +77,53 @@ class OJWorker(Worker):
         return self.flow_maker.make(structure)
 
     def get_result(self, output_job_name: str = "solve") -> dict[str, Any] | None:
+        return super().get_result(output_job_name)
+
+
+class R8Worker(Worker):
+    """
+    Worker for structural pre-relaxation (ISIF=8) for OJ.
+    """
+
+    def __init__(
+        self,
+        worker_name: str = "r8-worker",
+        vasp_args: dict[str, Any] | None = None,
+        potcar_functional="PBE_64",
+        global_incar: dict[str, Any] | None = None,
+        r8_incar: dict[str, Any] | None = None,
+        **kwargs,
+    ):
+        # Initialize base Worker
+        super().__init__(
+            worker_name=worker_name,
+            vasp_args=vasp_args,
+            potcar_functional=potcar_functional,
+            global_incar=global_incar,
+        )
+        r8_incar = r8_incar or {}
+
+        # R8 structural relaxation
+        r8_maker = RelaxMaker(
+            name="r8 relax",
+            run_vasp_kwargs=self.run_vasp_kwargs,
+            stop_children_kwargs={"handle_unsuccessful": False},
+            copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
+            input_set_generator=RelaxSetGenerator(
+                user_potcar_functional=self.potcar_functional,
+                user_incar_settings={
+                    **self.global_incar,
+                    "ISTART": 1,
+                    "ISIF": 8,
+                    "LWAVE": True,
+                    **r8_incar,
+                },
+            ),
+        )
+        self.flow_maker = r8_maker
+
+    def _make_flow(self, structure: Structure, prev_dir: Path | str | None = None) -> Flow:
+        return self.flow_maker.make(structure, prev_dir)
+
+    def get_result(self, output_job_name: str = "r8 relax") -> dict[str, Any] | None:
         return super().get_result(output_job_name)

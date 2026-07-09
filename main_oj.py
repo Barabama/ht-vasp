@@ -15,6 +15,7 @@ import argparse
 from pathlib import Path
 
 from htvasp.workflows import OJWorker
+from htvasp.oj.supercell_suggest import suggest_supercell
 from htvasp.slurm import SlurmJobManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
@@ -115,22 +116,166 @@ BASE_SPIN_MAP = {
 
 
 def detect_magnetic_ions(stem: str) -> list[str]:
-    """Detect which elements are magnetic from structure name."""
-    ions = set()
+    """Detect which elements are magnetic from structure name.
+    Preserves order from STRUCT_NAMES entry, deduplicates.
+    """
+    seen = set()
+    ions = []
     parts = stem.replace("-", " ").split()
     for p in parts:
-        if p in MAGNETIC_SPECIES:
-            ions.add(p)
-    return sorted(ions)
+        if p in MAGNETIC_SPECIES and p not in seen:
+            seen.add(p)
+            ions.append(p)
+    return ions
 
 
-def detect_base_spin(stem: str, default: float = 2.0) -> float | list[float]:
-    """Use highest base_spin among detected magnetic elements."""
-    max_spin = default
-    for el, spin in BASE_SPIN_MAP.items():
-        if el in stem:
-            max_spin = max(max_spin, spin)
-    return max_spin
+def suggest_supercell(
+    struct,
+    dist_cutoff: float = 6.0,
+    atoms_per_cell: int | None = None,
+) -> tuple[tuple[int, int, int], str]:
+    """Suggest supercell size for OstravaJ based on structure + dist_cutoff.
+
+    Physics:
+      OJ needs the supercell to contain each J-pair's distance vector fully within
+      the box.  The Nyquist-like criterion is:
+          n_i * a_i  >  2 * d_k    for each direction i and each J-pair k.
+      The tightest single constraint uses the shortest lattice vector:
+          n_i  >  int(2 * d_max / a_min) + 1
+
+      However, the *total number of atoms* in the supercell also matters.
+      OJ searches over 2^{N_atoms} spin configurations and picks only those
+      that satisfy the "identical magnetic surrounding" criterion (an
+      exponentially hard constraint).  Empirically (from our dry-runs):
+
+          BCC 2-atom:  sum(n_i)  ≥ 10  → enough independent configs
+                        sum(n_i)   = 9  →  failure (3×3×3 = 54 atoms)
+
+          HCP 2-atom:  (4,4,2) works,  sum = 10
+          FCC 4-atom:  (2,2,2) → 32 atoms  should be tried first
+                       (4,4,2) → 128 atoms → OJ search space too large
+
+    Returns:
+      (nx, ny, nz), reason  —  recommended supercell and a human-readable
+                                justification or warning.
+    """
+    import math
+    from pymatgen.core import Structure
+
+    if atoms_per_cell is None:
+        atoms_per_cell = len(struct)
+
+    # Lattice vector lengths
+    a, b, c = struct.lattice.abc
+    a_min = min(a, b, c)
+
+    # Minimum cells per direction to contain 2 × dist_cutoff
+    n_req = int(math.ceil(2.0 * dist_cutoff / a_min)) + 1
+    nx, ny, nz = max(n_req, 2), max(n_req, 2), max(n_req, 2)
+
+    # Total atoms in supercell
+    n_total = atoms_per_cell * nx * ny * nz
+    search_space = 2 ** n_total  # 2^N possible spin configurations
+
+    reasons = []
+
+    # --- Adjust: search space must not explode ---
+    # OJ's parallel generator can handle ~2^{64} in reasonable time.
+    # >2^{100} is almost certainly too large.
+    if search_space > 2 ** 100:
+        # Try reducing the non-optimal directions first
+        if nx == ny and nx > nz:
+            # Cubic or near-cubic  →  prioritise the shortest direction for reduction
+            pass
+
+        # Strategy: keep the primary directions full, shrink less-important ones
+        while search_space > 2 ** 80 and nx > 2 and ny > 2 and nz > 1:
+            if nz > 1:
+                nz -= 1
+            elif ny > nx and ny > 2:
+                ny -= 1
+            elif nx > ny and nx > 2:
+                nx -= 1
+            else:
+                ny -= 1
+            n_total = atoms_per_cell * nx * ny * nz
+            search_space = 2 ** n_total
+
+        reasons.append(
+            f"search space {math.log10(search_space):.0f} decibans "
+            f"(trying small supercell to keep OJ tractable)"
+        )
+
+    # --- Adjust: sum(n_i) heuristic for independent configs ---
+    # Empirically, BCC 2-atom needs sum(n_i) ≥ 10
+    n_sum = nx + ny + nz
+    while n_sum < 10 and nx < 6 and ny < 6 and nz < 6:
+        # Grow the smallest dimension
+        if nz < nx and nz < ny:
+            nz += 1
+        elif ny < nx:
+            ny += 1
+        else:
+            nx += 1
+        n_sum = nx + ny + nz
+        n_total = atoms_per_cell * nx * ny * nz
+
+    if n_sum >= 10:
+        reasons.append(
+            f"supercell sum({nx},{ny},{nz})={n_sum} ≥ 10  "
+            f"(empirical threshold for enough independent configs)"
+        )
+    else:
+        reasons.append(
+            f"⚠  sum({nx},{ny},{nz})={n_sum} < 10 — may fail to find "
+            f"enough independent magnetic configurations"
+        )
+
+    # --- Verify supercell contains full J-pair distances ---
+    # OJ needs: for each J-pair vector d_k, its image in the supercell is unique.
+    # A sufficient condition: n_i * a_i > max_k |d_k| for each direction i.
+    # The maximum J-pair distance is dist_cutoff.
+    ok = True
+    for n_i, a_i in [(nx, a), (ny, b), (nz, c)]:
+        if n_i * a_i <= dist_cutoff:
+            ok = False
+            break
+    if ok:
+        reasons.append(
+            f"extent ≥ {dist_cutoff}Å in all directions  (covers all J-pairs)"
+        )
+    else:
+        # Try growing the cell if it does NOT cover the distance
+        if nx * a <= dist_cutoff:
+            nx = int(ceil(dist_cutoff / a)) + 1
+        if ny * b <= dist_cutoff:
+            ny = int(ceil(dist_cutoff / b)) + 1
+        if nz * c <= dist_cutoff:
+            nz = int(ceil(dist_cutoff / c)) + 1
+        n_total = atoms_per_cell * nx * ny * nz
+        reasons.append(
+            f"⚠ grew cell to cover J-pair distances → ({nx},{ny},{nz})"
+        )
+
+    # Final check: OJ parallelism uses multiprocessing with cpu_count()
+    # Large supercell config generation is memory-intensive
+    total_atoms = atoms_per_cell * nx * ny * nz
+    reasons.append(f"{total_atoms} atoms, 2^{total_atoms} ≈ "
+                   f"10^{total_atoms * math.log10(2):.0f} config space")
+
+    return (nx, ny, nz), "; ".join(reasons)
+    """Return base_spin per magnetic ion, in the same order as magnetic_ions list.
+
+    OJ's OJ.conf requires base_spin to be a space-separated list whose
+    order matches magnetic_ion_types exactly, e.g.:
+        magnetic_ion_types Fe Co
+        base_spin 2.5 2.0
+    """
+    spins = []
+    for el in magnetic_ions:
+        spin = BASE_SPIN_MAP.get(el, default)
+        spins.append(spin)
+    return spins
 
 
 def run_tick(name: str, force: bool = False, dry_run: bool = False):
@@ -153,7 +298,11 @@ def run_tick(name: str, force: bool = False, dry_run: bool = False):
 
     # Detect magnetic ions and base_spin from structure name
     magnetic_types = detect_magnetic_ions(name)
-    base_spin = detect_base_spin(name)
+    base_spin = detect_base_spin(magnetic_types)
+    # If no magnetic species detected, OJ defaults to all atoms with base_spin=1.0
+    if not magnetic_types:
+        base_spin = [1.0]
+    log.info(f"  Magnetic ions: {magnetic_types}, base_spin: {base_spin}")
     log.info(f"  Magnetic ions: {magnetic_types}, base_spin: {base_spin}")
 
     if dry_run:
