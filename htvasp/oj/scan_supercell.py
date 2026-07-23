@@ -24,9 +24,9 @@ from itertools import product
 # ── lattice presets ──────────────────────────────────────────────
 LATTICE_PRESETS = {
     # key     (a_min, a_max, a_step)   atoms per primitive cell
-    "bcc":     (2.5,   3.5,   0.05),
+    "bcc":     (2.2,   3.2,   0.05),
     "fcc":     (3.2,   4.2,   0.05),
-    "hcp":     (2.2,   3.5,   0.05),
+    "hcp":     (4.8,   5.8,   0.05),
 }
 
 N_ATOMS = {"bcc": 2, "fcc": 4, "hcp": 8}
@@ -180,9 +180,9 @@ def main():
     p.add_argument("--a-max", type=float, default=None)
     p.add_argument("--a-step", type=float, default=None)
     # dc range
-    p.add_argument("--dc-min", type=float, default=4.0)
-    p.add_argument("--dc-max", type=float, default=8.0)
-    p.add_argument("--dc-step", type=float, default=1.0)
+    p.add_argument("--dc-min", type=float, default=2.0)
+    p.add_argument("--dc-max", type=float, default=10.0)
+    p.add_argument("--dc-step", type=float, default=0.5)
     # cap
     p.add_argument("--no-cap", action="store_true",
                    help="Disable search-space cap (may print huge numbers)")
