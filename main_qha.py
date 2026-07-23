@@ -53,7 +53,6 @@ GLOBAL_INCAR = {
     # Output
     "LWAVE": False,
     "LCHARG": False,
-    "LORBIT": None,
     "LOPTICS": False,
     "LVTOT": False,
     "GGA": "PE",
@@ -63,7 +62,7 @@ GLOBAL_INCAR = {
     "BMIX_MAG": 1e-4,
 }
 
-RELAX_INCAR = {"KPAR": 4, "NCORE": 2}
+RELAX_INCAR = {"KPAR": 4, "NCORE": 2, "LORBIT": 10}
 PHONON_INCAR = {"KPAR": 2, "NCORE": 4}
 STATIC_INCAR = {"LORBIT": 11}
 
