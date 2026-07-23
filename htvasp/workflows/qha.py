@@ -57,7 +57,7 @@ class QhaWorker(Worker):
         self,
         worker_name: str = "qha-worker",
         vasp_args: dict[str, Any] | None = None,
-        potcar_functional="PBE_64",
+        potcar_functional="PBE",
         global_incar: dict[str, Any] | None = None,
         relax_incar: dict[str, Any] | None = None,
         eos_incar: dict[str, Any] | None = None,

@@ -16,7 +16,6 @@ VASP_ARGS = {
     "vasp_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module purge && module load vasp-cpu && srun vasp_std'",
     "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module purge && module load vasp-cpu && srun vasp_gam'",
 }
-# {"Al": 1.0, "Co": 3.0, "Cr": 3.0, "Cu": 5.0, "Fe": 5.0, "Mn": 5.0, "Nb": 3.0, "Ni": 2.0, "Ta": 3.0, "Ti": 3.0, "V": 3.0, "W": 3.0, "Zr": 1.0}
 GLOBAL_INCAR = {
     "ENCUT": 400,
     # Electronic
@@ -36,14 +35,19 @@ GLOBAL_INCAR = {
     # Magnetic
     "ISPIN": 2,
     "MAGMOM": {
-        "Al": 1.0,
-        "Co": 3.0,
-        "Fe": 5.0,
-        "Mn": 5.0,
-        "Nb": 3.0,
-        "Ni": 2.0,
-        "Ti": 3.0,
-        "V": 3.0,
+        # "Al": 1.0,
+        # "Co": 3.0,
+        # "Cr": 3.0,
+        # "Cu": 5.0,
+        # "Fe": 5.0,
+        # "Mn": 5.0,
+        # "Nb": 3.0,
+        # "Ni": 2.0,
+        # "Ta": 3.0,
+        # "Ti": 3.0,
+        # "V": 3.0,
+        # "W": 3.0,
+        # "Zr": 1.0,
     },
     # Precision
     "ISYM": 0,
@@ -135,6 +139,7 @@ def run_static(name: str, rerun: bool = False):
     try:
         static_worker = StaticWorker(
             vasp_args=VASP_ARGS,
+            potcar_functional="PBE",
             global_incar=GLOBAL_INCAR,
             relax_incar=RELAX_INCAR,
             static_incar=STATIC_INCAR,
@@ -171,6 +176,7 @@ def run_qha(name: str, rerun: bool = False):
     try:
         qha_worker = QhaWorker(
             vasp_args=VASP_ARGS,
+            potcar_functional="PBE",
             global_incar=GLOBAL_INCAR,
             relax_incar=RELAX_INCAR,
             eos_incar=RELAX_INCAR,
@@ -200,12 +206,14 @@ def check_jobs(job: str):
     for name in STRUCTURE_NAMES:
         store_dir = root_dir / "data" / "endmembers" / name / f"{job}flow"
         json_path = store_dir.parent / f"{name}-{job}.json"
-        if not json_path.exists:
+        if not json_path.exists():
             continue
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
+        energy = data["output"]["energy"]
         total_magnetization = data["calcs_reversed"][0]["output"]["outcar"]["total_magnetization"]
         magnetization = data["calcs_reversed"][0]["output"]["outcar"]["magnetization"]
+        log.info(f"{name}: {energy}")               # 总能量
         log.info(f"{name}: {total_magnetization}")  # 总磁矩
         # log.info(f"{magnetization}\n")              # 轨道分解 [s,p,d,tot]
 
@@ -217,9 +225,8 @@ def submit_job(name: str, job: str, manager: SlurmJobManager, rerun: bool = Fals
         config=manager.get_cpu_config(
             job_name=f"{name}-{job}",
             output_log=f"logs/{name}-{job}.log",
-            ntasks=8,
-            memory="16G",
-            nodelist="429pro",
+            ntasks=4,
+            memory="8G",
         ),
         conda_env=str(conda_env),
         work_dir=root_dir,

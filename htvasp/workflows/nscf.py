@@ -29,7 +29,7 @@ class NscfWorker(Worker):
         self,
         worker_name: str = "nscf-worker",
         vasp_args: dict[str, Any] | None = None,
-        potcar_functional: str = "PBE_64",
+        potcar_functional: str = "PBE",
         global_incar: dict[str, Any] | None = None,
         nscf_dos_incar: dict[str, Any] | None = None,
         nscf_band_incar: dict[str, Any] | None = None,

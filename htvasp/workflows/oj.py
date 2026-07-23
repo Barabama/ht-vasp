@@ -41,7 +41,7 @@ class OJWorker(Worker):
         self,
         worker_name: str = "oj-worker",
         vasp_args: dict[str, Any] | None = None,
-        potcar_functional: str = "PBE_64",
+        potcar_functional: str = "PBE",
         global_incar: dict[str, Any] | None = None,
         j_count: int = 4,
         dist_cutoff: float | None = None,
