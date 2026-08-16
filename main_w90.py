@@ -332,7 +332,7 @@ def submit_jobs(force: bool = False) -> None:
             job_name=f"{name}-tb2j",
             output_log=f"logs/{name}-tb2j.log",
             ntasks=32,
-            memory="96G",
+            memory="64G",
         )
         job_id = manager.submit_command(
             command=f"python {__file__} --name {name} {'--rerun' if force else ''}",
