@@ -183,7 +183,7 @@ def submit_job():
         command=f"python {__file__} --local",
         config=config,
         conda_env="htvasp",
-        workdir=".",
+        work_dir=".",
     )
     if job_id:
         log.info(f"Submitted job: {job_id}")
