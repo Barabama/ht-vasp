@@ -28,7 +28,7 @@ class StaticWorker(Worker):
         self,
         worker_name: str = "static-worker",
         vasp_args: dict[str, Any] | None = None,
-        potcar_functional: str = "PBE_64",
+        potcar_functional: str = "PBE",
         global_incar: dict[str, Any] | None = None,
         relax_incar: dict[str, Any] | None = None,
         static_incar: dict[str, Any] | None = None,

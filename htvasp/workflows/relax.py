@@ -29,7 +29,7 @@ class RelaxWorker(Worker):
         self,
         worker_name: str = "relax-worker",
         vasp_args: dict[str, Any] | None = None,
-        potcar_functional="PBE_64",
+        potcar_functional="PBE",
         global_incar: dict[str, Any] | None = None,
         r7_incar: dict[str, Any] | None = None,
         r3_incar: dict[str, Any] | None = None,
