@@ -36,12 +36,16 @@ class Endmember:
             "Al": "mp-134",     # FCC
             "Co": "mp-54",      # HCP
             "Cr": "mp-90",      # BCC
+            "Cu": "mp-30",      # FCC
             "Fe": "mp-13",      # BCC
-            "Mn": "mp-1055908", # BCC
+            "Mn": "mp-35",      # CBCC
             "Nb": "mp-75",      # BCC
             "Ni": "mp-23",      # FCC
+            "Ta": "mp-50",      # BCC
             "Ti": "mp-46",      # HCP
             "V": "mp-146",      # BCC
+            "W": "mp-91",       # BCC
+            "Zr": "mp-131",     # HCP
         }
 
     def get_structure(self, mpid: str) -> Structure:

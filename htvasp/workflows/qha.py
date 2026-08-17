@@ -38,6 +38,7 @@ class QhaData(TypedDict):
     volume_temperature: list[float]  # V(T)
     free_energies: list[float]  # F(V,T) kJ/mol
     deformation_energies: list[float]  # E0(V) eV
+    total_magnetizations: list[float]  # M(V) µB, sorted by volume ascending
     entropies: list[list[float]]  # S(V,T)
     heat_capacities: list[list[float]]  # Cv(V,T) J/mol/K
     helmholtz_volume: list[list[float]]  # A(V,T)
@@ -56,7 +57,7 @@ class QhaWorker(Worker):
         self,
         worker_name: str = "qha-worker",
         vasp_args: dict[str, Any] | None = None,
-        potcar_functional="PBE_64",
+        potcar_functional="PBE",
         global_incar: dict[str, Any] | None = None,
         relax_incar: dict[str, Any] | None = None,
         eos_incar: dict[str, Any] | None = None,
@@ -183,24 +184,28 @@ class QhaWorker(Worker):
         )
 
     def get_result(self, output_job_name: str = "analyze_free_energy") -> dict[str, Any] | None:
-        """Override to include deformation energies, sorted by volume ascending."""
+        """Override to include deformation energies & magnetizations, sorted by volume ascending."""
         result = self._query_store(output_job_name)
         if result is not None:
-            result["deformation_energies"] = self._get_deformation_energies()
+            en, mag = self._get_deformation_data()
+            result["deformation_energies"] = en
+            result["total_magnetizations"] = list(mag) if mag else []
         self.close()
         return result
 
-    def _get_deformation_energies(self) -> list[float]:
+    def _get_deformation_data(self) -> tuple[list[float], list[float]]:
         """
-        Extract deformation energies from the store, sorted by volume ascending.
+        Extract deformation energies and total magnetizations from the store,
+        sorted by volume ascending.
 
-        Returns energies (eV) matching the order of ``analyze_free_energy``'s ``volumes``.
+        Returns (energies_eV, magnetizations_uB) matching the order of
+        ``analyze_free_energy``'s ``volumes``.
         """
         try:
             if not self.store:
                 raise ValueError("Store is not initialized. Run the flow first.")
 
-            entries: list[tuple[int, float, float]] = []  # (deform_index, volume, energy)
+            entries: list[tuple[int, float, float, float]] = []  # (deform_index, volume, energy, mag)
             for doc in self.store.query(
                 criteria={"name": {"$regex": r"phonon static eos deformation \d+"}},
                 properties=["uuid", "name"],
@@ -214,12 +219,25 @@ class QhaWorker(Worker):
                 output = self.store.get_output(uuid=uuid, which="last", load=True)
                 volume = output.get("volume", 0.0)
                 energy = output["output"]["energy"]
-                entries.append((int(match.group(1)), volume, energy))
+
+                calcs = output.get("calcs_reversed", [])
+                if calcs:
+                    oucar = calcs[0].get("output", {}).get("outcar", {})
+                    if isinstance(oucar, dict):
+                        mag = oucar.get("total_magnetization", None)
+                    else:
+                        mag = None
+                else:
+                    mag = None
+
+                entries.append((int(match.group(1)), volume, energy, mag))
 
             # Sort by volume ascending, matching the order used by analyze_free_energy
             entries.sort(key=lambda x: x[1])
-            return [e for _, _, e in entries]
+            energies = [e for _, _, e, _ in entries]
+            magnetizations = [m for _, _, _, m in entries]
+            return energies, magnetizations
         except Exception as e:
-            log.error(f"Failed to get deformation energies: {e}")
+            log.error(f"Failed to get deformation data: {e}")
             log.error(traceback.format_exc())
-            return []
+            return [], []

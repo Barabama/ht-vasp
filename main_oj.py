@@ -2,7 +2,8 @@
 """HT-VASP OJ Workflow - Magnetic exchange calculation using OstravaJ.
 
 Usage:
-    python main_oj.py --tick SER-Fe              # single structure
+    python main_oj.py --oj SER-Fe                 # single structure oj
+    python main_oj.py --relax SER-Fe              # single structure relax
     python main_oj.py --dry-run SER-Fe            # dry-run: just verify config generation
     python main_oj.py --batch                     # all structures locally
     python main_oj.py --slurm                     # submit to Slurm
@@ -13,22 +14,10 @@ import logging
 import shutil
 import argparse
 from pathlib import Path
-
-from htvasp.workflows import OJWorker
-from htvasp.oj.supercell_suggest import suggest_supercell
+from pymatgen.core import Structure
+from htvasp.model import Endmember
+from htvasp.workflows import OJWorker, RelaxWorker
 from htvasp.slurm import SlurmJobManager
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
-log = logging.getLogger(__name__)
-
-
-def get_structure(name: str) -> "Structure":
-    """Read POSCAR directly from data/poscars/, bypassing MPRester dependency."""
-    from pymatgen.core import Structure
-    poscar_path = Path("data/poscars") / f"{name}.vasp"
-    if poscar_path.exists():
-        return Structure.from_file(poscar_path)
-    raise FileNotFoundError(f"POSCAR not found: {poscar_path}")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
@@ -43,38 +32,46 @@ VASP_ARGS = {
 # OstravaJ requires ISPIN=2 WITHOUT MAGMOM in INCAR (it handles it)
 # MUST be static (IBRION=-1) — relaxation breaks the Heisenberg model
 GLOBAL_INCAR = {
-    "ENCUT": 500,
+    "ENCUT": 400,
     "ISTART": 0,
     "ICHARG": 2,
     "ISMEAR": 1,
     "SIGMA": 0.2,
-    "ALGO": "Normal",           # "Fast" unstable for magnetic systems
+    "ALGO": "Normal",  # "Fast" unstable for magnetic systems
     "NELM": 120,
     "NELMIN": 6,
     "NELMDL": -6,
-    "IBRION": -1,               # CRITICAL: static, not relaxation
-    "NSW": 0,                   # CRITICAL: no ionic steps
-    "EDIFF": 1e-7,
+    "IBRION": -1,  # CRITICAL: static, not relaxation
+    "NSW": 0,  # CRITICAL: no ionic steps
+    "EDIFF": 1e-6,
+    "ISPIN": 2,
     "ISYM": 0,
     "LREAL": "Auto",
     "PREC": "Normal",
     "SYMPREC": 1e-5,
     "LWAVE": False,
     "LCHARG": False,
+    "LORBIT": 10,  # required by OstravaJ for reading vasprun.xml
     "GGA": "PE",
-    "KPAR": 2,
-    "NCORE": 4,
-    "LORBIT": 10,               # required by OstravaJ for reading vasprun.xml
     # Mixing parameters tuned for magnetic systems
     "AMIX": 0.1,
-    "BMIX": 0.0001,
+    "BMIX": 1e-4,
     "AMIX_MAG": 0.4,
-    "BMIX_MAG": 0.0001,
+    "BMIX_MAG": 1e-4,
+    "KPAR": 2,
+    "NCORE": 4,
 }
-
+RELAX_INCAR = {
+    "NELM": 100,
+    "NSW": 100,
+    "EDIFF": 1e-6,
+    "EDIFFG": -0.02,
+    "KPAR": 1,
+    "NCORE": 1,
+}
 # Structure names for CoFeMnNi magnetic exchange
 # B2/endmember naming: BCC-X-Y means BCC structure with X on sublattice 1, Y on sublattice 2
-STRUCT_NAMES = [
+STRUCTURE_NAMES = [
     # Pure elements (SER)
     "SER-Co",
     "SER-Fe",
@@ -83,11 +80,11 @@ STRUCT_NAMES = [
     # BCC endmembers (4 elements = 10 binary pairs)
     # "BCC-Co-Co",
     # "BCC-Co-Fe",
-    # "BCC-Co-Mn",
+    "BCC-Co-Mn",
     # "BCC-Co-Ni",
     # "BCC-Fe-Fe",
     # "BCC-Fe-Mn",
-    # "BCC-Fe-Ni",
+    "BCC-Fe-Ni",
     # "BCC-Mn-Mn",
     # "BCC-Mn-Ni",
     # "BCC-Ni-Ni",
@@ -102,17 +99,105 @@ STRUCT_NAMES = [
     # "FCC-Mn-Mn",
     # "FCC-Mn-Ni",
     # "FCC-Ni-Ni",
+    # HCP endmembers
+    # "HCP-Co-Co",
+    # "HCP-Co-Fe",
+    "HCP-Co-Mn",
+    "HCP-Co-Ni",
 ]
 
 # Magnetic species: set base_spin per element (μB)
 # From OstravaJ paper / experimental values
 MAGNETIC_SPECIES = ["Co", "Fe", "Mn", "Ni"]
 BASE_SPIN_MAP = {
-    "Co": 2.0,    # FCC Co ~1.7 μB, BCC ~1.5 μB
-    "Fe": 2.5,    # BCC Fe ~2.2 μB, FCC ~2.5 μB
-    "Mn": 2.5,    # ~2.4 μB
-    "Ni": 1.0,    # FCC Ni ~0.6 μB
+    "Co": 2.0,
+    "Fe": 2.5,
+    "Mn": 2.5,
+    "Ni": 1.0,
 }
+
+root_dir = Path(__file__).parent.resolve()
+flow_dir = Path("/nfs_ssd/tmp")
+poscar_dir = root_dir / "data" / "poscars"
+conda_env = root_dir.parent / ".conda"
+
+
+def read_lattice_constants(name: str) -> dict | None:
+    """从 {name}-relax.json 读取弛豫后的晶格常数.
+
+    Returns:
+        dict with keys: name, a, b, c, alpha, beta, gamma, volume, formula
+        or None if the file is missing or parsing fails.
+    """
+    json_path = root_dir / "data" / name / "ojflow" / f"{name}-relax.json"
+    if not json_path.exists():
+        log.warning("  relax JSON not found: %s", json_path)
+        return None
+
+    try:
+        with open(json_path) as f:
+            data = json.load(f)
+
+        # The structure is stored under "output" → "structure" (task doc format)
+        struct_dict = data.get("output", {}).get("structure")
+        if struct_dict is None:
+            # Fallback: maybe stored at top-level "structure"
+            struct_dict = data.get("structure")
+        if struct_dict is None:
+            log.warning("  No structure found in %s", json_path)
+            return None
+
+        structure = Structure.from_dict(struct_dict)
+        latt = structure.lattice
+        info = {
+            "name": name,
+            "a": latt.a,
+            "b": latt.b,
+            "c": latt.c,
+            "alpha": latt.alpha,
+            "beta": latt.beta,
+            "gamma": latt.gamma,
+            "volume": latt.volume,
+            "formula": structure.composition.reduced_formula,
+        }
+        log.info(
+            "  %s: a=%.4f  b=%.4f  c=%.4f  α=%.2f  β=%.2f  γ=%.2f  V=%.2f",
+            name,
+            latt.a,
+            latt.b,
+            latt.c,
+            latt.alpha,
+            latt.beta,
+            latt.gamma,
+            latt.volume,
+        )
+        return info
+    except Exception as e:
+        log.warning("  Failed to parse lattice constants for %s: %s", name, e)
+        return None
+
+
+def read_lattice_batch():
+    """对所有 STRUCTURE_NAMES 打印晶格常数."""
+    print(f"\n{'=' * 90}")
+    print("  Lattice constants from relaxation")
+    print(f"{'=' * 90}")
+    print(
+        f"  {'Name':<20s}  {'a':>8s}  {'b':>8s}  {'c':>8s}  "
+        f"{'α':>6s}  {'β':>6s}  {'γ':>6s}  {'V':>8s}"
+    )
+    print(f"  {'─'*20}  {'─'*8}  {'─'*8}  {'─'*8}  " f"{'─'*6}  {'─'*6}  {'─'*6}  {'─'*8}")
+    for name in STRUCTURE_NAMES:
+        info = read_lattice_constants(name)
+        if info is None:
+            print(f"  {name:<20s}  {'—':>8s}")
+        else:
+            print(
+                f"  {info['name']:<20s}  {info['a']:>8.4f}  {info['b']:>8.4f}  {info['c']:>8.4f}  "
+                f"{info['alpha']:>6.2f}  {info['beta']:>6.2f}  {info['gamma']:>6.2f}  "
+                f"{info['volume']:>8.2f}"
+            )
+    print()
 
 
 def detect_magnetic_ions(stem: str) -> list[str]:
@@ -129,141 +214,7 @@ def detect_magnetic_ions(stem: str) -> list[str]:
     return ions
 
 
-def suggest_supercell(
-    struct,
-    dist_cutoff: float = 6.0,
-    atoms_per_cell: int | None = None,
-) -> tuple[tuple[int, int, int], str]:
-    """Suggest supercell size for OstravaJ based on structure + dist_cutoff.
-
-    Physics:
-      OJ needs the supercell to contain each J-pair's distance vector fully within
-      the box.  The Nyquist-like criterion is:
-          n_i * a_i  >  2 * d_k    for each direction i and each J-pair k.
-      The tightest single constraint uses the shortest lattice vector:
-          n_i  >  int(2 * d_max / a_min) + 1
-
-      However, the *total number of atoms* in the supercell also matters.
-      OJ searches over 2^{N_atoms} spin configurations and picks only those
-      that satisfy the "identical magnetic surrounding" criterion (an
-      exponentially hard constraint).  Empirically (from our dry-runs):
-
-          BCC 2-atom:  sum(n_i)  ≥ 10  → enough independent configs
-                        sum(n_i)   = 9  →  failure (3×3×3 = 54 atoms)
-
-          HCP 2-atom:  (4,4,2) works,  sum = 10
-          FCC 4-atom:  (2,2,2) → 32 atoms  should be tried first
-                       (4,4,2) → 128 atoms → OJ search space too large
-
-    Returns:
-      (nx, ny, nz), reason  —  recommended supercell and a human-readable
-                                justification or warning.
-    """
-    import math
-    from pymatgen.core import Structure
-
-    if atoms_per_cell is None:
-        atoms_per_cell = len(struct)
-
-    # Lattice vector lengths
-    a, b, c = struct.lattice.abc
-    a_min = min(a, b, c)
-
-    # Minimum cells per direction to contain 2 × dist_cutoff
-    n_req = int(math.ceil(2.0 * dist_cutoff / a_min)) + 1
-    nx, ny, nz = max(n_req, 2), max(n_req, 2), max(n_req, 2)
-
-    # Total atoms in supercell
-    n_total = atoms_per_cell * nx * ny * nz
-    search_space = 2 ** n_total  # 2^N possible spin configurations
-
-    reasons = []
-
-    # --- Adjust: search space must not explode ---
-    # OJ's parallel generator can handle ~2^{64} in reasonable time.
-    # >2^{100} is almost certainly too large.
-    if search_space > 2 ** 100:
-        # Try reducing the non-optimal directions first
-        if nx == ny and nx > nz:
-            # Cubic or near-cubic  →  prioritise the shortest direction for reduction
-            pass
-
-        # Strategy: keep the primary directions full, shrink less-important ones
-        while search_space > 2 ** 80 and nx > 2 and ny > 2 and nz > 1:
-            if nz > 1:
-                nz -= 1
-            elif ny > nx and ny > 2:
-                ny -= 1
-            elif nx > ny and nx > 2:
-                nx -= 1
-            else:
-                ny -= 1
-            n_total = atoms_per_cell * nx * ny * nz
-            search_space = 2 ** n_total
-
-        reasons.append(
-            f"search space {math.log10(search_space):.0f} decibans "
-            f"(trying small supercell to keep OJ tractable)"
-        )
-
-    # --- Adjust: sum(n_i) heuristic for independent configs ---
-    # Empirically, BCC 2-atom needs sum(n_i) ≥ 10
-    n_sum = nx + ny + nz
-    while n_sum < 10 and nx < 6 and ny < 6 and nz < 6:
-        # Grow the smallest dimension
-        if nz < nx and nz < ny:
-            nz += 1
-        elif ny < nx:
-            ny += 1
-        else:
-            nx += 1
-        n_sum = nx + ny + nz
-        n_total = atoms_per_cell * nx * ny * nz
-
-    if n_sum >= 10:
-        reasons.append(
-            f"supercell sum({nx},{ny},{nz})={n_sum} ≥ 10  "
-            f"(empirical threshold for enough independent configs)"
-        )
-    else:
-        reasons.append(
-            f"⚠  sum({nx},{ny},{nz})={n_sum} < 10 — may fail to find "
-            f"enough independent magnetic configurations"
-        )
-
-    # --- Verify supercell contains full J-pair distances ---
-    # OJ needs: for each J-pair vector d_k, its image in the supercell is unique.
-    # A sufficient condition: n_i * a_i > max_k |d_k| for each direction i.
-    # The maximum J-pair distance is dist_cutoff.
-    ok = True
-    for n_i, a_i in [(nx, a), (ny, b), (nz, c)]:
-        if n_i * a_i <= dist_cutoff:
-            ok = False
-            break
-    if ok:
-        reasons.append(
-            f"extent ≥ {dist_cutoff}Å in all directions  (covers all J-pairs)"
-        )
-    else:
-        # Try growing the cell if it does NOT cover the distance
-        if nx * a <= dist_cutoff:
-            nx = int(ceil(dist_cutoff / a)) + 1
-        if ny * b <= dist_cutoff:
-            ny = int(ceil(dist_cutoff / b)) + 1
-        if nz * c <= dist_cutoff:
-            nz = int(ceil(dist_cutoff / c)) + 1
-        n_total = atoms_per_cell * nx * ny * nz
-        reasons.append(
-            f"⚠ grew cell to cover J-pair distances → ({nx},{ny},{nz})"
-        )
-
-    # Final check: OJ parallelism uses multiprocessing with cpu_count()
-    # Large supercell config generation is memory-intensive
-    total_atoms = atoms_per_cell * nx * ny * nz
-    reasons.append(f"{total_atoms} atoms, 2^{total_atoms} ≈ "
-                   f"10^{total_atoms * math.log10(2):.0f} config space")
-
-    return (nx, ny, nz), "; ".join(reasons)
+def detect_base_spin(magnetic_ions: list[str], default: float = 2.0) -> list[float]:
     """Return base_spin per magnetic ion, in the same order as magnetic_ions list.
 
     OJ's OJ.conf requires base_spin to be a space-separated list whose
@@ -278,23 +229,59 @@ def suggest_supercell(
     return spins
 
 
-def run_tick(name: str, force: bool = False, dry_run: bool = False):
+def run_relax(name: str, rerun: bool = False):
+    store_dir = root_dir / "data" / name / "ojflow"
+    json_path = store_dir / f"{name}-relax.json"
+
+    # Skip if already done
+    if not rerun and json_path.exists():
+        log.info(f"RelaxWorker for Structure {name} already done (use --rerun to re-run)")
+    else:
+
+        log.info(f"RelaxWorker for Structure {name} started")
+
+        endmember = Endmember()
+        structure = endmember.get_poscar(name, poscar_dir)
+        try:
+            relax_worker = RelaxWorker(
+                vasp_args=VASP_ARGS,
+                global_incar=GLOBAL_INCAR,
+                r7_incar=RELAX_INCAR,
+                r3_incar=RELAX_INCAR,
+            )
+            relax_worker.run_flow(
+                name=name,
+                structure=structure,
+                flow_dir=flow_dir,
+                store_dir=store_dir,
+                resume=not rerun,
+            )
+            output = relax_worker.get_result()
+            relax_worker.write_result(data=output, json_path=json_path)
+        except Exception as e:
+            log.error(f"RelaxWorker for Structure {name} failed")
+            log.error(str(e))
+            return 1
+        log.info(f"RelaxWorker for Structure {name} done")
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    log.info(str(data.get("structure", {}).get("lattice", {})))
+
+
+def run_oj(name: str, rerun: bool = False, dry_run: bool = False):
     """Run a single structure locally."""
-    flow_dir = Path("/nfs_ssd/tmp")
-    store_dir = Path("data/endmembers") / name / "ojflow"
+    store_dir = root_dir / "data" / name / "ojflow"
     json_path = store_dir / f"{name}-oj.json"
 
     # Skip if already done
-    if not force and json_path.exists():
-        log.info(f"Structure {name} already done (use --force to re-run)")
-        return
+    if not rerun and json_path.exists():
+        log.info(f"OJWorker for Structure {name} already done (use --rerun to re-run)")
+        return 0
 
-    log.info(f"Structure {name} start")
+    log.info(f"OJWorker for Structure {name} started")
 
-    if force and store_dir.exists():
-        shutil.rmtree(store_dir)
-
-    struct = get_structure(name)
+    endmember = Endmember()
+    structure = endmember.get_poscar(name, poscar_dir)
 
     # Detect magnetic ions and base_spin from structure name
     magnetic_types = detect_magnetic_ions(name)
@@ -304,35 +291,40 @@ def run_tick(name: str, force: bool = False, dry_run: bool = False):
         base_spin = [1.0]
     log.info(f"  Magnetic ions: {magnetic_types}, base_spin: {base_spin}")
     log.info(f"  Magnetic ions: {magnetic_types}, base_spin: {base_spin}")
-
     if dry_run:
-        _dry_run_oj(name, struct, magnetic_types, base_spin)
-        return
+        _dry_run_oj(name, structure, magnetic_types, base_spin)
+        return 0
 
     try:
         worker = OJWorker(
             vasp_args=VASP_ARGS,
             global_incar=GLOBAL_INCAR,
-            dist_cutoff=6.0,                # ~6 nearest neighbors in BCC
-            extend_poscar=(4, 4, 2),         # 64 atoms for BCC 2-atom cell
+            dist_cutoff=6.0,  # ~6 nearest neighbors in BCC
+            extend_poscar=(4, 4, 2),  # 64 atoms for BCC 2-atom cell
             magnetic_ion_types=magnetic_types,
             base_spin=base_spin,
         )
         worker.run_flow(
             name=name,
-            structure=struct,
+            structure=structure,
             flow_dir=flow_dir,
             store_dir=store_dir,
-            resume=not force,
+            resume=not rerun,
         )
         output = worker.get_result()
         worker.write_result(data=output, json_path=json_path)
         _report_result(output)
     except Exception as e:
-        log.error(f"Structure {name} failed: {e}")
+        log.error(f"OJWorker for Structure {name} failed")
+        log.error(e)
+        return 1
+    log.info(f"OJWorker for Structure {name} done")
+    return 0
 
 
-def _dry_run_oj(name: str, structure, magnetic_types: list[str], base_spin: float):
+def _dry_run_oj(
+    name: str, structure, magnetic_types: list[str], base_spin: float | list[float]
+):
     """Run OstravaJ generate with --dry-run to test configuration."""
     from htvasp.oj.input_set import OJInputSetGenerator, write_oj_input_set
     import subprocess
@@ -386,60 +378,78 @@ def _report_result(output: dict | None):
         return
 
     log.info(f"  Js found: {output.get('J_reprs', 'N/A')}")
-    log.info(f"  Tc_MFA: {output.get('Tc_MFA', 'N/A'):.1f} K" if output.get('Tc_MFA') else "  Tc_MFA: N/A")
-    log.info(f"  Tc_RPA: {output.get('Tc_RPA', 'N/A'):.1f} K" if output.get('Tc_RPA') else "  Tc_RPA: N/A")
+    log.info(
+        f"  Tc_MFA: {output.get('Tc_MFA', 'N/A'):.1f} K"
+        if output.get("Tc_MFA")
+        else "  Tc_MFA: N/A"
+    )
+    log.info(
+        f"  Tc_RPA: {output.get('Tc_RPA', 'N/A'):.1f} K"
+        if output.get("Tc_RPA")
+        else "  Tc_RPA: N/A"
+    )
     log.info(f"  Num configs: {output.get('num_configs', 'N/A')}")
     log.info(f"  Condition number: {output.get('condition_number', 'N/A')}")
     log.info(f"  Rank: {output.get('rank', 'N/A')}")
     log.info(f"  Magnetic moment (avg): {output.get('avg_magnetic_moment', 'N/A')} μB")
 
 
-def run_batch(force: bool = False, dry_run: bool = False):
+def run_batch(rerun: bool = False, dry_run: bool = False):
     """Run all structures locally."""
-    for name in STRUCT_NAMES:
-        run_tick(name, force=force, dry_run=dry_run)
+    for name in STRUCTURE_NAMES:
+        run_oj(name, rerun=rerun, dry_run=dry_run)
 
 
-def submit_jobs(force: bool = False) -> None:
+def submit_jobs(rerun: bool = False) -> None:
     manager = SlurmJobManager()
-    for name in STRUCT_NAMES:
-        config = manager.get_cpu_config(
-            job_name=f"{name}-oj",
-            output_log=f"logs/{name}-oj.log",
-            ntasks=32,
-            memory="20G",
+    for name in STRUCTURE_NAMES:
+        jid = manager.submit_command(
+            command=f"python {__file__} --relax {name} {'--rerun' if rerun else ''}",
+            config=manager.get_cpu_config(
+                job_name=f"{name}-oj",
+                output_log=f"logs/{name}-oj.log",
+                ntasks=8,
+                memory="8G",
+            ),
+            conda_env=str(conda_env),
+            work_dir=root_dir,
         )
-        job_id = manager.submit_command(
-            command=f"python {__file__} --tick {name} {'--force' if force else ''}",
-            config=config,
-            conda_env="htvasp",
-            work_dir=".",
-        )
-        if not job_id:
-            log.error(f"Failed to submit job for {name}")
+        if not jid:
+            log.error(f"Failed to submit oj job for Structure {name}")
         else:
-            log.info(f"Submitted job for {name} with ID {job_id}")
+            log.info(f"Submitted oj job for Structure {name} with ID {jid}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="OJ magnetic exchange workflow")
-    parser.add_argument("--tick", type=str, help="Run single structure")
+    parser.add_argument("--oj", type=str, help="Run single structure")
+    parser.add_argument("--relax", type=str, help="Run single structure")
+    parser.add_argument("--lattice", type=str, help="Read lattice constants from relax JSON")
+    parser.add_argument(
+        "--lattice-batch", action="store_true", help="Read lattice constants for all structures"
+    )
     parser.add_argument("--dry-run", type=str, help="Dry-run: test config generation only")
     parser.add_argument("--batch", action="store_true", help="Run all locally")
     parser.add_argument("--dry-batch", action="store_true", help="Dry-run all structures")
     parser.add_argument("--slurm", action="store_true", help="Submit to Slurm")
-    parser.add_argument("--force", action="store_true", help="Force re-run")
+    parser.add_argument("--rerun", action="store_true", help="rerun re-run")
     args = parser.parse_args()
 
-    if args.tick:
-        run_tick(args.tick, force=args.force)
+    if args.oj:
+        run_oj(args.oj, rerun=args.rerun)
+    elif args.relax:
+        run_relax(args.relax, rerun=args.rerun)
+    elif args.lattice:
+        read_lattice_constants(args.lattice)
+    elif args.lattice_batch:
+        read_lattice_batch()
     elif args.dry_run:
-        run_tick(args.dry_run, dry_run=True)
+        run_oj(args.dry_run, dry_run=True)
     elif args.batch:
-        run_batch(force=args.force)
+        run_batch(rerun=args.rerun)
     elif args.dry_batch:
         run_batch(dry_run=True)
     elif args.slurm:
-        submit_jobs(force=args.force)
+        submit_jobs(rerun=args.rerun)
     else:
         parser.print_help()
