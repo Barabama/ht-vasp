@@ -187,30 +187,55 @@ class Tb2jInputSetGenerator(VaspInputGenerator):
         of sites and same composition); otherwise the structure is used as-is
         so genuinely low-symmetry cells are not altered.
 
+        The symmetry tolerance is escalated (1e-3 -> 2e-2) only when the tight
+        tolerance changes the atom count: a tight tolerance can detect a
+        spuriously low-symmetry group for a slightly distorted high-symmetry
+        cell. E.g. an R3-relaxed BCC Fe cell whose angle gamma drifted from the
+        ideal 109.47 deg to 109.89 deg is detected as Fmmm (69) at symprec=1e-3,
+        whose conventional cell holds 4 atoms (so the atom-count guard rejects
+        it and wannier90 still fails with ``kmesh_get_bvector``). At symprec=2e-2
+        the same cell is detected as Im-3m (229), and ``get_refined_structure``
+        returns the clean 2-atom cubic conventional BCC cell with all 8 NN
+        shells exactly degenerate (verified). The first tolerance that preserves
+        the atom count is accepted.
+
         Args:
             structure: Structure to symmetrize (typically the R3-relaxed one).
 
         Returns:
-            Symmetrized structure, or the input unchanged if refinement would
-            change the cell.
+            Symmetrized structure, or the input unchanged if no refinement
+            preserves the cell.
         """
-        try:
-            refined = SpacegroupAnalyzer(structure, symprec=1e-3).get_refined_structure()
-        except Exception:
-            log.debug("Spacegroup refinement failed; using structure as-is", exc_info=True)
-            return structure
-        if len(refined) != len(structure) or refined.composition != structure.composition:
-            log.debug(
-                f"Symmetrization would change the cell "
-                f"({len(structure)} -> {len(refined)} sites); skipping"
-            )
-            return structure
-        if refined.lattice != structure.lattice:
-            log.debug(
-                f"Symmetrized lattice: {structure.lattice.abc} / {structure.lattice.angles} "
-                f"-> {refined.lattice.abc} / {refined.lattice.angles}"
-            )
-        return refined
+        for symprec in (1e-3, 5e-3, 1e-2, 2e-2):
+            try:
+                refined = SpacegroupAnalyzer(
+                    structure, symprec=symprec
+                ).get_refined_structure()
+            except Exception:
+                log.debug(
+                    f"Spacegroup refinement failed at symprec={symprec}",
+                    exc_info=True,
+                )
+                continue
+            if (
+                len(refined) != len(structure)
+                or refined.composition != structure.composition
+            ):
+                log.debug(
+                    f"Symmetrization at symprec={symprec} would change the cell "
+                    f"({len(structure)} -> {len(refined)} sites); trying looser "
+                    f"tolerance"
+                )
+                continue
+            if refined.lattice != structure.lattice:
+                log.debug(
+                    f"Symmetrized lattice (symprec={symprec}): "
+                    f"{structure.lattice.abc} / {structure.lattice.angles} -> "
+                    f"{refined.lattice.abc} / {refined.lattice.angles}"
+                )
+            return refined
+        log.debug("No symmetry refinement preserved the cell; using structure as-is")
+        return structure
 
     def get_wannier90_win_string(
         self,

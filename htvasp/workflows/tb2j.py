@@ -3,14 +3,16 @@ HT-VASP - TB2J Workflow
 
 End-member magnetic exchange via Wannier90::
 
-    R3 relax (DoubleRelax) -> SCF + Wannier90 -> TB2J (exchange.out)
+    R3 relax -> SCF + Wannier90 -> TB2J (exchange.out)
 
-The R3 relaxation uses a double relax (R3 -> R3) so the structure is fully
-relaxed at ISIF=3 (with a WAVECAR hot-start between the two R3 steps). The
-Wannier90 SCF runs fresh (ISTART=0, no WAVECAR copy from R3 - the R3 WAVECAR
-has a different NBANDS and a hot-start conflicts with the Wannier90 interface
-and custodian). NUM_WANN is auto-derived as ``n_atoms * 9`` (s+p+d orbitals
-per atom) unless overridden at construction.
+The R3 relaxation uses a single full relax (ISIF=3). A double relax (R3 -> R3)
+is redundant for TB2J: the exchange parameters only need a well-relaxed
+structure, which a single R3 pass provides (and the R3 WAVECAR hot-start is not
+needed downstream - the W90 step runs its own fresh SCF). The Wannier90 SCF
+runs fresh (ISTART=0, no WAVECAR copy from R3 - the R3 WAVECAR has a different
+NBANDS and a hot-start conflicts with the Wannier90 interface and custodian).
+NUM_WANN is auto-derived as ``n_atoms * 9`` (s+p+d orbitals per atom) unless
+overridden at construction.
 
 Parallelism (run-critical): the W90 SCF must run with NCORE=1 and KPAR=1
 (the Wannier90/PEAD interface), so NPAR = NTASKS and NBANDS is pre-rounded to
@@ -28,7 +30,6 @@ from jobflow import Flow
 from pymatgen.core import Structure
 from pymatgen.io.vasp import Kpoints
 from custodian.vasp.handlers import VaspErrorHandler
-from atomate2.vasp.flows.core import DoubleRelaxMaker
 from atomate2.vasp.jobs.core import RelaxMaker
 from atomate2.vasp.sets.core import RelaxSetGenerator
 
@@ -43,7 +44,7 @@ class Tb2jWorker(Worker):
     """Worker for TB2J magnetic exchange calculations.
 
     Pipeline:
-        1. R3 full structural relaxation (``DoubleRelaxMaker``: R3 -> R3).
+        1. R3 full structural relaxation (single ``RelaxMaker``: R3).
         2. SCF + Wannier90 interface. Fresh SCF (ISTART=0, matching the verified
            ``tb2j_test/submit_tb2j.sh`` INCAR_W90) - a WAVECAR hot-start
            conflicts with the Wannier90 NBANDS requirement and custodian.
@@ -110,35 +111,35 @@ class Tb2jWorker(Worker):
         self.num_wann = num_wann
         self.ntasks = ntasks
 
-        # R3 structural relaxation (DoubleRelax: R3 -> R3)
-        self.relax_maker = DoubleRelaxMaker.from_relax_maker(
-            RelaxMaker(
-                name="r3 relax",
-                run_vasp_kwargs=self.run_vasp_kwargs,
-                stop_children_kwargs={"handle_unsuccessful": False},
-                copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
-                input_set_generator=RelaxSetGenerator(
-                    user_potcar_functional=self.potcar_functional,
-                    # Use the same explicit isotropic Gamma mesh as the Wannier90
-                    # step (verified submit_tb2j.sh KPOINTS). The atomate2
-                    # auto-kspacing mesh is anisotropic for HCP (10x10x6), which
-                    # during the ISIF=3 cell relaxation biases the relaxed c/a
-                    # (1.613 vs the isotropic 1.6064) and shifts the TB2J J
-                    # values away from the verified benchmark.
-                    user_kpoints_settings=Kpoints.gamma_automatic(kpts=self.kpoints),
-                    user_incar_settings={
-                        **self.global_incar,
-                        "ISTART": 1,
-                        "ISIF": 3,
-                        "LWAVE": True,
-                        # Enforce symmetry during relaxation (global_incar sets
-                        # ISYM=0). ISYM=0 lets the cell drift slightly off the
-                        # intended spacegroup (e.g. HCP angle 120.0001 deg).
-                        # ISYM=1 matches the verified submit_tb2j.sh INCAR_R3.
-                        "ISYM": 1,
-                        **relax_incar,
-                    },
-                ),
+        # R3 structural relaxation (single RelaxMaker: R3). A double relax
+        # (R3 -> R3) is redundant for TB2J - the exchange parameters only need
+        # a well-relaxed structure, which one full R3 pass provides.
+        self.relax_maker = RelaxMaker(
+            name="r3 relax",
+            run_vasp_kwargs=self.run_vasp_kwargs,
+            stop_children_kwargs={"handle_unsuccessful": False},
+            copy_vasp_kwargs={"additional_vasp_files": ("WAVECAR",)},
+            input_set_generator=RelaxSetGenerator(
+                user_potcar_functional=self.potcar_functional,
+                # Use the same explicit isotropic Gamma mesh as the Wannier90
+                # step (verified submit_tb2j.sh KPOINTS). The atomate2
+                # auto-kspacing mesh is anisotropic for HCP (10x10x6), which
+                # during the ISIF=3 cell relaxation biases the relaxed c/a
+                # (1.613 vs the isotropic 1.6064) and shifts the TB2J J
+                # values away from the verified benchmark.
+                user_kpoints_settings=Kpoints.gamma_automatic(kpts=self.kpoints),
+                user_incar_settings={
+                    **self.global_incar,
+                    "ISTART": 1,
+                    "ISIF": 3,
+                    "LWAVE": True,
+                    # Enforce symmetry during relaxation (global_incar sets
+                    # ISYM=0). ISYM=0 lets the cell drift slightly off the
+                    # intended spacegroup (e.g. HCP angle 120.0001 deg).
+                    # ISYM=1 matches the verified submit_tb2j.sh INCAR_R3.
+                    "ISYM": 1,
+                    **relax_incar,
+                },
             ),
         )
 
@@ -211,10 +212,16 @@ class Tb2jWorker(Worker):
                     "KPAR": 1,
                     # PEAD (used by the Wannier90 interface) requires NCORE=1
                     "NCORE": 1,
-                    # match the verified INCAR_W90 (ISYM default = 1): lets the
-                    # SCF use the symmetry-reduced k-mesh (~50 vs 512 k-points);
-                    # wannier90 still receives the full 8x8x8 grid.
-                    "ISYM": 1,
+                    # wannier90 requires the full-BZ k-point grid, so ISYM=0
+                    # (no symmetry reduction; the SCF uses all 8x8x8 k-points).
+                    # ISYM=1 would compress the mesh (~50 vs 512 k-points),
+                    # which is harmful for wannier90 and, on high-symmetry
+                    # structures (e.g. BCC Fe), triggers the VASP internal
+                    # error "mkpoints_change.F:794: number of G-vector changed
+                    # in star ..." that corrupts vasprun.xml and aborts the
+                    # flow. R3 keeps ISYM=1 to match the verified baseline
+                    # structure.
+                    "ISYM": 0,
                     "NSW": 0,
                     "IBRION": -1,
                     "NELM": 200,
@@ -250,13 +257,16 @@ class Tb2jWorker(Worker):
         if self.num_wann is None:
             self.tb2j_maker.input_set_generator.num_wann = len(structure) * ORBITALS_PER_ATOM
 
+        # RelaxMaker.make() returns a single job (unlike DoubleRelaxMaker,
+        # which returns a flow), so relax_job is a plain Job whose .output is
+        # the VASP task doc (structure, dir_name, ...). The W90->TB2J flow is
+        # added as a nested child flow: jobs cannot be shared between flows, so
+        # the tb2j jobs must stay inside their own child flow.
         relax_job = self.relax_maker.make(structure, prev_dir)
         tb2j_flow = self.tb2j_maker.make(
             relax_job.output.structure,
             prev_dir=relax_job.output.dir_name,
         )
-        # Nest the relax flow and the W90->TB2J flow (jobs cannot be shared
-        # between flows, so the tb2j flow is added as a child flow).
         return Flow(
             [relax_job, tb2j_flow],
             output=tb2j_flow.output,

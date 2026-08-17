@@ -122,8 +122,8 @@ def test_worker_creation():
     if not hasattr(worker, "relax_maker") or not hasattr(worker, "tb2j_maker"):
         print("✗ Missing relax_maker/tb2j_maker attributes")
         return False
-    if type(worker.relax_maker).__name__ != "DoubleRelaxMaker":
-        print(f"✗ Expected DoubleRelaxMaker, got {type(worker.relax_maker).__name__}")
+    if type(worker.relax_maker).__name__ != "RelaxMaker":
+        print(f"✗ Expected RelaxMaker, got {type(worker.relax_maker).__name__}")
         return False
     if type(worker.tb2j_maker).__name__ != "Tb2jMaker":
         print(f"✗ Expected Tb2jMaker, got {type(worker.tb2j_maker).__name__}")
@@ -131,7 +131,7 @@ def test_worker_creation():
     if worker.kmesh != (9, 9, 9):
         print(f"✗ Default kmesh should be (9,9,9), got {worker.kmesh}")
         return False
-    print("✓ Relax = DoubleRelaxMaker, exchange = Tb2jMaker, kmesh=(9,9,9)")
+    print("✓ Relax = RelaxMaker, exchange = Tb2jMaker, kmesh=(9,9,9)")
     print()
     return True
 
@@ -563,13 +563,13 @@ def test_flow_creation():
         return False
 
     relax_flow = flow.jobs[0]
-    if relax_flow.name != "double relax":
-        print(f"✗ First job should be 'double relax', got {relax_flow.name}")
+    if relax_flow.name != "r3 relax":
+        print(f"✗ First job should be 'r3 relax', got {relax_flow.name}")
         return False
-    relax_jobs = list(relax_flow.jobs)
+    relax_jobs = list(relax_flow.jobs) if hasattr(relax_flow, "jobs") else [relax_flow]
     print(f"✓ relax flow: {relax_flow.name} -> {[j.name for j in relax_jobs]}")
-    if len(relax_jobs) != 2:
-        print("✗ DoubleRelax should contain 2 R3 relax jobs")
+    if len(relax_jobs) != 1:
+        print("✗ Relax should contain a single R3 relax job")
         return False
 
     tb2j_flow = flow.jobs[1]
