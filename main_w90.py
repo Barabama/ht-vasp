@@ -81,36 +81,28 @@ MAGMOM = {
 GLOBAL_INCAR = {
     # Basis / precision (verified for TB2J)
     "ENCUT": 520,
-    "PREC": "Accurate",
     "ISTART": 0,
     "ICHARG": 2,
-    "EDIFF": 1e-5,           # R3 convergence; W90 forced to 1e-6 by the worker
-    "EDIFFG": -0.02,
-    # Magnetism
-    "ISPIN": 2,
-    "MAGMOM": MAGMOM,
+
     "ISMEAR": 1,
     "SIGMA": 0.2,
-    # LMIXTAU=False / LMAXMIX=2 (VASP defaults) - explicitly override atomate2's
-    # defaults (LMIXTAU=True, LMAXMIX=4) so the W90 INCAR matches the verified
-    # tb2j_test baseline (no LMIXTAU/LMAXMIX keys) that converges the AFM state.
-    "LMIXTAU": False,
-    "LMAXMIX": 2,
-    "ALGO": "Fast",
+    "ALGO": "Normal",
     "NELM": 120,
-    # Matching VASP defaults (NELMIN=2, NELMDL=-5). These explicitly override
-    # the Worker base-class defaults (NELMIN=6, NELMDL=-6); kept here so the
-    # base defaults cannot re-inject the custom electronic-step settings that
-    # (with the custom mixing) drove the AFM W90 SCF into a non-magnetic state.
-    "NELMIN": 2,
-    "NELMDL": -5,
+    "NELMIN": 6,
+    "NELMDL": -6,
     # Ionic (R3 relax; W90 overridden by the worker)
     "IBRION": 2,
     "ISIF": 3,
     "NSW": 80,
     "POTIM": 0.2,
-    "LREAL": False,          # verified for TB2J (submit_tb2j.sh uses .FALSE.)
+    "EDIFF": 1e-5,          # R3 convergence; W90 forced to 1e-6 by the worker
+    "EDIFFG": -0.02,
+    # Magnetism
+    "ISPIN": 2,
+    "MAGMOM": MAGMOM,
     "ISYM": 0,
+    "LREAL": False,         # verified for TB2J (submit_tb2j.sh uses .FALSE.)
+    "PREC": "Accurate",
     "SYMPREC": 1e-5,
     # Output
     "LWAVE": False,
@@ -145,12 +137,27 @@ RELAX_INCAR = {
 # Co-Fe-Mn-Ni full endmember set (SER pure elements + BCC/FCC binary pairs).
 # BCC-X-Y / FCC-X-Y: phase template with X on sublattice 1, Y on sublattice 2.
 STRUCTURE_NAMES = [
-    # SER pure elements
+    # Al-Nb-Ti-V
+    "SER-Al",
+    "SER-Nb",
+    "SER-Ti",
+    "SER-V",
+    "BCC-Al-Al",
+    "BCC-Al-Nb",
+    "BCC-Al-Ti",
+    "BCC-Al-V",
+    "BCC-Nb-Nb",
+    "BCC-Nb-Ti",
+    "BCC-Nb-V",
+    "BCC-Ti-Ti",
+    "BCC-Ti-V",
+    "BCC-V-V",
+
+    # Co-Fe-Mn-Ni
     "SER-Co",
     "SER-Fe",
     "SER-Mn",
     "SER-Ni",
-    # BCC endmembers (4 elements -> 10 binary pairs)
     "BCC-Co-Co",
     "BCC-Co-Fe",
     "BCC-Co-Mn",
@@ -161,7 +168,6 @@ STRUCTURE_NAMES = [
     "BCC-Mn-Mn",
     "BCC-Mn-Ni",
     "BCC-Ni-Ni",
-    # FCC endmembers (all 16 directional pairs)
     "FCC-Co-Co",
     "FCC-Co-Fe",
     "FCC-Co-Mn",
