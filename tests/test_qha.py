@@ -233,7 +233,7 @@ def submit_job():
             command=f"python {__file__} --local{command_suffix}",
             config=config,
             conda_env="htvasp",
-            workdir=".",
+            work_dir=".",
         )
 
     job_id = submit()

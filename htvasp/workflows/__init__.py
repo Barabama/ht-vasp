@@ -4,6 +4,7 @@ from htvasp.workflows.static import StaticWorker
 from htvasp.workflows.qha import QhaWorker
 from htvasp.workflows.oj import OJWorker
 from htvasp.workflows.nscf import NscfWorker
+from htvasp.workflows.tb2j import Tb2jWorker
 
 __all__ = [
     "Worker",
@@ -12,4 +13,5 @@ __all__ = [
     "QhaWorker",
     "OJWorker",
     "NscfWorker",
+    "Tb2jWorker",
 ]
