@@ -279,8 +279,8 @@ def tb2j_solve(
         num_wann: Number of Wannier orbitals (for provenance; optional).
 
     Returns:
-        Dict with exchange_out_path, efermi, num_atoms, elements, kmesh,
-        num_wann, j_pairs, j_tensors, atom_moments and warnings.
+        Dict with exchange_out_path, efermi, num_atoms, structure, elements,
+        kmesh, num_wann, j_pairs, j_tensors, atom_moments and warnings.
     """
     prev_dir = _strip_host(prev_dir)
     warnings: list[str] = []
@@ -289,10 +289,11 @@ def tb2j_solve(
     if efermi is None:
         raise RuntimeError(f"Could not extract Fermi energy from {prev_dir}")
 
-    num_atoms = None
     poscar_path = _ensure_file(prev_dir, "POSCAR")
-    if poscar_path.exists():
-        num_atoms = len(Structure.from_file(poscar_path))
+    if not poscar_path.exists():
+        raise FileNotFoundError(f"POSCAR not found in {prev_dir}")
+    structure = Structure.from_file(poscar_path)
+    num_atoms = len(structure)
 
     result = run_wann2j(prev_dir, efermi, elements, kmesh=kmesh, output_path=Path.cwd())
     if result.returncode != 0:
@@ -317,6 +318,7 @@ def tb2j_solve(
         "exchange_out_path": parsed["exchange_out_path"],
         "efermi": efermi,
         "num_atoms": num_atoms,
+        "structure": structure.as_dict(),
         "elements": list(elements),
         "kmesh": list(kmesh),
         "num_wann": num_wann,

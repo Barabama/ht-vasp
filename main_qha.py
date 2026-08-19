@@ -63,10 +63,10 @@ GLOBAL_INCAR = {
     "LOPTICS": False,
     "LVTOT": False,
     "GGA": "PE",
-    "AMIX": 0.1,
-    "BMIX": 1e-4,
-    "AMIX_MAG": 0.4,
-    "BMIX_MAG": 1e-4,
+    # "AMIX": 0.1,
+    # "BMIX": 1e-4,
+    # "AMIX_MAG": 0.4,
+    # "BMIX_MAG": 1e-4,
 }
 
 RELAX_INCAR = {"KPAR": 4, "NCORE": 2, "LORBIT": 10}
@@ -212,15 +212,24 @@ def check_jobs(job: str):
         store_dir = root_dir / "data" / "endmembers" / name / f"{job}flow"
         json_path = store_dir.parent / f"{name}-{job}.json"
         if not json_path.exists():
+            log.info(f"{name}: not run")
             continue
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        energy = data["output"]["energy"]
-        total_magnetization = data["calcs_reversed"][0]["output"]["outcar"]["total_magnetization"]
-        magnetization = data["calcs_reversed"][0]["output"]["outcar"]["magnetization"]
-        log.info(f"{name}: {energy}")               # 总能量
-        log.info(f"{name}: {total_magnetization}")  # 总磁矩
-        # log.info(f"{magnetization}\n")              # 轨道分解 [s,p,d,tot]
+        # print(data.keys())
+        if job == "static":
+            energy = data["output"]["energy"]
+            total_magnetization = data["calcs_reversed"][0]["output"]["outcar"]["total_magnetization"]
+            magnetization = data["calcs_reversed"][0]["output"]["outcar"]["magnetization"]
+            log.info(f"{name}: {energy}")               # 总能量
+            log.info(f"{name}: {total_magnetization}")  # 总磁矩
+            # log.info(f"{magnetization}\n")              # 轨道分解 [s,p,d,tot]
+        elif job == "qha":
+            temp_range = (data["temperatures"][0], data["temperatures"][-1])
+            len_temp = len(data["temperatures"])
+            # deformations = data["deformation_energies"]
+            log.info(f"{name}: {temp_range} ({len_temp} temps)")
+            # log.info(f"{name}: {deformations}")
 
 
 

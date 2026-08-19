@@ -113,15 +113,18 @@ GLOBAL_INCAR = {
     "GGA": "PE",
     # Parallelisation: Wannier90 interface requires KPAR=1 (keep R3 consistent)
     "KPAR": 1,
-    "NCORE": 2,
-    # Magnetic mixing deliberately left at VASP defaults (no AMIX/BMIX/
-    # AMIX_MAG/BMIX_MAG; NELMIN/NELMDL set to VASP defaults above). Custom
-    # mixing (AMIX=0.2, BMIX=1e-4, AMIX_MAG=0.8, BMIX_MAG=1e-4, NELMIN=6,
-    # NELMDL=-6) drove the W90 SCF of antiferromagnetic FCC-Fe-Mn into a
-    # non-magnetic minimum (mag -> 0.001 muB); VASP defaults (AMIX=0.4,
-    # BMIX=1.0, AMIX_MAG=1.6, BMIX_MAG=1.0, NELMIN=2, NELMDL=-5) converge the
+    "NCORE": 1,
+    # Magnetic mixing deliberately left at VASP defaults (no AMIX/BMIX/AMIX_MAG/BMIX_MAG; 
+    # NELMIN/NELMDL set to VASP defaults above). 
+    # Custom mixing (AMIX=0.2, BMIX=1e-4, AMIX_MAG=0.8, BMIX_MAG=1e-4) drove the W90 SCF 
+    # of antiferromagnetic FCC-Fe-Mn into a non-magnetic minimum (mag -> 0.001 muB); 
+    # VASP defaults (AMIX=0.4, BMIX=1.0, AMIX_MAG=1.6, BMIX_MAG=1.0) converge the 
     # AFM state (Fe -1.48 / Mn +0.41 muB, matching the tb2j_test baseline).
     # Ferromagnetic systems (Co/Ni) are insensitive to this and remain stable.
+    # "AMIX": 0.2,
+    # "BMIX": 1e-4,
+    # "AMIX_MAG": 0.8,
+    # "BMIX_MAG": 1e-4,
 }
 
 # R3 relax overrides (on top of GLOBAL_INCAR) - matches submit_tb2j.sh INCAR_R3
@@ -227,7 +230,7 @@ def run_tick(name: str, force: bool = False, dry_run: bool = False):
     endmember = Endmember()
     flow_dir = Path("/nfs_ssd/tmp")
     store_dir = Path("data/endmembers") / name / "tb2jflow"
-    json_path = store_dir / f"{name}-tb2j.json"
+    json_path = store_dir.parent / f"{name}-tb2j.json"
 
     # Skip if already done
     if not force and json_path.exists():
@@ -296,7 +299,7 @@ def _report_result(name: str, output: dict) -> None:
 def check_jobs() -> None:
     """Scan STRUCTURE_NAMES and print a J-parameter summary per completed run."""
     for name in STRUCTURE_NAMES:
-        json_path = Path("data/endmembers") / name / "tb2jflow" / f"{name}-tb2j.json"
+        json_path = Path("data/endmembers") / name / f"{name}-tb2j.json"
         if not json_path.exists():
             log.info(f"{name}: not run")
             continue

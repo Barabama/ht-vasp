@@ -36,6 +36,9 @@ class Tb2jResult(BaseModel):
 
     elements: list[str] = Field(default_factory=list, description="Magnetic elements")
     num_atoms: int = Field(0, description="Number of atoms in the cell")
+    structure: dict[str, Any] = Field(
+        description="Pymatgen Structure.as_dict() from the W90 static POSCAR"
+    )
     efermi: float | None = Field(None, description="Fermi energy (eV)")
     num_wann: int = Field(0, description="Number of Wannier orbitals")
     kmesh: tuple[int, int, int] = Field((9, 9, 9), description="TB2J kmesh")
@@ -72,6 +75,7 @@ class Tb2jResult(BaseModel):
         return cls(
             elements=list(data.get("elements") or []),
             num_atoms=num_atoms,
+            structure=dict(data["structure"]),
             efermi=data.get("efermi"),
             num_wann=num_wann,
             kmesh=tuple(data.get("kmesh") or (9, 9, 9)),

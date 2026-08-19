@@ -181,6 +181,7 @@ class Tb2jWorker(Worker):
         }
         self.tb2j_maker = Tb2jMaker(
             run_vasp_kwargs=w90_run_vasp_kwargs,
+            copy_vasp_kwargs={"additional_vasp_files": ("CHGCAR",)},
             elements=self.elements or [],
             kmesh=self.kmesh,
             ntasks=self.ntasks,
@@ -201,7 +202,7 @@ class Tb2jWorker(Worker):
                     # fresh SCF, matching the verified submit_tb2j.sh INCAR_W90
                     # (a WAVECAR hot-start conflicts with NBANDS and custodian)
                     "ISTART": 0,
-                    "ICHARG": 2,
+                    "ICHARG": 1,
                     # verified tighter SCF convergence for the Wannier90 interface
                     "EDIFF": 1e-6,
                     # Wannier90-interface requirements. These must come after
