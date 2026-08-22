@@ -7,25 +7,25 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from mp_api.client import MPRester
 from pymatgen.core import Element, Structure
+
+from htvasp.model.templates import TemplateRegistry
 
 log = logging.getLogger(__name__)
 
-load_dotenv()
-
-api_key = os.getenv("MP_API_KEY", "")
-if not api_key:
-    raise ValueError("MP_API_KEY not set in .env file or environment variables")
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+api_key = os.getenv("MP_API_KEY")
 
 class Endmember:
     def __init__(
-            self, 
-            api_key: str = api_key, 
+            self,
+            api_key: str | None = api_key,
             phase_func: dict| None = None,
             elem_mpid: dict | None = None,
+            registry: TemplateRegistry | None = None,
         ):
         self.api_key = api_key
+        self.registry = registry or TemplateRegistry()
         self.phase_func = phase_func or {
             "SER": self.get_ser,
             "BCC": self.get_bcc,
@@ -56,6 +56,12 @@ class Endmember:
         Returns:
             Structure
         """
+        if not self.api_key:
+            raise ValueError("MP_API_KEY is required for Materials Project structure lookup")
+        try:
+            from mp_api.client import MPRester
+        except ImportError as exc:
+            raise ImportError("mp-api is required for Materials Project structure lookup") from exc
         with MPRester(self.api_key) as mpr:
             structure = mpr.get_structure_by_material_id(mpid)
         return structure[0] if isinstance(structure, list) else structure
@@ -85,8 +91,9 @@ class Endmember:
         Returns:
             Structure
         """
-        templ = self.get_structure("mp-1487")
-        struct = templ.replace_species({"Ni": Element(elem1), "Al": Element(elem2)})
+        templ = self.registry.get("BCC")
+        source = self.registry.get_record("BCC").source_species
+        struct = templ.replace_species({source[0]: Element(elem1), source[1]: Element(elem2)})
         return struct.get_sorted_structure(lambda site: str(site.specie).lower())
 
     def get_fcc(self, elem1: str, elem2: str) -> Structure:
@@ -100,8 +107,9 @@ class Endmember:
         Returns:
             Structure
         """
-        templ = self.get_structure("mp-2258")
-        struct = templ.replace_species({"Au": Element(elem1), "Cu": Element(elem2)})
+        templ = self.registry.get("FCC")
+        source = self.registry.get_record("FCC").source_species
+        struct = templ.replace_species({source[0]: Element(elem1), source[1]: Element(elem2)})
         return struct.get_sorted_structure(lambda site: str(site.specie).lower())
 
     def get_hcp(self, elem1: str, elem2: str) -> Structure:
@@ -115,8 +123,9 @@ class Endmember:
         Returns:
             Structure
         """
-        templ = self.get_structure("mp-20112")
-        struct = templ.replace_species({"Sn": Element(elem1), "Ni": Element(elem2)})
+        templ = self.registry.get("HCP")
+        source = self.registry.get_record("HCP").source_species
+        struct = templ.replace_species({source[0]: Element(elem1), source[1]: Element(elem2)})
         return struct.get_sorted_structure(lambda site: str(site.specie).lower())
 
     def get_poscar(self, name: str, outdir: Path | str) -> Structure:

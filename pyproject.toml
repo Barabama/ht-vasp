@@ -32,6 +32,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=6.0", "black"]
+sqs = ["sqsgenerator"]
 
 [project.urls]
 Homepage = "https://gitee.com/wubo-movers/ht-vasp"
