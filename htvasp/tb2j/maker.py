@@ -11,6 +11,7 @@ from atomate2.vasp.jobs.core import StaticMaker
 from jobflow import Flow, Maker
 from pymatgen.core import Structure
 
+from htvasp.tb2j.context import call_tb2j_solve_with_context, normalize_magnetic_context
 from htvasp.tb2j.input_set import Tb2jInputSetGenerator
 from htvasp.tb2j.jobs import tb2j_solve
 
@@ -55,6 +56,10 @@ class Tb2jMaker(Maker):
     copy_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
     w90_name: str = "w90 static"
     tb2j_name: str = "tb2j solve"
+    magnetic_context: dict[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        self.magnetic_context = normalize_magnetic_context(self.magnetic_context)
 
     def make(
         self,
@@ -89,11 +94,13 @@ class Tb2jMaker(Maker):
 
         elements = self.elements or self.input_set_generator.elements
         num_wann = self.input_set_generator.get_num_wann(structure)
-        tb2j_job = tb2j_solve(
+        tb2j_job = call_tb2j_solve_with_context(
+            tb2j_solve,
             w90_job.output.dir_name,
             elements=elements,
             kmesh=self.kmesh,
             num_wann=num_wann,
+            magnetic_context=self.magnetic_context,
         )
         tb2j_job.name = self.tb2j_name
 
