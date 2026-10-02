@@ -13,11 +13,23 @@ import json
 import logging
 import shutil
 import argparse
+import shlex
+import os
 from pathlib import Path
 from pymatgen.core import Structure
 from htvasp.model import Endmember
 from htvasp.workflows import OJWorker, RelaxWorker
 from htvasp.slurm import SlurmJobManager
+from htvasp.slurm import (
+    artifact_marker_matches,
+    current_artifact_matches,
+    mark_artifact_from_ledger,
+    new_run_id,
+    payload_fingerprint,
+    stable_run_id,
+)
+
+OJ_RECIPE_VERSION = "main_oj-v2"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
@@ -119,7 +131,7 @@ BASE_SPIN_MAP = {
 root_dir = Path(__file__).parent.resolve()
 flow_dir = Path("/nfs_ssd/tmp")
 poscar_dir = root_dir / "data" / "poscars"
-conda_env = root_dir.parent / ".conda"
+conda_env = root_dir / ".conda"
 
 
 def read_lattice_constants(name: str) -> dict | None:
@@ -229,12 +241,20 @@ def detect_base_spin(magnetic_ions: list[str], default: float = 2.0) -> list[flo
     return spins
 
 
-def run_relax(name: str, rerun: bool = False):
-    store_dir = root_dir / "data" / name / "ojflow"
+def run_relax(name: str, rerun: bool = False, run_id: str | None = None):
+    if rerun:
+        run_id = run_id or new_run_id("oj-relax")
+    if run_id and Path(run_id).name != run_id:
+        raise ValueError(f"Invalid run_id: {run_id!r}")
+    store_base = root_dir / "data" / name / "ojflow"
+    store_dir = store_base / "runs" / run_id if run_id else store_base
     json_path = store_dir / f"{name}-relax.json"
 
     # Skip if already done
-    if not rerun and json_path.exists():
+    if not rerun and json_path.exists() and (
+        (run_id is None and not os.environ.get("HTVASP_INTENT_KEY"))
+        or current_artifact_matches(store_base / "slurm_submissions.json", json_path)
+    ):
         log.info(f"RelaxWorker for Structure {name} already done (use --rerun to re-run)")
     else:
 
@@ -268,13 +288,21 @@ def run_relax(name: str, rerun: bool = False):
     log.info(str(data.get("structure", {}).get("lattice", {})))
 
 
-def run_oj(name: str, rerun: bool = False, dry_run: bool = False):
+def run_oj(name: str, rerun: bool = False, dry_run: bool = False, run_id: str | None = None):
     """Run a single structure locally."""
-    store_dir = root_dir / "data" / name / "ojflow"
+    if rerun:
+        run_id = run_id or new_run_id("oj")
+    if run_id and Path(run_id).name != run_id:
+        raise ValueError(f"Invalid run_id: {run_id!r}")
+    store_base = root_dir / "data" / name / "ojflow"
+    store_dir = store_base / "runs" / run_id if run_id else store_base
     json_path = store_dir / f"{name}-oj.json"
 
     # Skip if already done
-    if not rerun and json_path.exists():
+    if not rerun and json_path.exists() and (
+        (run_id is None and not os.environ.get("HTVASP_INTENT_KEY"))
+        or current_artifact_matches(store_base / "slurm_submissions.json", json_path)
+    ):
         log.info(f"OJWorker for Structure {name} already done (use --rerun to re-run)")
         return 0
 
@@ -313,6 +341,7 @@ def run_oj(name: str, rerun: bool = False, dry_run: bool = False):
         )
         output = worker.get_result()
         worker.write_result(data=output, json_path=json_path)
+        mark_artifact_from_ledger(store_base / "slurm_submissions.json", json_path)
         _report_result(output)
     except Exception as e:
         log.error(f"OJWorker for Structure {name} failed")
@@ -403,21 +432,53 @@ def run_batch(rerun: bool = False, dry_run: bool = False):
 def submit_jobs(rerun: bool = False) -> None:
     manager = SlurmJobManager()
     for name in STRUCTURE_NAMES:
-        jid = manager.submit_command(
-            command=f"python {__file__} --relax {name} {'--rerun' if rerun else ''}",
-            config=manager.get_cpu_config(
+        run_payload = {
+            "system": name,
+            "stage": "oj",
+            "recipe": OJ_RECIPE_VERSION,
+            "vasp": VASP_ARGS,
+            "incar": GLOBAL_INCAR,
+            "dist_cutoff": 6.0,
+            "extend_poscar": (4, 4, 2),
+        }
+        run_id = (
+            new_run_id("oj")
+            if rerun
+            else stable_run_id("oj", run_payload)
+        )
+        command = f"{shlex.quote(str(conda_env / 'bin' / 'python'))} {shlex.quote(str(Path(__file__).resolve()))} --oj {shlex.quote(name)}"
+        if run_id:
+            command += f" --run-id {shlex.quote(run_id)}"
+        if rerun:
+            command += " --rerun"
+        config = manager.get_cpu_config(
                 job_name=f"{name}-oj",
                 output_log=f"logs/{name}-oj.log",
                 ntasks=8,
                 memory="8G",
-            ),
+        )
+        artifact_path = root_dir / "data" / name / f"ojflow/runs/{run_id}/{name}-oj.json"
+        result = manager.submit_intent(
+            system_name=name,
+            stage="oj",
+            recipe_version=OJ_RECIPE_VERSION,
+            settings_fingerprint=payload_fingerprint({"vasp": VASP_ARGS, "incar": GLOBAL_INCAR, "dist_cutoff": 6.0, "extend_poscar": (4, 4, 2)}),
+            manifest_fingerprint=payload_fingerprint({"system": name, "stage": "oj", "recipe": OJ_RECIPE_VERSION}),
+            command=command,
+            config=config,
+            ledger_path=root_dir / "data" / name / "ojflow" / "slurm_submissions.json",
             conda_env=str(conda_env),
             work_dir=root_dir,
+            run_id=run_id,
+            retry=rerun,
+            artifact_path=artifact_path,
+            artifact_checker=lambda entry: artifact_marker_matches(artifact_path, entry),
+            artifact_shortcut=True,
         )
-        if not jid:
+        if not result.ok:
             log.error(f"Failed to submit oj job for Structure {name}")
         else:
-            log.info(f"Submitted oj job for Structure {name} with ID {jid}")
+            log.info(f"Submitted oj job for Structure {name}: {result.state} ({result.job_id})")
 
 
 if __name__ == "__main__":
@@ -433,12 +494,13 @@ if __name__ == "__main__":
     parser.add_argument("--dry-batch", action="store_true", help="Dry-run all structures")
     parser.add_argument("--slurm", action="store_true", help="Submit to Slurm")
     parser.add_argument("--rerun", action="store_true", help="rerun re-run")
+    parser.add_argument("--run-id", help="Operate on an explicit immutable run")
     args = parser.parse_args()
 
     if args.oj:
-        run_oj(args.oj, rerun=args.rerun)
+        run_oj(args.oj, rerun=args.rerun, run_id=args.run_id)
     elif args.relax:
-        run_relax(args.relax, rerun=args.rerun)
+        run_relax(args.relax, rerun=args.rerun, run_id=args.run_id)
     elif args.lattice:
         read_lattice_constants(args.lattice)
     elif args.lattice_batch:

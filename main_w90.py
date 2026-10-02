@@ -29,15 +29,28 @@ import json
 import shutil
 import logging
 import argparse
+import shlex
+import os
 from pathlib import Path
+from htvasp.slurm import (
+    artifact_marker_matches,
+    current_artifact_matches,
+    mark_artifact_from_ledger,
+    new_run_id,
+    payload_fingerprint,
+    stable_run_id,
+)
 
 from htvasp.model import Endmember
 from htvasp.workflows import Tb2jWorker
 from htvasp.slurm import SlurmJobManager
 from htvasp.tb2j import Tb2jResult
+from htvasp.tb2j.context import build_magnetic_context, context_summary
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s[%(levelname)s]%(message)s")
 log = logging.getLogger(__name__)
+
+root_dir = Path(__file__).resolve().parent
 
 # VASP configuration (module purge + vasp-cpu, verified for TB2J runs)
 VASP_ARGS = {
@@ -200,11 +213,13 @@ def structure_elements(structure) -> list[str]:
     return seen
 
 
-def _dry_run(name: str, structure) -> None:
+def _dry_run(name: str, structure, magnetic_context: dict | None = None) -> None:
     """Build the structure + Tb2jWorker + flow and print flow info (no VASP)."""
+    magnetic_context = magnetic_context or build_magnetic_context(name, structure)
     log.info(f"  Structure {name}: formula={structure.formula}, atoms={len(structure)}")
     log.info(f"  Lattice abc: {structure.lattice.abc}  angles: {structure.lattice.angles}")
     log.info(f"  Species (site order): {structure_elements(structure)}")
+    log.info(f"  Magnetic context: {context_summary(magnetic_context)}")
 
     worker = Tb2jWorker(
         vasp_args=VASP_ARGS,
@@ -212,6 +227,7 @@ def _dry_run(name: str, structure) -> None:
         global_incar=GLOBAL_INCAR,
         relax_incar=RELAX_INCAR,
         kmesh=(9, 9, 9),
+        magnetic_context=magnetic_context,
     )
     flow = worker._make_flow(structure)
     # Elements resolved by the worker at flow-build time
@@ -225,31 +241,38 @@ def _dry_run(name: str, structure) -> None:
     log.info(f"  Dry-run OK (no VASP launched)")
 
 
-def run_tick(name: str, force: bool = False, dry_run: bool = False):
+def run_tick(name: str, force: bool = False, dry_run: bool = False, run_id: str | None = None):
     """Run a single endmember structure through the TB2J workflow."""
     endmember = Endmember()
     flow_dir = Path("/nfs_ssd/tmp")
-    store_dir = Path("data/endmembers") / name / "tb2jflow"
-    json_path = store_dir.parent / f"{name}-tb2j.json"
+    if force:
+        run_id = run_id or new_run_id("w90")
+    if run_id and Path(run_id).name != run_id:
+        raise ValueError(f"Invalid run_id: {run_id!r}")
+    store_base = root_dir / "data" / "endmembers" / name / "tb2jflow"
+    store_dir = store_base / "runs" / run_id if run_id else store_base
+    json_path = store_dir / f"{name}-tb2j.json" if run_id else store_dir.parent / f"{name}-tb2j.json"
+
+    # Dry-run is always an inspection request: it must build and print the
+    # current context even when a previous artifact already exists.
+    if dry_run:
+        struct = endmember.get_poscar(name, root_dir / "data" / "poscars")
+        magnetic_context = build_magnetic_context(name, struct)
+        _dry_run(name, struct, magnetic_context=magnetic_context)
+        return
 
     # Skip if already done
-    if not force and json_path.exists():
+    if not force and json_path.exists() and (
+        (run_id is None and not os.environ.get("HTVASP_INTENT_KEY"))
+        or current_artifact_matches(store_base / "slurm_submissions.json", json_path)
+    ):
         log.info(f"Structure {name} already done (use --rerun to re-run)")
         return
 
-    struct = endmember.get_poscar(name, Path("data/poscars"))
-
-    if dry_run:
-        # Read-only: build the structure + worker + flow and print, never touch
-        # the store. --dry-run --rerun must NOT rmtree the completed store_dir
-        # (dry-run is a pure dry-run of the run path).
-        _dry_run(name, struct)
-        return
+    struct = endmember.get_poscar(name, root_dir / "data" / "poscars")
+    magnetic_context = build_magnetic_context(name, struct)
 
     log.info(f"Structure {name} start")
-
-    if force and store_dir.exists():
-        shutil.rmtree(store_dir)
 
     try:
         worker = Tb2jWorker(
@@ -259,6 +282,7 @@ def run_tick(name: str, force: bool = False, dry_run: bool = False):
             relax_incar=RELAX_INCAR,
             # elements=None -> auto-derived from the structure site order
             kmesh=(9, 9, 9),
+            magnetic_context=magnetic_context,
         )
         worker.run_flow(
             name=name,
@@ -269,6 +293,7 @@ def run_tick(name: str, force: bool = False, dry_run: bool = False):
         )
         output = worker.get_result()
         worker.write_result(data=output, json_path=json_path)
+        mark_artifact_from_ledger(store_base / "slurm_submissions.json", json_path)
         if output:
             _report_result(name, output)
     except Exception as e:
@@ -299,7 +324,7 @@ def _report_result(name: str, output: dict) -> None:
 def check_jobs() -> None:
     """Scan STRUCTURE_NAMES and print a J-parameter summary per completed run."""
     for name in STRUCTURE_NAMES:
-        json_path = Path("data/endmembers") / name / f"{name}-tb2j.json"
+        json_path = root_dir / "data" / "endmembers" / name / f"{name}-tb2j.json"
         if not json_path.exists():
             log.info(f"{name}: not run")
             continue
@@ -353,16 +378,41 @@ def submit_jobs(force: bool = False) -> None:
             ntasks=32,
             memory="64G",
         )
-        job_id = manager.submit_command(
-            command=f"python {__file__} --name {name} {'--rerun' if force else ''}",
+        run_payload = {
+            "system": name,
+            "stage": "tb2j",
+            "recipe": "main_w90-v2",
+            "vasp": VASP_ARGS,
+            "incar": GLOBAL_INCAR,
+            "relax_incar": RELAX_INCAR,
+            "kmesh": (9, 9, 9),
+        }
+        run_id = new_run_id("w90") if force else stable_run_id("w90", run_payload)
+        command = f"{shlex.quote(str(root_dir / '.conda' / 'bin' / 'python'))} {shlex.quote(str(Path(__file__).resolve()))} --name {shlex.quote(name)} --run-id {shlex.quote(run_id)}"
+        if force:
+            command += " --rerun"
+        artifact_path = root_dir / "data" / "endmembers" / name / f"tb2jflow/runs/{run_id}/{name}-tb2j.json"
+        result = manager.submit_intent(
+            system_name=name,
+            stage="tb2j",
+            recipe_version="main_w90-v2",
+            settings_fingerprint=payload_fingerprint({"vasp": VASP_ARGS, "incar": GLOBAL_INCAR, "relax": RELAX_INCAR, "kmesh": (9, 9, 9)}),
+            manifest_fingerprint=payload_fingerprint({"system": name, "stage": "tb2j", "recipe": "main_w90-v2"}),
+            command=command,
             config=config,
+            ledger_path=root_dir / "data" / "endmembers" / name / "tb2jflow" / "slurm_submissions.json",
             conda_env="htvasp",
-            work_dir=".",
+            work_dir=root_dir,
+            run_id=run_id,
+            retry=force,
+            artifact_path=artifact_path,
+            artifact_checker=lambda entry: artifact_marker_matches(artifact_path, entry),
+            artifact_shortcut=True,
         )
-        if not job_id:
+        if not result.ok:
             log.error(f"Failed to submit job for {name}")
         else:
-            log.info(f"Submitted job for {name} with ID {job_id}")
+            log.info(f"Submitted job for {name}: {result.state} ({result.job_id})")
 
 
 if __name__ == "__main__":
@@ -383,6 +433,7 @@ if __name__ == "__main__":
         "With a NAME for one structure; alone or with --batch for all.",
     )
     parser.add_argument("--check", action="store_true", help="Print J summaries of completed runs")
+    parser.add_argument("--run-id", help="Operate on an explicit immutable run")
     args = parser.parse_args()
 
     if args.check:
@@ -394,9 +445,9 @@ if __name__ == "__main__":
             else ([args.name] if args.name else STRUCTURE_NAMES)
         )
         for name in names:
-            run_tick(name, force=args.rerun, dry_run=True)
+            run_tick(name, force=args.rerun, dry_run=True, run_id=args.run_id)
     elif args.name:
-        run_tick(args.name, force=args.rerun)
+        run_tick(args.name, force=args.rerun, run_id=args.run_id)
     elif args.batch:
         run_batch(force=args.rerun)
     elif args.slurm:
