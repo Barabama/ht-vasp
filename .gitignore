@@ -232,6 +232,7 @@ datasets/
 
 *tmp*
 *temp*
+!htvasp/model/templates.py
 *log*
 runs/
 jobs/
