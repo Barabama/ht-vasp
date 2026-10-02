@@ -228,6 +228,7 @@ class Worker:
             log.warning("No data to write")
             return
         json_path = Path(json_path).resolve()
+        json_path.parent.mkdir(parents=True, exist_ok=True)
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, default=str)
         log.info(f"Output saved to {json_path}")
