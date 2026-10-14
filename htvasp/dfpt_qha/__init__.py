@@ -1,4 +1,4 @@
-"""DFPT-QHA endpoint pool: recipes, structures, gates and phonon access.
+"""DFPT-QHA endpoint pool: recipes, structures, gates, inputs and phonons.
 
 The public surface is re-exported lazily so that importing this package does
 not pull pymatgen or phonopy into a process that only wants the recipe types.
@@ -33,12 +33,27 @@ _EXPORTS = {
     "GateResult": ("htvasp.dfpt_qha.gate", "GateResult"),
     "dryrun_case": ("htvasp.dfpt_qha.gate", "dryrun_case"),
     "iter_cases": ("htvasp.dfpt_qha.gate", "iter_cases"),
+    "parse_repeated_floats": ("htvasp.dfpt_qha.gate", "parse_repeated_floats"),
     "read_incar": ("htvasp.dfpt_qha.gate", "read_incar"),
     "read_kpoints": ("htvasp.dfpt_qha.gate", "read_kpoints"),
     "read_poscar": ("htvasp.dfpt_qha.gate", "read_poscar"),
     "read_potcar": ("htvasp.dfpt_qha.gate", "read_potcar"),
     "run_gate": ("htvasp.dfpt_qha.gate", "run_gate"),
     "validate_dir": ("htvasp.dfpt_qha.gate", "validate_dir"),
+    # input generation
+    "DFPT_ELECTRONIC": ("htvasp.dfpt_qha.input_set", "DFPT_ELECTRONIC"),
+    "InputSetError": ("htvasp.dfpt_qha.input_set", "InputSetError"),
+    "SHARED_INCAR": ("htvasp.dfpt_qha.input_set", "SHARED_INCAR"),
+    "STAGES": ("htvasp.dfpt_qha.input_set", "STAGES"),
+    "STATIC_ELECTRONIC": ("htvasp.dfpt_qha.input_set", "STATIC_ELECTRONIC"),
+    "incar_for": ("htvasp.dfpt_qha.input_set", "incar_for"),
+    "kpoints_for": ("htvasp.dfpt_qha.input_set", "kpoints_for"),
+    "magmom_for": ("htvasp.dfpt_qha.input_set", "magmom_for"),
+    "mesh_for": ("htvasp.dfpt_qha.input_set", "mesh_for"),
+    "potcar_symbols": ("htvasp.dfpt_qha.input_set", "potcar_symbols"),
+    "round_even": ("htvasp.dfpt_qha.input_set", "round_even"),
+    "supercell_kpoints_for": ("htvasp.dfpt_qha.input_set", "supercell_kpoints_for"),
+    "write_stage_inputs": ("htvasp.dfpt_qha.input_set", "write_stage_inputs"),
     # phonons
     "BandEigenvector": ("htvasp.dfpt_qha.phonons", "BandEigenvector"),
     "degeneracy": ("htvasp.dfpt_qha.phonons", "degeneracy"),
@@ -58,10 +73,12 @@ def __getattr__(name: str):
 
 __all__ = [
     "BandEigenvector",
+    "DFPT_ELECTRONIC",
     "DryRunResult",
     "ELEM_MPID_SUPPLEMENT",
     "EndpointRecord",
     "GateResult",
+    "InputSetError",
     "Kpoints",
     "MissingRecipeField",
     "POOL_ELEMENTS",
@@ -72,6 +89,9 @@ __all__ = [
     "RecipeError",
     "RecipeInconsistent",
     "SCHEMA_VERSION",
+    "SHARED_INCAR",
+    "STAGES",
+    "STATIC_ELECTRONIC",
     "Smearing",
     "Validation",
     "axis_contains_gamma",
@@ -81,12 +101,21 @@ __all__ = [
     "eigenvector",
     "enumerate_endpoints",
     "gamma_centred",
+    "incar_for",
     "iter_cases",
+    "kpoints_for",
     "load_pair",
+    "magmom_for",
+    "mesh_for",
+    "parse_repeated_floats",
+    "potcar_symbols",
     "read_incar",
     "read_kpoints",
     "read_poscar",
     "read_potcar",
+    "round_even",
     "run_gate",
+    "supercell_kpoints_for",
     "validate_dir",
+    "write_stage_inputs",
 ]
