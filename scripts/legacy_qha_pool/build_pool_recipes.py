@@ -34,7 +34,7 @@ from pathlib import Path
 from pymatgen.core import Structure
 
 import build_stage0 as S0
-from recipe import Recipe, Validation, load_pair
+from htvasp.dfpt_qha.recipe import Recipe, Validation, load_pair
 
 DENSITY = 16
 SUPERCELL = 2
@@ -231,7 +231,8 @@ def main() -> None:
             problems.append(f"{name}: " + "; ".join(probs))
         out[name] = {"physical_state_id": rec.get("physical_state_id"),
                      "n_atoms": len(st),
-                     "recipe": r.to_dict(), "validation": vv.to_dict(),
+                     "recipe": r.model_dump(mode="json"),
+                     "validation": vv.model_dump(mode="json"),
                      "magnetic_note": mag_why,
                      "vpa_is_proxy": rec.get("is_proxy")}
 

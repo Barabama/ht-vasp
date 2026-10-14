@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import inspect
 import itertools
 import json
 import shutil
@@ -58,7 +59,7 @@ from pathlib import Path
 import numpy as np
 
 import analyze_stage0b as A
-from phonon_eigenvector import eigenvector
+from htvasp.dfpt_qha.phonons import eigenvector
 
 DEGEN_TOL_THz = 1e-3     # frequencies closer than this are treated as degenerate
 MESH = 12                # the mesh extract_soft_mode.py scans
@@ -134,10 +135,11 @@ def subspace_report(ph, q, pr) -> dict:
 
     bands, vecs, checks = [], [], []
     for b in soft:
-        v, f, info = eigenvector(ph, q, b)      # checked column read
+        be = eigenvector(ph, q, b)              # checked column read
+        v, f = be.vector, be.frequency_thz
         vecs.append(v)
-        checks.append({"band": b, "eigen_residual": info["eigen_residual"],
-                       "row_reading_residual": info["row_reading_residual"]})
+        checks.append({"band": b, "eigen_residual": be.residual,
+                       "row_reading_residual": be.row_reading_residual})
         bands.append({
             "band": b, "frequency_THz": float(f),
             "components_basis_dependent": [[{"re": float(c.real), "im": float(c.imag)}
@@ -287,7 +289,7 @@ def subspace_members(ph, q, pr, axis_long=None, axis_trans=None) -> dict:
     reciprocal space); `axis_trans` defaults to an in-plane perpendicular.
     Both are Cartesian unit vectors in the primitive cell's frame.
     """
-    from phonon_eigenvector import eigenvector
+    from htvasp.dfpt_qha.phonons import eigenvector
 
     q = np.asarray(q, dtype=float)
     if axis_long is None:
@@ -298,7 +300,7 @@ def subspace_members(ph, q, pr, axis_long=None, axis_trans=None) -> dict:
     soft = [int(b) for b in range(len(f_all)) if f_all[b] < -1e-4]
     if not soft:
         return {"error": "no imaginary branch at this q"}
-    V = np.array([eigenvector(ph, q, b)[0] for b in soft])
+    V = np.array([eigenvector(ph, q, b).vector for b in soft])
     Q, _ = np.linalg.qr(V.T)
     P = Q @ Q.T
 
@@ -502,7 +504,7 @@ def subspace_isotropy(ph, q, pr, n_dir: int = 13) -> dict:
 
     Requires force constants (it evaluates (1/2) u^T Phi u).
     """
-    from phonon_eigenvector import eigenvector
+    from htvasp.dfpt_qha.phonons import eigenvector
 
     ph.run_qpoints([list(q)])
     f_all = np.array(ph.get_qpoints_dict()["frequencies"])[0]
@@ -510,7 +512,7 @@ def subspace_isotropy(ph, q, pr, n_dir: int = 13) -> dict:
     if len(soft) < 2:
         return {"error": f"only {len(soft)} imaginary branch(es) at this q; "
                          f"isotropy is a question about a degenerate subspace"}
-    V = np.array([eigenvector(ph, q, b)[0] for b in soft])
+    V = np.array([eigenvector(ph, q, b).vector for b in soft])
     Q, _ = np.linalg.qr(V.T)
     P = Q @ Q.T
     masses = np.asarray(pr.masses, dtype=float)
@@ -710,7 +712,7 @@ def branch_tracking(ph, q_target, n_points: int = 21) -> dict:
     constant or flips (a flip marks an avoided crossing, i.e. the character
     moved between branches rather than descending with one of them).
     """
-    from phonon_eigenvector import eigenvector
+    from htvasp.dfpt_qha.phonons import eigenvector
 
     pr = ph.primitive
     q_target = np.asarray(q_target, dtype=float)
@@ -1059,16 +1061,25 @@ def main() -> None:
             "smearing": args.smearing,
             "files": {},
         }
+        # The manifest's whole job is provenance, so a source file that has
+        # moved or gone has to fail here.  The previous `if p.exists()` form
+        # dropped it from the list instead, and a manifest missing an entry
+        # still reads as a complete manifest.
         src = Path(__file__).parent
-        for p in [dst, ev_dump,
-                  Path(__file__),
-                  src / "extract_soft_mode.py",
-                  src / "phonon_eigenvector.py",
-                  src / "analyze_stage0b.py",
-                  src / "build_stage0b.py"]:
-            if p.exists():
-                manifest["files"][p.name if p.parent != arch else
-                                  str(p.relative_to(arch))] = sha256(p)
+        phonons_src = inspect.getsourcefile(eigenvector)
+        if phonons_src is None:
+            raise SystemExit("cannot locate the eigenvector implementation for the manifest")
+        sources = [dst, ev_dump, Path(__file__),
+                   src / "extract_soft_mode.py",
+                   Path(phonons_src),
+                   src / "analyze_stage0b.py",
+                   src / "build_stage0b.py"]
+        absent = [str(p) for p in sources if not p.exists()]
+        if absent:
+            raise SystemExit(f"archive manifest: source file(s) not found: {absent}")
+        for p in sources:
+            manifest["files"][p.name if p.parent != arch else
+                              str(p.relative_to(arch))] = sha256(p)
         (arch / "MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n")
         print(f"\n归档到 {arch}")
         for k, v in sorted(manifest["files"].items()):
