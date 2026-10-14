@@ -16,6 +16,8 @@ from htvasp.model.templates import (
     file_checksum,
     structure_checksum,
 )
+from htvasp.model.dfpt_qha_recipe import Recipe, Validation, MissingRecipeField, RecipeInconsistent, load_pair
+from htvasp.model.dfpt_qha_pool import PoolEndpoint, PoolManifest, POOL_SCHEMA
 from htvasp.model.sqs_schema import (
     CalculationProvenance,
     CalphadMapping,
@@ -72,4 +74,12 @@ __all__ = [
     "StaticObservation",
     "build_bcc_a2_mapping",
     "build_sqs_mixing_data",
+    "Recipe",
+    "Validation",
+    "MissingRecipeField",
+    "RecipeInconsistent",
+    "load_pair",
+    "PoolEndpoint",
+    "PoolManifest",
+    "POOL_SCHEMA",
 ]
