@@ -131,12 +131,13 @@ def write_case(d: Path, st: Structure, system: str, magmom: str,
     species_order = list(dict.fromkeys(str(s.specie) for s in st))
     Potcar(species_order, functional=S0.POTCAR_FUNCTIONAL).write_file(
         str(d / "POTCAR"))
-    from htvasp.dfpt_qha.gate import validate_dir
-    gate = validate_dir(d)
-    record = {**gate.model_dump(mode="json"), "kgrid": SUPER_MESH,
-              "shift_value": SUPER_SHIFT, **meta}
-    (d / "case.json").write_text(json.dumps(record, indent=2) + "\n")
-    return record
+    from input_contract import validate_dir
+    v = validate_dir(d)
+    v["kgrid"] = SUPER_MESH
+    v["shift_value"] = SUPER_SHIFT
+    v.update(meta)
+    (d / "case.json").write_text(json.dumps(v, indent=2) + "\n")
+    return v
 
 
 def main() -> None:

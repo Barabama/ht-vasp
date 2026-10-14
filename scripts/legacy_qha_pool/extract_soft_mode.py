@@ -44,7 +44,7 @@ import numpy as np
 
 import analyze_stage0b as A
 import build_stage0b as B0
-from htvasp.dfpt_qha.phonons import degeneracy, eigenvector
+from phonon_eigenvector import eigenvector, degeneracy
 
 ENDPOINTS = ("BCC-Ta-Ta-2", "BCC-Al-Ta-2", "BCC-Al-Cr-2")
 MESH = 12          # same mesh analyze_stage0b used for mesh_min / mesh_n_negative
@@ -73,7 +73,7 @@ def lowest_mode(endpoint: str, fc: np.ndarray) -> dict:
        phonopy stores that matrix unchanged, so the eigenvector of band j is
        `eigenvectors[iq][:, j]` -- NOT `[iq][j, :]`.  Both are unit vectors, so
        the wrong one is invisible in the norm and only shows up as a wrong
-       direction.  `htvasp.dfpt_qha.phonons.eigenvector()` reads the column AND
+       direction.  `phonon_eigenvector.eigenvector()` reads the column AND
        asserts |D v - lambda v| ~ 0, so this cannot pass silently.
 
     3. DEGENERACY.  On a degenerate branch `eigh` returns an ARBITRARY basis of
@@ -95,8 +95,7 @@ def lowest_mode(endpoint: str, fc: np.ndarray) -> dict:
     q = [float(x) for x in qpoints[iq]]
 
     pr = ph.primitive
-    be = eigenvector(ph, q, int(ib))   # checked column read
-    vec, f = be.vector, be.frequency_thz
+    vec, f, info = eigenvector(ph, q, int(ib))   # checked column read
     assert vec.shape[0] == 3 * len(pr), (vec.shape, len(pr))
     deg = degeneracy(ph, q, int(ib))
     per_atom = np.array([np.linalg.norm(vec[3 * a:3 * a + 3])
@@ -112,8 +111,8 @@ def lowest_mode(endpoint: str, fc: np.ndarray) -> dict:
         "n_modes_on_mesh": int(freqs.size),
         "degenerate_bands": deg,
         "is_degenerate": len(deg) > 1,
-        "eigen_residual": be.residual,
-        "row_reading_residual": be.row_reading_residual,
+        "eigen_residual": info["eigen_residual"],
+        "row_reading_residual": info["row_reading_residual"],
         "eigenvector_basis": ("primitive cell (3*n_prim components), NOT the "
                               "supercell; map to the supercell via p2s_map. "
                               "Read from the COLUMN of phonopy's eigenvector "

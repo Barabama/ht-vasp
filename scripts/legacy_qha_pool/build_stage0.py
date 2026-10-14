@@ -68,7 +68,7 @@ from pymatgen.core import Lattice, Structure
 from pymatgen.io.vasp import Poscar
 from pymatgen.io.vasp.inputs import Potcar
 
-from htvasp.dfpt_qha.gate import validate_dir
+from input_contract import validate_dir
 
 # ---------------------------------------------------------------------------
 # recipe
@@ -284,13 +284,12 @@ def write_case(d: Path, struct: Structure, n: int, shift: float, system: str,
     (d / "KPOINTS").write_text(kpoints_text(n, shift))
     species_order = list(dict.fromkeys(str(s.specie) for s in struct))
     Potcar(species_order, functional=POTCAR_FUNCTIONAL).write_file(str(d / "POTCAR"))
-    gate = validate_dir(d)
-    # The verdict is frozen; compose the case record as a copy so a builder
-    # cannot edit the gate's own result after the fact.
-    record = {**gate.model_dump(mode="json"), "kgrid": n, "shift_value": shift,
-              **meta}
-    (d / "case.json").write_text(json.dumps(record, indent=2) + "\n")
-    return record
+    v = validate_dir(d)
+    v["kgrid"] = n
+    v["shift_value"] = shift
+    v.update(meta)
+    (d / "case.json").write_text(json.dumps(v, indent=2) + "\n")
+    return v
 
 
 def main() -> None:

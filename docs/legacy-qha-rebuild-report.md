@@ -2797,24 +2797,7 @@ diagnostic_only
 ### 7.7 输入契约校验器（Stage 0 的前置件，**已完成**）
 
 三轮连续事故（§9.3）的共同形状是"生成器写模板、校验查键是否存在"。
-校验器已写，两层：
-
-> **模块位置（2026-10-14 迁移）**。为让量产入口 `main_dfpt_qha.py` 能复用，
-> 这一批"全量泛化"的模块已从 `scripts/legacy_qha_pool/` 移入 `htvasp/`，
-> 按既有功能模块风格（参照 `htvasp/sqs/`）实现：
->
-> | 原脚本 | 现位置 |
-> |---|---|
-> | `input_contract.py` | **`htvasp/dfpt_qha/gate.py`**（CLI 留在 `scripts/legacy_qha_pool/gate_cli.py`） |
-> | `recipe.py` | **`htvasp/dfpt_qha/recipe.py`** |
-> | `phonon_eigenvector.py` | **`htvasp/dfpt_qha/phonons.py`** |
-> | `build_pool_structures.py` 的清单逻辑 | **`htvasp/dfpt_qha/pool.py`** |
-> | `test_input_contract.py` / `test_recipe.py` | **`tests/test_dfpt_qha_{gate,recipe,pool}.py`** |
->
-> 规则：**功能模块不得从 `scripts/` 导入**，脚本可以（且应当）从 `htvasp/` 导入。
-> 本节以下描述的行为不变，但判决已重新验证：**810 个真实 case 目录，
-> 新旧通过数 715/715 完全一致，warning 语义零增零减**（43 处仅措辞变精确，
-> 现在会点名是哪根 k 轴不含 Γ）。
+已写 `scripts/legacy_qha_pool/input_contract.py`，两层：
 
 **静态层 `validate_dir()`** —— 检查**每个标签的取值**，而不是存在性：
 
@@ -2843,25 +2826,21 @@ diagnostic_only
 | 构造的 INCAR（同时设 NCORE 与 KPAR） | FAIL | FAIL |
 | 46 个成功过的判别算例 | PASS | 46/46 PASS（偶数 shift0 的 8 例给出"不含 Γ"警告） |
 
-**门禁用法**：`scripts/legacy_qha_pool/gate_cli.py --root <树> --dryrun --scratch <临时>`
+**门禁用法**：`input_contract.py --root <树> --dryrun --scratch <临时>`
 （必须在分配内跑，因为要用 `srun`）。Stage 0A 的 43 个算例已过此门：
 `stage0/dryrun_report.json` 记录 VASP 读到的 `NIONS`/`NKPTS`/`ISPIN`，
 全部与预期一致（1/2/4 原子 ↔ NIONS，ISPIN=1 仅 1 例即磁筛选用例）。
 SIGMA 扫描的 100 个算例同样过了门禁（`sigma/dryrun_report.json`，NIONS 2/1，ISPIN 全 2）。
 
-#### 7.7.1 回归测试 `tests/test_dfpt_qha_gate.py`
+#### 7.7.1 可执行回归测试 `test_input_contract.py`
 
 把"已知坏输入必须被拒"写成测试，这样将来改动校验器不会**静默丢掉某条检查**。
 19 个合成用例 + 真实目录树检查：
 
 ```
-pytest tests/test_dfpt_qha_gate.py               # 仅静态层，不需要 VASP
+python test_input_contract.py                    # 仅静态层，不需要 VASP
+python test_input_contract.py --dirs TREE...     # 顺带检查真实树
 ```
-
-真实树的检查是同一个文件里的 `test_real_stage0_tree_passes_except_archived`；
-带 `.badmagmom` / `.broken` / `.oldmesh` / `.partial` / `.superseded` 标记的归档目录
-被跳过——本项目从不删除被取代的输入，只重命名打标记（§9.3），把它们算作失败会让
-这条检查在第一次归档后就失效。
 
 覆盖的 19 个用例：POSCAR 晶格行是字面量 / `ISMEAR = ISMEAR` / `SIGMA = SIGMA` /
 MAGMOM 长度错 / POTCAR 顺序反转 / POTCAR 块数不符 / 坐标行数不符 /
@@ -3774,8 +3753,7 @@ recipe 必须带 `site_occupancy` 字段（§7.8.3），不能只写 `FCC_L12`�
 | `scripts/legacy_qha_pool/analyze_align.py` | 展宽/k 对齐分析（ΔE(V)、BM3、诊断） |
 | `scripts/legacy_qha_pool/build_discriminate.py` / `build_disc_pairs.py` | 2 原子 vs 16 原子判别实验输入（含 shift 参数与 MAGMOM 展开） |
 | `scripts/legacy_qha_pool/analyze_discriminate.py` | 判别实验分析（`grid_folds_match` 折叠判据、收敛曲线恒等检验） |
-| **`htvasp/dfpt_qha/gate.py`**（原 `input_contract.py`） | **输入契约校验器**（静态值检查 + VASP 干跑门禁），见 §7.7 |
-| `scripts/legacy_qha_pool/gate_cli.py` | 校验器的命令行包装（`--root/--dryrun/--scratch/--json`） |
+| **`scripts/legacy_qha_pool/input_contract.py`** | **输入契约校验器**（静态值检查 + VASP 干跑门禁），见 §7.7 |
 | `scripts/legacy_qha_pool/build_stage0.py` | Stage 0A 代表端基输入生成（含体积不变式取网格） |
 | `scripts/legacy_qha_pool/build_stage0_followup.py` | Stage 0A 追加（更密网格、族对照、磁性复测） |
 | `scripts/legacy_qha_pool/analyze_stage0.py` | Stage 0A 分析（密度/展宽/磁性/族对照） |
@@ -3787,17 +3765,15 @@ recipe 必须带 `site_occupancy` 字段（§7.8.3），不能只写 `FCC_L12`�
 | `scripts/legacy_qha_pool/compare_density.py` | d=12 vs d=16 的声子对照 |
 | `scripts/legacy_qha_pool/audit_stage0c.py` | Stage 0C-C0 只读结构审计（生成 `structure_audit.json` + `.md`） |
 | `scripts/legacy_qha_pool/build_stage0c.py` | Stage 0C-C1/C2 输入（FCC/SER 静态 + 声子超胞） |
-| `tests/test_dfpt_qha_gate.py` | 输入契约的回归测试（19 合成用例 + 真实树） |
-| **`htvasp/dfpt_qha/phonons.py`**（原 `phonon_eigenvector.py`） | **带断言的 phonopy 本征矢读取器**（§4.13.2；读列并断言 `\|Dv−λv\|<1e-6`，检出简并） |
+| `scripts/legacy_qha_pool/test_input_contract.py` | 输入契约的回归测试（19 合成用例 + 真实树） |
+| **`scripts/legacy_qha_pool/phonon_eigenvector.py`** | **带断言的 phonopy 本征矢读取器**（§4.13.2；读列并断言 `\|Dv−λv\|<1e-6`，检出简并） |
 | **`scripts/legacy_qha_pool/extract_soft_mode.py`** | 从已有力常数提取软模本征矢（§4.13.1；零新 DFT） |
 | **`scripts/legacy_qha_pool/analyze_soft_mode.py`** | **波矢选择与不变量分析**（§4.13.3/4.13.4；网格 vs 公度、简并子空间、纵横判定、倒格断言、平移等价、支追踪、子空间成员） |
 | **`scripts/legacy_qha_pool/build_mode_follow.py`** | **最小模式跟随批次生成**（§4.13.13；6 例，`ISYM=0`，`±` 只作回归） |
-| **`htvasp/dfpt_qha/recipe.py`**（原 `recipe.py`） | **recipe/validation 两层记录 + 必填门禁 + 一致性检查**（§8.0e；无默认值） |
-| **`htvasp/dfpt_qha/pool.py`** | **84 端基结构清单逻辑**（§8.0d；常规胞 + Vegard + `physical_state_id`） |
-| `scripts/legacy_qha_pool/build_pool_structures.py` | 清单生成 CLI（`--out/--cache`，逻辑在 `htvasp/dfpt_qha/pool.py`） |
+| **`scripts/legacy_qha_pool/recipe.py`** | **recipe/validation 两层记录 + 必填门禁 + 一致性检查**（§8.0e；无默认值） |
+| **`scripts/legacy_qha_pool/build_pool_structures.py`** | **84 端基结构清单**（§8.0d；常规胞 + Vegard + physical_state_id） |
 | **`scripts/legacy_qha_pool/build_pool_recipes.py`** | **84 端基 recipe 表生成**（§8.0e） |
-| **`tests/test_dfpt_qha_recipe.py`** | **recipe 门禁回归测试**（57 项，含 84 条真实 recipe 对 84 个真实结构的核对） |
-| **`tests/test_dfpt_qha_pool.py`** | **端基池回归测试**（28/49/7 计数、代理体积来源、四组重复对坍缩） |
+| **`scripts/legacy_qha_pool/test_recipe.py`** | **recipe 门禁回归测试**（47 项，41 项是反例） |
 | **`scripts/legacy_qha_pool/analyze_mode_follow.py`** | **模式跟随分析**（§4.13.13(e)；ΔE(δ) + `F_mode` + 二次曲率 + 负曲率合取判据） |
 
 ### 9.2 数据与文档
