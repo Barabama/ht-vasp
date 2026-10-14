@@ -149,23 +149,40 @@ def test_unresolved_policy_refuses_to_produce_inputs(tmp_path):
         write_stage_inputs(tmp_path / "x", B2, recipe(magnetic_policy="unresolved"), "static")
 
 
-def test_ispin_is_written_explicitly_for_both_policies():
-    """Left unset, ISPIN defaults to 1 and MAGMOM is silently ignored."""
+def test_ispin_is_written_explicitly():
+    """Left unset, ISPIN defaults to 1 and MAGMOM is silently ignored.
 
-    assert incar_for("static", recipe(magnetic_policy="nonmagnetic"))["ISPIN"] == 1
-    assert incar_for("static", recipe(magnetic_policy="confirmed_branch"))["ISPIN"] == 2
+    Both decided policies give ISPIN=2, because that is what the Stage 0
+    batches ran -- spin-polarised from a starting moment, so that a
+    "nonmagnetic" expectation is something the calculation can falsify.  The
+    policy records what is believed, not what is fed in.
+    """
+
+    for policy in ("nonmagnetic", "confirmed_branch"):
+        assert incar_for("static", recipe(magnetic_policy=policy))["ISPIN"] == 2
 
 
-def test_magmom_is_written_only_when_spin_polarised(tmp_path):
-    nonmagnetic = write_stage_inputs(
-        tmp_path / "nm", B2, recipe(magnetic_policy="nonmagnetic"), "static"
-    )
-    magnetic = write_stage_inputs(
-        tmp_path / "m", B2, recipe(magnetic_policy="confirmed_branch"), "static"
-    )
-    assert nonmagnetic.ok and magnetic.ok
-    assert "MAGMOM" not in (tmp_path / "nm" / "INCAR").read_text()
-    assert "MAGMOM" in (tmp_path / "m" / "INCAR").read_text()
+def test_unresolved_policy_has_no_ispin_mapping():
+    """`unresolved` must not silently acquire a spin state."""
+
+    with pytest.raises(InputSetError):
+        incar_for("static", recipe(magnetic_policy="unresolved"))
+
+
+def test_magmom_is_written_for_every_decided_policy(tmp_path):
+    """A run without MAGMOM would start from VASP's default, not from the
+    table -- so the two decided policies both write one, and they agree."""
+
+    written = {}
+    for policy in ("nonmagnetic", "confirmed_branch"):
+        result = write_stage_inputs(
+            tmp_path / policy, B2, recipe(magnetic_policy=policy), "static"
+        )
+        assert result.ok, list(result.problems)
+        assert result.warnings == (), list(result.warnings)
+        written[policy] = (tmp_path / policy / "INCAR").read_text()
+    assert "MAGMOM" in written["nonmagnetic"]
+    assert "MAGMOM" in written["confirmed_branch"]
 
 
 # --------------------------------------------------------------------------
