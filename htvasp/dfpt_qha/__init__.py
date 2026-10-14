@@ -43,7 +43,6 @@ _EXPORTS = {
     # input generation
     "DFPT_ELECTRONIC": ("htvasp.dfpt_qha.input_set", "DFPT_ELECTRONIC"),
     "InputSetError": ("htvasp.dfpt_qha.input_set", "InputSetError"),
-    "POLICY_ISPIN": ("htvasp.dfpt_qha.input_set", "POLICY_ISPIN"),
     "SHARED_INCAR": ("htvasp.dfpt_qha.input_set", "SHARED_INCAR"),
     "STAGES": ("htvasp.dfpt_qha.input_set", "STAGES"),
     "STATIC_ELECTRONIC": ("htvasp.dfpt_qha.input_set", "STATIC_ELECTRONIC"),
@@ -84,7 +83,6 @@ __all__ = [
     "MissingRecipeField",
     "POOL_ELEMENTS",
     "PoolEndpoint",
-    "POLICY_ISPIN",
     "PoolManifest",
     "Potcar",
     "Recipe",

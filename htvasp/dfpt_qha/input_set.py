@@ -168,38 +168,25 @@ def potcar_symbols(structure: Any, recipe: Recipe) -> list[str]:
     return symbols
 
 
-#: starting moments, by policy.  The policy is a CLAIM about the ground state,
-#: not an input switch: the Stage 0 batches ran every endpoint spin-polarised
-#: (ISPIN=2) with a starting moment, so that a "nonmagnetic" expectation is
-#: something the calculation can falsify.  ISPIN=1 appeared exactly once, for
-#: the dedicated magnetic screening case.
-POLICY_ISPIN: dict[str, int] = {
-    "nonmagnetic": 2,
-    "confirmed_branch": 2,
-    # "unresolved" is absent on purpose -- it raises rather than defaulting.
-}
-
-
 def magmom_for(structure: Any, recipe: Recipe) -> dict[str, float]:
     """Starting moments per element, for the recipe's magnetic policy.
 
     Raises for ``unresolved`` rather than falling back to the table: an
     endpoint whose spin state nobody has decided must not quietly acquire one.
-
-    ``nonmagnetic`` and ``confirmed_branch`` produce the SAME starting moments.
-    That is deliberate -- both run spin-polarised from the same table, and the
-    policy records what is believed about the answer, not what is fed in.  The
-    difference between them lives in ``Validation``, where ``measured_on`` has
-    to be non-empty for a claim of a confirmed branch.
     """
 
-    if recipe.magnetic_policy == "unresolved":
+    policy = recipe.magnetic_policy
+    if policy == "unresolved":
         raise InputSetError(
             "magnetic_policy is 'unresolved': the spin state of this endpoint "
             "has not been decided, so generating inputs would pick one by "
             "default.  Run the spin screening first, or set the policy "
             "explicitly."
         )
+    if policy == "nonmagnetic":
+        # A zero starting moment everywhere.  This is a starting point, not a
+        # claim: the calculation still runs spin-polarised and can move away.
+        return {str(site.specie): 0.0 for site in structure}
     return {
         str(site.specie): BASE_MOMENTS.get(str(site.specie), 1.0)
         for site in structure
@@ -221,16 +208,10 @@ def incar_for(stage: Stage, recipe: Recipe, *, is_cubic: bool = True) -> dict[st
     incar = {**SHARED_INCAR, **STAGE_ELECTRONIC[stage], **STAGE_MODE[stage]}
     incar["ISMEAR"] = FROZEN_SMEARING["ISMEAR"]
     incar["SIGMA"] = FROZEN_SMEARING["SIGMA"]
-    # ISPIN is written explicitly rather than left to VASP's default of 1.
-    # Left out, MAGMOM is ignored entirely and an endpoint whose recipe claims
-    # a magnetic branch would run non-magnetic while still looking correct.
-    try:
-        incar["ISPIN"] = POLICY_ISPIN[recipe.magnetic_policy]
-    except KeyError as exc:
-        raise InputSetError(
-            f"magnetic_policy {recipe.magnetic_policy!r} has no ISPIN mapping; "
-            f"'unresolved' must be screened before inputs can be generated"
-        ) from exc
+    # ISPIN is written explicitly.  Left out it defaults to 1, MAGMOM is then
+    # ignored entirely, and a spin-polarised endpoint would run non-magnetic
+    # while the recipe still claimed a magnetic branch.
+    incar["ISPIN"] = 1 if recipe.magnetic_policy == "nonmagnetic" else 2
     return incar
 
 
@@ -313,7 +294,6 @@ __all__ = [
     "DFPT_ELECTRONIC",
     "FROZEN_INCAR",
     "InputSetError",
-    "POLICY_ISPIN",
     "SHARED_INCAR",
     "STAGES",
     "STAGE_ELECTRONIC",
