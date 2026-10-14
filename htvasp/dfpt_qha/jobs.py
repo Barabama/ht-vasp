@@ -23,6 +23,9 @@ class DfptVaspMaker(BaseVaspMaker):
         super().__init__(**kwargs)
         self.recipe = recipe
 
+    def make(self, structure: Any, prev_dir: str | Path | None = None):
+        return super().make(structure, prev_dir=prev_dir)
+
 
 @job
 def collect_dfpt_task_doc(
