@@ -16,8 +16,6 @@ from htvasp.model.templates import (
     file_checksum,
     structure_checksum,
 )
-from htvasp.model.dfpt_qha_recipe import Recipe, Validation, MissingRecipeField, RecipeInconsistent, load_pair
-from htvasp.model.dfpt_qha_pool import enum_pool
 from htvasp.model.sqs_schema import (
     CalculationProvenance,
     CalphadMapping,
@@ -74,11 +72,4 @@ __all__ = [
     "StaticObservation",
     "build_bcc_a2_mapping",
     "build_sqs_mixing_data",
-    # DFPT-QHA model layer
-    "Recipe",
-    "Validation",
-    "PoolEndpoint",
-    "PoolManifest",
-    "build_pool",
-    "enumerate_endpoints",
 ]
