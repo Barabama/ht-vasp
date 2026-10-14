@@ -78,58 +78,6 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:16]
 
 
-_REPEAT = re.compile(r"^(\d+)\*(.+)$")
-
-
-def _same_element(potcar_element: str, poscar_species: str) -> bool:
-    """Whether one POTCAR block is the potential for one POSCAR species.
-
-    Not a string equality.  potpaw_PBE has no plain ``Nb`` -- only ``Nb_pv``
-    and ``Nb_sv`` -- so the pool's Nb endpoints legitimately carry a POTCAR
-    whose TITEL reads ``PAW_PBE Nb_pv`` against a POSCAR species of ``Nb``.  A
-    strict compare rejects every one of them.
-
-    The suffix must follow an underscore, so ``N`` still does not match ``Nb``.
-    """
-
-    potcar_element, poscar_species = potcar_element.upper(), poscar_species.upper()
-    return potcar_element == poscar_species or potcar_element.startswith(
-        f"{poscar_species}_"
-    )
-
-
-def parse_repeated_floats(text: str) -> list[float] | None:
-    """Values from an INCAR list tag, expanding VASP's ``n*value`` syntax.
-
-    VASP accepts ``MAGMOM = 2*0.0`` for two zero moments, and pymatgen writes
-    exactly that whenever the values repeat.  A reader that treats the tag as a
-    plain token list gets this wrong twice over: it reports ``'2*0.0'`` as a
-    non-numeric value, and it counts a run of N as ONE entry -- so a MAGMOM of
-    the wrong length can look like the right length.
-
-    Returns None if any value is not a number.
-    """
-
-    values: list[float] = []
-    for token in text.split():
-        match = _REPEAT.match(token)
-        if match is None:
-            try:
-                values.append(float(token))
-            except ValueError:
-                return None
-            continue
-        count = int(match.group(1))
-        try:
-            value = float(match.group(2))
-        except ValueError:
-            return None
-        if count < 1:
-            return None
-        values.extend([value] * count)
-    return values
-
-
 class PoscarInfo(BaseModel):
     """What the POSCAR actually says.  ``error`` is set instead of the rest."""
 
@@ -455,9 +403,9 @@ def validate_dir(
             f"POTCAR has {potcar.blocks} blocks but POSCAR declares "
             f"{len(poscar.species)} species"
         )
-    if len(potcar.elements) == len(poscar.species) and not all(
-        _same_element(p, s) for p, s in zip(potcar.elements, poscar.species)
-    ):
+    if [s.upper() for s in potcar.elements] != [
+        s.upper() for s in poscar.species
+    ]:
         problems.append(
             f"POTCAR element order {potcar.elements} != POSCAR order "
             f"{poscar.species} (VASP matches them positionally)"
@@ -514,8 +462,9 @@ def validate_dir(
 
     ispin = as_int("ISPIN", 1)
     if "MAGMOM" in tags:
-        values = parse_repeated_floats(tags["MAGMOM"])
-        if values is None:
+        try:
+            values = [float(v) for v in tags["MAGMOM"].split()]
+        except ValueError:
             problems.append(f"INCAR MAGMOM has a non-numeric value: {tags['MAGMOM']!r}")
             values = []
         # VASP accepts only one value or exactly NIONS; this is the check whose
@@ -709,8 +658,6 @@ __all__ = [
     "read_incar",
     "read_kpoints",
     "read_poscar",
-    "_same_element",
-    "parse_repeated_floats",
     "read_potcar",
     "run_gate",
     "validate_dir",
