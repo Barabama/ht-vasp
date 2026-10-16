@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from dataclasses import dataclass, field
+
 from atomate2.vasp.jobs.base import BaseVaspMaker
 from atomate2.utils.path import strip_hostname
 from jobflow import Response, job
@@ -12,21 +14,61 @@ from monty.io import zopen
 from pymatgen.io.vasp.outputs import Vasprun
 
 from htvasp.dfpt_qha.task_doc import DfptForceConstantsProvenance, DfptTaskDoc
-from htvasp.dfpt_qha.input_set import DfptInputSetGenerator
+from htvasp.dfpt_qha.input_set import DfptInputSetGenerator, DfptRelaxSetGenerator
 from htvasp.model.dfpt_qha_recipe import Recipe
 
 
+@dataclass
+class DfptRelaxMaker(BaseVaspMaker):
+    """Ionic relaxation for the EOS stage: ISIF=3 (free) or ISIF=2 (fixed volume).
+
+    Deliberately NOT the DFPT maker.  Wiring ``IBRION=8`` into the EOS stage
+    produces an E(V) curve of unrelaxed strained geometries, because VASP
+    ignores ISIF/NSW for a dynamical-matrix run.
+    """
+
+    name: str = "DFPT-QHA relax"
+    recipe: Recipe | None = None
+    isif: int = 2
+    use_supercell_kpoints: bool = False
+    input_set_generator: Any = None
+    stop_children_kwargs: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.input_set_generator is None:
+            if self.recipe is None:
+                raise ValueError("DfptRelaxMaker requires an explicit Recipe")
+            self.input_set_generator = DfptRelaxSetGenerator(
+                recipe=self.recipe,
+                isif=self.isif,
+                use_supercell_kpoints=self.use_supercell_kpoints,
+            )
+        # BaseVaspMaker is a plain dataclass in this atomate2 release and
+        # defines no post-init hook.
+
+
+@dataclass
 class DfptVaspMaker(BaseVaspMaker):
-    """A standard atomate2 BaseVaspMaker configured for IBRION=8."""
+    """A standard atomate2 BaseVaspMaker configured for IBRION=8.
 
-    def __init__(self, recipe: Recipe, **kwargs: Any) -> None:
-        kwargs.setdefault("input_set_generator", DfptInputSetGenerator(recipe=recipe))
-        kwargs.setdefault("stop_children_kwargs", {})
-        super().__init__(**kwargs)
-        self.recipe = recipe
+    A dataclass (not a hand-written ``__init__``) because jobflow serializes
+    makers through monty, which requires every constructor argument to exist
+    as a dataclass field on the instance.
+    """
 
-    def make(self, structure: Any, prev_dir: str | Path | None = None):
-        return super().make(structure, prev_dir=prev_dir)
+    name: str = "DFPT job"
+    recipe: Recipe | None = None
+    use_supercell_kpoints: bool = True
+    input_set_generator: Any = None
+    stop_children_kwargs: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.input_set_generator is None:
+            if self.recipe is None:
+                raise ValueError("DfptVaspMaker requires an explicit Recipe")
+            self.input_set_generator = DfptInputSetGenerator(
+                recipe=self.recipe, use_supercell_kpoints=self.use_supercell_kpoints
+            )
 
 
 @job
@@ -81,16 +123,48 @@ def collect_dfpt_task_doc(
 
 
 @job
-def validate_dfpt_task_doc(dfpt_doc: dict[str, Any]) -> Response:
-    """Stop descendants unless the DFPT force constants and provenance exist."""
+def validate_dfpt_task_doc(
+    dfpt_doc: dict[str, Any], *, recipe: dict[str, Any] | None = None
+) -> Response:
+    """Stop descendants unless the DFPT result matches the recipe it claims.
+
+    The shape check is not decoration.  A DFPT run on the wrong cell still
+    returns a square ``(n, n, 3, 3)`` force-constant array, so a Gamma-only
+    result from the 2-atom cell would otherwise be recorded as a valid volume
+    and silently lose the finite-q instability the recipe exists to find.
+    """
 
     try:
         parsed = DfptTaskDoc.model_validate(dfpt_doc)
         if not parsed.force_constants:
             raise ValueError("empty force constants")
+        if recipe is not None:
+            expected = Recipe.from_dict(recipe)
+            expected_atoms = expected.kpoints.cell_atoms * int(
+                expected.kpoints.supercell_factor
+            ) ** 3
+            if parsed.force_constants_provenance.n_atoms != expected_atoms:
+                raise ValueError(
+                    f"DFPT ran on {parsed.force_constants_provenance.n_atoms} atoms "
+                    f"but the recipe's phonon supercell is {expected_atoms} atoms "
+                    f"(cell {expected.kpoints.cell_atoms} x factor "
+                    f"{expected.kpoints.supercell_factor})"
+                )
     except Exception as exc:
         return Response(output={"ok": False, "error": str(exc)}, stop_children=True)
-    return Response(output={"ok": True, "schema_version": parsed.schema_version})
+    return Response(
+        output={
+            "ok": True,
+            "schema_version": parsed.schema_version,
+            "n_atoms": parsed.force_constants_provenance.n_atoms,
+            "dfpt_doc": parsed.model_dump(mode="json"),
+        }
+    )
 
 
-__all__ = ["DfptVaspMaker", "collect_dfpt_task_doc", "validate_dfpt_task_doc"]
+__all__ = [
+    "DfptRelaxMaker",
+    "DfptVaspMaker",
+    "collect_dfpt_task_doc",
+    "validate_dfpt_task_doc",
+]

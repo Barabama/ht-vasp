@@ -38,21 +38,28 @@ def spawn_dfpt_volume_jobs(
     if len(structures) != len(directories):
         raise ValueError("EOS structures and dir_name arrays have different lengths")
     parsed = Recipe.from_dict(recipe)
+    supercell = tuple(int(x) for x in parsed.supercell)
     jobs = []
     outputs = []
     for index, (structure, directory) in enumerate(zip(structures, directories)):
+        # DFPT must run on the recipe's phonon supercell.  Running it on the
+        # 2-atom cell yields a Gamma-only dynamical matrix, which cannot see
+        # the finite-q instability the recipe exists to characterise.
+        supercell_structure = (
+            structure if supercell == (1, 1, 1) else structure.make_supercell(supercell)
+        )
         maker = DfptVaspMaker(
             name=f"DFPT volume {index + 1}/{len(structures)}",
             recipe=parsed,
             run_vasp_kwargs=dict(run_vasp_kwargs or {}),
         )
-        vasp_job = maker.make(structure, prev_dir=directory)
+        vasp_job = maker.make(supercell_structure, prev_dir=directory)
         collector = collect_dfpt_task_doc(
             vasp_job.output,
             recipe=recipe,
         )
         collector.name = f"collect DFPT volume {index + 1}/{len(structures)}"
-        validation = validate_dfpt_task_doc(collector.output)
+        validation = validate_dfpt_task_doc(collector.output, recipe=recipe)
         validation.name = f"validate DFPT volume {index + 1}/{len(structures)}"
         jobs.extend([vasp_job, collector, validation])
         outputs.append(validation.output)

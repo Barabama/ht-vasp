@@ -12,8 +12,7 @@ from atomate2.vasp.jobs.base import BaseVaspMaker
 from jobflow import Flow
 
 from htvasp.dfpt_qha.flow_jobs import spawn_dfpt_volume_jobs
-from htvasp.dfpt_qha.input_set import DfptInputSetGenerator
-from htvasp.dfpt_qha.jobs import DfptVaspMaker
+from htvasp.dfpt_qha.jobs import DfptRelaxMaker
 from htvasp.model.dfpt_qha_recipe import Recipe
 
 
@@ -45,18 +44,15 @@ class DfptQhaMaker(CommonQhaMaker):
         if self.recipe is None:
             raise ValueError("DfptQhaMaker requires an explicit Recipe")
         if self.initial_relax_maker is None:
-            self.initial_relax_maker = DfptVaspMaker(
-                name="DFPT-QHA initial relax", recipe=self.recipe,
-                input_set_generator=DfptInputSetGenerator(recipe=self.recipe)
+            self.initial_relax_maker = DfptRelaxMaker(
+                name="DFPT-QHA initial relax", recipe=self.recipe, isif=3
             )
         if self.eos_relax_maker is None:
-            # This is a fixed-volume ionic relaxation at each EOS volume, not a
-            # static job.  DfptVaspMaker stage is temporarily only the input
-            # contract; the EOS child must be supplied by the production
-            # EosRelaxMaker wiring before real execution.
-            self.eos_relax_maker = DfptVaspMaker(
-                name="DFPT-QHA EOS relax", recipe=self.recipe,
-                input_set_generator=DfptInputSetGenerator(recipe=self.recipe)
+            # Fixed-volume ionic relaxation at each EOS volume.  The volume is
+            # held by the strain applied by CommonEosMaker; ISIF=2 frees the
+            # internal coordinates only.
+            self.eos_relax_maker = DfptRelaxMaker(
+                name="DFPT-QHA EOS relax", recipe=self.recipe, isif=2
             )
 
     @property
