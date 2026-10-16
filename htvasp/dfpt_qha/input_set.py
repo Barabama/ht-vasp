@@ -43,6 +43,24 @@ SHARED_INCAR: dict[str, Any] = {
     "ISTART": 0,
     "ICHARG": 2,
     "LORBIT": 11,
+    # Pinned, not inherited.  atomate2's base config is derived from
+    # MPScanRelaxSet and carries GGA = Ps, which pymatgen's own table resolves
+    # to PBEsol -- a different functional from the PBE the pool recipe means.
+    # Every other htvasp entry point pins it (main_qha.py, workflows/base.py).
+    "GGA": "PE",
+    # The same base config also injects SCAN-stage keys that the verified DFPT
+    # recipe does not have.  LAECHG/LVTOT make VASP write AECCAR0/1/2 and LOCPOT
+    # at every step -- pure I/O for a dynamical-matrix run -- and ENAUG/LMAXMIX/
+    # LASPH change the augmentation, which this project has already been burned
+    # by once.  None removes a key that the base set supplied.
+    "LAECHG": False,
+    "LVTOT": False,
+    "LMIXTAU": False,
+    "LELF": False,
+    "LASPH": None,
+    "LMAXMIX": None,
+    "ENAUG": None,
+    "EDIFFG": None,
 }
 
 #: relaxation and static electronic settings (Stage 0A recipe)

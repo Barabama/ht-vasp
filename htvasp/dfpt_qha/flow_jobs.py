@@ -96,7 +96,12 @@ def spawn_dfpt_volume_jobs(
             run_vasp_kwargs=vasp_kwargs,
         )
         vasp_job = maker.make(cell, prev_dir=directory)
-        collector = collect_dfpt_task_doc(vasp_job.output, recipe=recipe)
+        collector = collect_dfpt_task_doc(
+            vasp_job.output,
+            recipe=recipe,
+            cell=structure.as_dict(),
+            supercell_matrix=supercell_matrix,
+        )
         collector.name = f"collect DFPT volume {index + 1}/{len(structures)}"
         validation = validate_dfpt_task_doc(collector.output, recipe=recipe)
         validation.name = f"validate DFPT volume {index + 1}/{len(structures)}"

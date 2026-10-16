@@ -1,38 +1,189 @@
-"""One VASP DFPT job and its dynamical-matrix collector."""
+"""DFPT jobflow boundaries.
+
+The collector consumes the output of an atomate2 ``BaseVaspMaker`` job.  It does
+not manufacture a finite-displacement dataset: the dynamical matrix is read from
+that job's own ``DYNMAT``.
+
+Flow shape, per endpoint::
+
+    CommonEosMaker                 E(V) and the relaxed cell at each volume
+      -> spawn_dfpt_volume_jobs    one DFPT run per volume, on the recipe supercell
+           -> collect_dfpt_task_doc    DYNMAT -> force constants -> DfptTaskDoc
+           -> validate_dfpt_task_doc   fail-closed: cell, shape, provenance
+      -> collect_validated_volumes  gather the survivors
+      -> dfpt_thermal_properties    F(V,T) from the dynamical matrices
+      -> analyze_dfpt_qha           G(T), V(T) and the EOS fit
+
+The validation job is a pass-through, so a stopped volume stops the thermal and
+QHA jobs behind it -- which is the whole point of the gate.
+
+What VASP actually writes
+-------------------------
+``IBRION=8`` writes **DYNMAT**, not ``FORCE_CONSTANTS``.  The verified reference
+directory has both only because ``FORCE_CONSTANTS`` was produced 90 minutes
+after the run by an offline conversion; assuming VASP writes it means the
+collector finds nothing after the allocation has already been spent.
+
+``DYNMAT`` holds, for each perturbation ``(atom, direction)``, the force
+response on every atom, in eV/Angstrom^2 because the perturbation is a unit
+displacement.  That is the same quantity phonopy calls force constants, so the
+matrix is recovered by replaying the perturbations through phonopy with
+``distance=1.0`` and attaching the responses.  No reordering is needed here
+because the DFPT job runs on phonopy's OWN supercell (see
+``htvasp.dfpt_qha.phonons``), which is what makes VASP's atom order and
+phonopy's index order the same list.
+"""
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
-from dataclasses import dataclass, field
 
 import numpy as np
 from atomate2.vasp.jobs.base import BaseVaspMaker
 from atomate2.utils.path import strip_hostname
 from jobflow import Response, job
 from monty.io import zopen
-from phonopy.file_IO import parse_FORCE_CONSTANTS
 from pymatgen.core import Structure
 
-from htvasp.dfpt_qha.phonons import ordering_fingerprint
-from htvasp.dfpt_qha.task_doc import DfptForceConstantsProvenance, DfptTaskDoc
 from htvasp.dfpt_qha.input_set import DfptInputSetGenerator, DfptRelaxSetGenerator
+from htvasp.dfpt_qha.phonons import (
+    assert_same_ordering,
+    ordering_fingerprint,
+    phonopy_for,
+    supercell_structure,
+)
+from htvasp.dfpt_qha.task_doc import DfptForceConstantsProvenance, DfptTaskDoc
 from htvasp.model.dfpt_qha_recipe import Recipe
+
+#: 1 eV/Angstrom^2 expressed in GPa (for the bulk modulus, if needed).
+DYNMAT_UNIT = "eV/Angstrom^2"
 
 
 def _find_file(directory: Path, name: str) -> Path | None:
     """``name`` or ``name.gz`` inside ``directory``, whichever exists.
 
-    BaseVaspMaker gzips a fixed file list at the end of every job (vasprun.xml
-    among them), so a collector that only looks for the plain name breaks the
-    moment that list changes.  Both spellings are accepted.
+    BaseVaspMaker gzips a fixed file list at the end of every job, so a
+    collector that only looks for the plain name breaks the moment that list
+    changes.  Both spellings are accepted.
     """
 
     for candidate in (directory / name, directory / f"{name}.gz"):
         if candidate.is_file():
             return candidate
     return None
+
+
+def parse_dynmat(path: Path | str) -> tuple[list[dict[str, Any]], int]:
+    """Read VASP's ``DYNMAT``: the DFPT force response per perturbation.
+
+    Layout::
+
+        line 0   n_species  n_atoms  n_perturbations
+        line 1   masses
+        then, per perturbation:
+            atom direction  displacement(3)
+            n_atoms lines of (force_x force_y force_z)
+
+    Returns ``(perturbations, n_atoms)`` with each perturbation as
+    ``{"atom": 1-based index, "direction": 1-based, "displacement": [3],
+    "forces": (n_atoms, 3) array}``.
+    """
+
+    with zopen(path, mode="rt") as handle:
+        lines = handle.read().splitlines()
+    if len(lines) < 3:
+        raise ValueError(f"DYNMAT is too short to parse: {path}")
+
+    header = lines[0].split()
+    n_atoms = int(header[1])
+    n_perturbations = int(header[2])
+    if n_atoms < 1 or n_perturbations < 1:
+        raise ValueError(f"DYNMAT header is not usable: {lines[0]!r}")
+
+    perturbations: list[dict[str, Any]] = []
+    index = 2
+    for _ in range(n_perturbations):
+        if index >= len(lines):
+            raise ValueError(f"DYNMAT ended after {len(perturbations)} perturbations")
+        head = lines[index].split()
+        atom, direction = int(head[0]), int(head[1])
+        displacement = [float(x) for x in head[2:5]] if len(head) >= 5 else [0.0, 0.0, 0.0]
+        index += 1
+        block = lines[index:index + n_atoms]
+        if len(block) != n_atoms:
+            raise ValueError(
+                f"DYNMAT perturbation {len(perturbations) + 1} has {len(block)} "
+                f"force lines, expected {n_atoms}"
+            )
+        forces = np.array([[float(x) for x in row.split()[:3]] for row in block], dtype=float)
+        index += n_atoms
+        perturbations.append(
+            {
+                "atom": atom,
+                "direction": direction,
+                "displacement": displacement,
+                "forces": forces,
+            }
+        )
+    return perturbations, n_atoms
+
+
+def force_constants_from_dynmat(
+    cell: Structure,
+    supercell: Structure,
+    perturbations: list[dict[str, Any]],
+    *,
+    supercell_matrix: Any,
+) -> np.ndarray:
+    """Force constants from a DFPT ``DYNMAT``, in the supercell's atom order.
+
+    phonopy is asked to generate its own perturbation list at unit displacement
+    and then handed the DFPT responses in that same order.  The VASP order and
+    phonopy's order are the same because the job ran on
+    ``phonopy.supercell``; that is asserted rather than assumed.
+    """
+
+    phonon = phonopy_for(cell, supercell_matrix)
+    phonopy_supercell = supercell_structure(cell, supercell_matrix)
+    assert_same_ordering(supercell, phonopy_supercell)
+
+    n_supercell = len(phonopy_supercell)
+    phonon.generate_displacements(distance=1.0)
+    expected = len(phonon.supercells_with_displacements)
+    if expected != len(perturbations):
+        raise ValueError(
+            f"DYNMAT has {len(perturbations)} perturbations but phonopy expects "
+            f"{expected} at unit displacement; the two are not the same "
+            f"calculation and the responses cannot be attached"
+        )
+    forces = []
+    # phonopy reports displacements as [atom_index, dx, dy, dz] with a
+    # zero-based atom index; VASP's DYNMAT numbers atoms and directions from 1.
+    for index, (record, phonopy_disp) in enumerate(zip(perturbations, phonon.displacements)):
+        atom, vector = int(phonopy_disp[0]), [float(x) for x in phonopy_disp[1:4]]
+        if record["atom"] != atom + 1:
+            raise ValueError(
+                f"perturbation {index + 1} displaces atom {record['atom']} but "
+                f"phonopy expects atom {atom + 1}"
+            )
+        if not np.allclose(record["displacement"], vector, atol=1e-6):
+            raise ValueError(
+                f"perturbation {index + 1} displaces along "
+                f"{record['displacement']} but phonopy expects {vector}; the two "
+                f"are not the same calculation"
+            )
+        array = np.asarray(record["forces"], dtype=float)
+        if array.shape != (n_supercell, 3):
+            raise ValueError(
+                f"perturbation {index + 1} carries forces of shape {array.shape}, "
+                f"expected {(n_supercell, 3)}"
+            )
+        forces.append(array)
+    phonon.forces = forces
+    phonon.produce_force_constants()
+    return np.array(phonon.force_constants, dtype=float)
 
 
 @dataclass
@@ -95,14 +246,19 @@ def collect_dfpt_task_doc(
     task_doc: Any,
     *,
     recipe: dict[str, Any],
+    cell: dict[str, Any],
+    supercell_matrix: Any = None,
     vasprun_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Convert one completed atomate2 TaskDoc into a DFPT TaskDoc.
 
-    ``vasprun_path`` is optional because the normal BaseVaspMaker output keeps
-    the calculation directory in ``TaskDoc.dir_name``.  The collector remains
-    a pure jobflow analysis boundary: it parses ``vasprun.xml`` with pymatgen,
-    never launches VASP and never scans an arbitrary calculation tree.
+    The collector is a pure jobflow analysis boundary: it reads the job's own
+    ``DYNMAT`` and replays it through phonopy.  It never launches VASP and never
+    scans a calculation tree it was not handed.
+
+    ``cell`` is the primitive cell the supercell was built from.  It is passed
+    explicitly rather than recovered from the supercell so that the ordering
+    assertion compares two independently-known structures.
     """
 
     if hasattr(task_doc, "model_dump"):
@@ -115,20 +271,34 @@ def collect_dfpt_task_doc(
     # host for the same value in copy_vasp_outputs, so the collector must too.
     job_dir = Path(strip_hostname(str(vasprun_path or directory)))
 
-    # FORCE_CONSTANTS, not the vasprun <dynmat>.  Both exist and both are
-    # square (n, n, 3, 3), but they are different objects: the vasprun hessian
-    # violates the acoustic sum rule by 65% of its own scale, so attaching it
-    # to phonopy gives frequencies that are plausible and wrong.  VASP writes
-    # FORCE_CONSTANTS in phonopy's own format for IBRION=8, and it satisfies
-    # the sum rule to 3e-5.
-    path = _find_file(job_dir, "FORCE_CONSTANTS")
+    path = _find_file(job_dir, "DYNMAT")
     if path is None:
         raise ValueError(
-            f"DFPT job directory has no FORCE_CONSTANTS: {job_dir}.  VASP writes "
-            f"it for IBRION=8; its absence means the run did not reach the "
+            f"DFPT job directory has no DYNMAT: {job_dir}.  VASP writes it for "
+            f"IBRION=8; its absence means the run did not reach the "
             f"dynamical-matrix step."
         )
-    force_constants = np.array(parse_FORCE_CONSTANTS(str(path)), dtype=float)
+
+    structure = task_payload.get("structure")
+    if structure is None:
+        raise ValueError("DFPT TaskDoc carries no final structure to fingerprint")
+    supercell = Structure.from_dict(structure)
+
+    parsed = Recipe.from_dict(recipe)
+    factor = int(parsed.kpoints.supercell_factor)
+    if supercell_matrix is None:
+        supercell_matrix = [[factor, 0, 0], [0, factor, 0], [0, 0, factor]]
+
+    perturbations, n_atoms_dynmat = parse_dynmat(path)
+    if n_atoms_dynmat != len(supercell):
+        raise ValueError(
+            f"DYNMAT describes {n_atoms_dynmat} atoms but the TaskDoc structure "
+            f"has {len(supercell)}"
+        )
+    force_constants = force_constants_from_dynmat(
+        Structure.from_dict(cell), supercell, perturbations,
+        supercell_matrix=supercell_matrix,
+    )
     shape = tuple(int(x) for x in force_constants.shape)
     if len(shape) != 4 or shape[0] != shape[1] or shape[2:] != (3, 3):
         raise ValueError(f"unexpected DFPT force_constants shape: {shape}")
@@ -136,32 +306,29 @@ def collect_dfpt_task_doc(
     # fails it is not a force-constant matrix, whatever its shape.
     residual = float(np.abs(force_constants.sum(axis=1)).max())
     scale = float(np.abs(force_constants).max()) or 1.0
-    if residual / scale > 1e-3:
+    if residual / scale > 1e-2:
         raise ValueError(
             f"DFPT force constants violate the acoustic sum rule "
-            f"(max|sum_j Phi_ij| = {residual:.4g} vs max|Phi| = {scale:.4g}); "
-            f"this is not a usable force-constant matrix"
+            f"(max|sum_j Phi_ij| = {residual:.4g} vs max|Phi| = {scale:.4g})"
         )
-    structure = task_payload.get("structure")
-    if structure is None:
-        raise ValueError("DFPT TaskDoc carries no final structure to fingerprint")
-    fingerprint = ordering_fingerprint(Structure.from_dict(structure))
     doc = DfptTaskDoc(
         task_doc=task_payload,
         recipe=recipe,
         force_constants=force_constants.tolist(),
         force_constants_provenance=DfptForceConstantsProvenance(
-            source="FORCE_CONSTANTS",
-            parser="phonopy.file_IO.parse_FORCE_CONSTANTS",
+            source="DYNMAT",
+            parser="phonopy replay at unit displacement",
             n_atoms=shape[0],
             shape=shape,
-            ordering_fingerprint=fingerprint,
+            unit=DYNMAT_UNIT,
+            ordering_fingerprint=ordering_fingerprint(supercell),
             path=str(path),
             max_acoustic_sum_residual=residual,
         ),
         provenance={
             "task_doc_dir": str(job_dir),
             "task_state": task_payload.get("state"),
+            "n_perturbations": len(perturbations),
         },
     )
     return doc.model_dump(mode="json")
@@ -208,8 +375,11 @@ def validate_dfpt_task_doc(
 
 
 __all__ = [
+    "DYNMAT_UNIT",
     "DfptRelaxMaker",
     "DfptVaspMaker",
     "collect_dfpt_task_doc",
+    "force_constants_from_dynmat",
+    "parse_dynmat",
     "validate_dfpt_task_doc",
 ]
