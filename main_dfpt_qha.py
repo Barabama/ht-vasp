@@ -115,10 +115,14 @@ def run_tick(
     rerun: bool = False,
     dry_run: bool = False,
     run_id: str | None = None,
+    number_of_frames: int | None = None,
+    mesh: tuple[int, int, int] | None = None,
 ):
     """Run one endpoint's DFPT-QHA flow locally (or print the plan)."""
 
     structure, recipe = load_endpoint(name)
+    frames = NUMBER_OF_FRAMES if number_of_frames is None else number_of_frames
+    dfpt_mesh = MESH if mesh is None else mesh
     if rerun:
         run_id = run_id or new_run_id("dfpt-qha")
     store_dir, json_path, ledger_path = _stage_paths(name, "dfpt-qha", run_id)
@@ -133,14 +137,15 @@ def run_tick(
             list(recipe.kpoints.supercell_grid), list(recipe.kpoints.supercell_shift),
             recipe.magnetic_policy,
         )
+        log.info("eos frames=%d strain=%s mesh=%s", frames, LINEAR_STRAIN, dfpt_mesh)
         worker = DfptQhaWorker(
             recipe=recipe,
             vasp_args=VASP_ARGS,
             potcar_functional=recipe.potcar.functional,
             supercell_matrix=SUPERCELL_MATRIX,
             linear_strain=LINEAR_STRAIN,
-            number_of_frames=NUMBER_OF_FRAMES,
-            mesh=MESH,
+            number_of_frames=frames,
+            mesh=dfpt_mesh,
             temperatures=TEMPERATURES,
             pressure_gpa=PRESSURE_GPA,
         )
@@ -166,8 +171,8 @@ def run_tick(
             potcar_functional=recipe.potcar.functional,
             supercell_matrix=SUPERCELL_MATRIX,
             linear_strain=LINEAR_STRAIN,
-            number_of_frames=NUMBER_OF_FRAMES,
-            mesh=MESH,
+            number_of_frames=frames,
+            mesh=dfpt_mesh,
             temperatures=TEMPERATURES,
             pressure_gpa=PRESSURE_GPA,
         )
@@ -215,8 +220,16 @@ def check_jobs(stage: str = "dfpt-qha") -> None:
         )
 
 
-def _submission_plan(name: str, manager: SlurmJobManager, rerun: bool = False) -> dict:
+def _submission_plan(
+    name: str,
+    manager: SlurmJobManager,
+    rerun: bool = False,
+    number_of_frames: int | None = None,
+    mesh: tuple[int, int, int] | None = None,
+) -> dict:
     structure, recipe = load_endpoint(name)
+    frames = NUMBER_OF_FRAMES if number_of_frames is None else number_of_frames
+    dfpt_mesh = MESH if mesh is None else mesh
     run_payload = {
         "system": name,
         "stage": "dfpt-qha",
@@ -225,9 +238,9 @@ def _submission_plan(name: str, manager: SlurmJobManager, rerun: bool = False) -
         "settings": {
             "vasp_args": VASP_ARGS,
             "linear_strain": LINEAR_STRAIN,
-            "number_of_frames": NUMBER_OF_FRAMES,
+            "number_of_frames": frames,
             "supercell_matrix": SUPERCELL_MATRIX,
-            "mesh": MESH,
+            "mesh": dfpt_mesh,
             "temperatures": TEMPERATURES,
             "pressure_gpa": PRESSURE_GPA,
         },
@@ -239,6 +252,10 @@ def _submission_plan(name: str, manager: SlurmJobManager, rerun: bool = False) -
         f"{shlex.quote(str(Path(__file__).resolve()))} -n {shlex.quote(name)}"
     )
     command += f" --run-id {shlex.quote(run_id)}"
+    if number_of_frames is not None:
+        command += f" --frames {int(frames)}"
+    if mesh is not None:
+        command += f" --mesh {int(dfpt_mesh[0])} {int(dfpt_mesh[1])} {int(dfpt_mesh[2])}"
     if rerun:
         command += " --rerun"
     # DFPT on a 16-atom supercell at ENCUT 520 with the recipe k-mesh: the
@@ -294,8 +311,13 @@ def submit_job(
     manager: SlurmJobManager,
     rerun: bool = False,
     dry_run: bool = False,
+    number_of_frames: int | None = None,
+    mesh: tuple[int, int, int] | None = None,
 ):
-    plan = _submission_plan(name, manager, rerun=rerun)
+    plan = _submission_plan(
+        name, manager, rerun=rerun,
+        number_of_frames=number_of_frames, mesh=mesh,
+    )
     if dry_run:
         _print_submission_plan(plan)
         return plan
@@ -334,17 +356,37 @@ if __name__ == "__main__":
     parser.add_argument("--rerun", "-r", action="store_true", help="Force a re-run")
     parser.add_argument("--check", "-c", action="store_true", help="Check the result JSON")
     parser.add_argument("--run-id", help="Operate on an explicit immutable run")
+    parser.add_argument(
+        "--frames", type=int, default=None,
+        help=f"EOS deformation frames (default {NUMBER_OF_FRAMES}); the QHA "
+             f"analysis needs at least 4",
+    )
+    parser.add_argument(
+        "--mesh", type=int, nargs=3, default=None, metavar=("N1", "N2", "N3"),
+        help=f"DFPT thermal-integration mesh (default {list(MESH)}); it does NOT "
+             f"change the VASP k-mesh, which comes from the recipe",
+    )
     args = parser.parse_args()
 
-    if args.dry_run or args.flow_graph:
-        run_tick(args.name or DEFAULT_ENDPOINT, dry_run=True, run_id=args.run_id)
-    elif args.slurm:
+    if args.slurm:
         if not args.name:
             parser.error("--slurm needs -n/--name")
-        submit_job(args.name, SlurmJobManager(), rerun=args.rerun)
+        submit_job(
+            args.name, SlurmJobManager(), rerun=args.rerun, dry_run=args.dry_run,
+            number_of_frames=args.frames,
+            mesh=tuple(args.mesh) if args.mesh else None,
+        )
+    elif args.dry_run or args.flow_graph:
+        run_tick(
+            args.name or DEFAULT_ENDPOINT, dry_run=True, run_id=args.run_id,
+            number_of_frames=args.frames, mesh=tuple(args.mesh) if args.mesh else None,
+        )
     elif args.check:
         check_jobs()
     elif args.name:
-        run_tick(args.name, rerun=args.rerun, run_id=args.run_id)
+        run_tick(
+            args.name, rerun=args.rerun, run_id=args.run_id,
+            number_of_frames=args.frames, mesh=tuple(args.mesh) if args.mesh else None,
+        )
     else:
         parser.print_help()
