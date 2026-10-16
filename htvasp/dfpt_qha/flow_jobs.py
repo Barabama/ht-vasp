@@ -1,69 +1,170 @@
 """DFPT jobflow boundaries.
 
 The collector consumes the output of an atomate2 ``BaseVaspMaker`` job.  It does
-not manufacture a finite-displacement dataset: DFPT's ``<dynmat>`` is read
-from that job's own ``vasprun.xml``.
+not manufacture a finite-displacement dataset: DFPT's ``<dynmat>`` is read from
+that job's own ``vasprun.xml``.
+
+Flow shape, per endpoint::
+
+    CommonEosMaker                 E(V) and the relaxed cell at each volume
+      -> spawn_dfpt_volume_jobs    one DFPT run per volume, on the recipe supercell
+           -> collect_dfpt_task_doc    vasprun <dynmat> -> DfptTaskDoc
+           -> validate_dfpt_task_doc   fail-closed: cell, shape, provenance
+      -> collect_validated_volumes  gather the survivors
+      -> dfpt_thermal_properties    F(V,T) from the dynamical matrices
+      -> analyze_dfpt_qha           G(T), V(T) and the EOS fit
+
+The validation job is a pass-through, so a stopped volume stops the thermal and
+QHA jobs behind it -- which is the whole point of the gate.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
-from atomate2.common.flows.eos import CommonEosMaker
 from jobflow import Flow, Response, job
+from pymatgen.core import Structure
 
-from htvasp.dfpt_qha.jobs import DfptVaspMaker, collect_dfpt_task_doc, validate_dfpt_task_doc
+from htvasp.dfpt_qha.jobs import (
+    DfptRelaxMaker,
+    DfptVaspMaker,
+    collect_dfpt_task_doc,
+    validate_dfpt_task_doc,
+)
+from htvasp.dfpt_qha.phonons import supercell_structure
+from htvasp.dfpt_qha.qha import (
+    DEFAULT_MESH,
+    DEFAULT_TEMPERATURES,
+    analyze_dfpt_qha,
+    dfpt_thermal_properties,
+)
 from htvasp.model.dfpt_qha_recipe import Recipe
 
 
 @job
-
 def spawn_dfpt_volume_jobs(
     eos_output: dict[str, Any],
     *,
     recipe: dict[str, Any],
     run_vasp_kwargs: dict[str, Any] | None = None,
+    supercell_matrix: Any = None,
+    mesh: tuple[int, int, int] = DEFAULT_MESH,
+    temperatures: list[float] | None = None,
+    pressure_gpa: float = 0.0,
 ) -> Response:
-    """Replace one deferred job with one DFPT flow per EOS volume.
+    """Replace one deferred job with the per-volume DFPT chain plus its consumers.
 
-    The EOS contract is the same dict-of-lists emitted by atomate2's
-    ``CommonEosMaker``.  Each volume is passed to a fresh ``BaseVaspMaker``
-    job; the collector then reads that job's TaskDoc directory.  No phonopy
-    displacement structures are generated here.
+    Each volume gets its own ``BaseVaspMaker`` job; nothing is relaxed here,
+    because the EOS stage already produced the relaxed cell at that volume.
     """
 
-    structures = eos_output.get("relax", {}).get("structure", [])
-    directories = eos_output.get("relax", {}).get("dir_name", [])
-    if len(structures) != len(directories):
-        raise ValueError("EOS structures and dir_name arrays have different lengths")
+    relax = eos_output.get("relax", {})
+    structures = relax.get("structure", [])
+    directories = relax.get("dir_name", [])
+    energies = relax.get("energy", [])
+    volumes = relax.get("volume", [])
+    if not (len(structures) == len(directories) == len(energies) == len(volumes)):
+        raise ValueError(
+            "EOS output arrays disagree in length: "
+            f"structure={len(structures)} dir_name={len(directories)} "
+            f"energy={len(energies)} volume={len(volumes)}"
+        )
+
     parsed = Recipe.from_dict(recipe)
     supercell = tuple(int(x) for x in parsed.supercell)
-    jobs = []
-    outputs = []
+    if supercell_matrix is None:
+        supercell_matrix = [
+            [supercell[0], 0, 0], [0, supercell[1], 0], [0, 0, supercell[2]]
+        ]
+    temperatures = list(temperatures or DEFAULT_TEMPERATURES)
+    vasp_kwargs = dict(run_vasp_kwargs or {})
+
+    jobs: list[Any] = []
+    validations: list[Any] = []
+    cells: list[dict[str, Any]] = []
     for index, (structure, directory) in enumerate(zip(structures, directories)):
-        # DFPT must run on the recipe's phonon supercell.  Running it on the
-        # 2-atom cell yields a Gamma-only dynamical matrix, which cannot see
-        # the finite-q instability the recipe exists to characterise.
-        supercell_structure = (
-            structure if supercell == (1, 1, 1) else structure.make_supercell(supercell)
-        )
+        # The DFPT job must run on phonopy's OWN supercell.  pymatgen's
+        # make_supercell produces the same crystal in a different atom order,
+        # and the force constants that come back are indexed by whatever order
+        # VASP read -- attaching them across the two orderings still gives
+        # plausible frequencies, so the mismatch has to be designed out rather
+        # than checked for later.  See htvasp.dfpt_qha.phonons.
+        cell = supercell_structure(structure, supercell_matrix)
         maker = DfptVaspMaker(
             name=f"DFPT volume {index + 1}/{len(structures)}",
             recipe=parsed,
-            run_vasp_kwargs=dict(run_vasp_kwargs or {}),
+            run_vasp_kwargs=vasp_kwargs,
         )
-        vasp_job = maker.make(supercell_structure, prev_dir=directory)
-        collector = collect_dfpt_task_doc(
-            vasp_job.output,
-            recipe=recipe,
-        )
+        vasp_job = maker.make(cell, prev_dir=directory)
+        collector = collect_dfpt_task_doc(vasp_job.output, recipe=recipe)
         collector.name = f"collect DFPT volume {index + 1}/{len(structures)}"
         validation = validate_dfpt_task_doc(collector.output, recipe=recipe)
         validation.name = f"validate DFPT volume {index + 1}/{len(structures)}"
         jobs.extend([vasp_job, collector, validation])
-        outputs.append(validation.output)
-    return Response(replace=Flow(jobs, output=outputs, name="DFPT volume jobs"))
+        validations.append(validation.output)
+        cells.append(
+            {
+                "index": index,
+                "cell": structure.as_dict(),
+                "supercell": cell.as_dict(),
+                "volume_angstrom3": float(volumes[index]),
+                "static_energy_eV": float(energies[index]),
+            }
+        )
+
+    collected = collect_validated_volumes(validations, cells=cells)
+    collected.name = "collect validated volumes"
+    thermal = dfpt_thermal_properties(
+        collected.output,
+        supercell_matrix=supercell_matrix,
+        mesh=mesh,
+        temperatures=temperatures,
+    )
+    thermal.name = "DFPT thermal properties"
+    analysis = analyze_dfpt_qha(thermal.output, pressure_gpa=pressure_gpa)
+    analysis.name = "analyze DFPT-QHA"
+
+    jobs.extend([collected, thermal, analysis])
+    return Response(replace=Flow(jobs, output=analysis.output, name="DFPT volume jobs"))
 
 
-__all__ = ["spawn_dfpt_volume_jobs"]
+@job
+def collect_validated_volumes(
+    validations: list[dict[str, Any]],
+    *,
+    cells: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Gather the volumes that passed validation, with their static energies.
+
+    A volume whose validation returned ``ok=False`` is dropped here rather than
+    carrying an unvalidated dynamical matrix into the fit.  In a real run the
+    stopped job halts the flow before this point; this check is what keeps the
+    contract true when a flow is assembled or replayed by hand.
+    """
+
+    kept: list[dict[str, Any]] = []
+    rejected: list[int] = []
+    for index, validation in enumerate(validations):
+        if not validation or not validation.get("ok"):
+            rejected.append(index)
+            continue
+        document = validation.get("dfpt_doc") or {}
+        kept.append(
+            {
+                **cells[index],
+                "force_constants": document["force_constants"],
+                "n_atoms_supercell": document["force_constants_provenance"]["n_atoms"],
+                "ordering_fingerprint": document["force_constants_provenance"][
+                    "ordering_fingerprint"
+                ],
+            }
+        )
+    return {
+        "volumes": kept,
+        "rejected_volume_indices": rejected,
+        "n_requested": len(validations),
+        "n_validated": len(kept),
+    }
+
+
+__all__ = ["collect_validated_volumes", "spawn_dfpt_volume_jobs"]

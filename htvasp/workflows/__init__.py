@@ -6,6 +6,7 @@ from htvasp.workflows.oj import OJWorker
 from htvasp.workflows.nscf import NscfWorker
 from htvasp.workflows.tb2j import Tb2jWorker
 from htvasp.workflows.sqs_mixing import SqsMixingWorker
+from htvasp.workflows.dfpt_qha import DfptQhaWorker
 
 __all__ = [
     "Worker",
@@ -16,4 +17,5 @@ __all__ = [
     "NscfWorker",
     "Tb2jWorker",
     "SqsMixingWorker",
+    "DfptQhaWorker",
 ]

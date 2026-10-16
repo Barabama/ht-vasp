@@ -29,12 +29,12 @@ def structure() -> Structure:
     return Structure.from_dict(data)
 
 
-def test_dfpt_qha_maker_does_not_use_finite_displacement_phonon_maker():
+def test_dfpt_qha_maker_builds_eos_then_the_dfpt_chain():
     maker = DfptQhaMaker(recipe=recipe())
     flow = maker.make(structure(), supercell_matrix=[[2, 0, 0], [0, 2, 0], [0, 0, 2]])
     assert isinstance(flow, Flow)
     assert [job.name for job in flow.jobs] == ["EOS Maker", "spawn_dfpt_volume_jobs"]
-    assert maker.skip_analysis is True
+    assert maker.skip_analysis is False
 
 
 def test_dfpt_qha_maker_requires_recipe():
@@ -71,7 +71,8 @@ def test_dfpt_stage_runs_on_the_recipe_supercell():
     finite-q instability the recipe exists to characterise."""
 
     job = spawn_dfpt_volume_jobs(
-        {"relax": {"structure": [structure()], "dir_name": ["/tmp/eos0"]}},
+        {"relax": {"structure": [structure()], "dir_name": ["/tmp/eos0"],
+                   "energy": [-10.0], "volume": [float(structure().volume)]}},
         recipe=recipe().model_dump(mode="json"),
     )
     store = MemoryStore()
@@ -86,6 +87,51 @@ def test_dfpt_stage_runs_on_the_recipe_supercell():
     assert generator.incar.get("IBRION") == 8
     # fold-matched supercell mesh, not the cell mesh
     assert tuple(generator.kpoints.kpts[0]) == tuple(recipe().kpoints.supercell_grid)
+
+
+def test_dfpt_cell_is_phonopy_ordered_not_pymatgen_ordered():
+    """The DFPT cell must be phonopy's supercell.
+
+    pymatgen's make_supercell gives the same crystal in a different atom order.
+    Force constants come back indexed by whatever order VASP read, so running
+    on pymatgen's cell would attach them to the wrong atoms -- still nonzero,
+    still symmetric, still plausible frequencies.
+    """
+
+    from htvasp.dfpt_qha.phonons import (
+        ordering_fingerprint,
+        supercell_structure,
+    )
+
+    cell = structure()
+    matrix = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
+    phonopy_cell = supercell_structure(cell, matrix)
+    pymatgen_cell = cell.make_supercell(matrix, in_place=False)
+    assert len(phonopy_cell) == len(pymatgen_cell) == 16
+    assert ordering_fingerprint(phonopy_cell) != ordering_fingerprint(pymatgen_cell)
+
+
+def test_flow_ends_in_the_qha_analysis_and_gates_on_validation():
+    """The fail-closed gate must have something downstream to stop."""
+
+    job = spawn_dfpt_volume_jobs(
+        {"relax": {"structure": [structure()], "dir_name": ["/tmp/eos0"],
+                   "energy": [-10.0], "volume": [float(structure().volume)]}},
+        recipe=recipe().model_dump(mode="json"),
+    )
+    store = MemoryStore()
+    store.connect()
+    flow = job.run(JobStore(store)).replace
+    names = [j.name for j in flow.jobs]
+    assert "collect validated volumes" in names
+    assert "DFPT thermal properties" in names
+    assert "analyze DFPT-QHA" in names
+    # the analysis is the flow's terminal job, so a stopped volume really does
+    # halt the thermodynamics rather than merely reporting ok=False
+    assert names.index("analyze DFPT-QHA") == len(names) - 2  # trailing store_inputs
+    assert names.index("collect validated volumes") > names.index(
+        "validate DFPT volume 1/1"
+    )
 
 
 def test_supercell_kpoints_are_the_fold_matched_ones():

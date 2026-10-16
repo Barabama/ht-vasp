@@ -8,14 +8,27 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class DfptForceConstantsProvenance(BaseModel):
+    """Where a DFPT force-constant matrix came from, and in what indexing.
+
+    ``ordering_fingerprint`` is not decoration.  VASP indexes the matrix by its
+    POSCAR atom order while phonopy indexes its own supercell differently, so a
+    matrix that is attached across the two orderings is still nonzero, symmetric
+    and gives plausible frequencies -- it is simply the wrong assignment.  The
+    fingerprint is what lets a consumer prove the two agree before using it.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
-    source: Literal["vasprun.xml"]
-    parser: Literal["pymatgen.Vasprun.force_constants"]
+    source: Literal["FORCE_CONSTANTS"]
+    parser: Literal["phonopy.file_IO.parse_FORCE_CONSTANTS"]
     n_atoms: int = Field(gt=0)
     shape: tuple[int, int, int, int]
-    hessian_unit: str = "eV/Angstrom^2/amu"
-    vasprun_path: str | None = None
+    unit: str = "eV/Angstrom^2"
+    ordering_fingerprint: str = Field(min_length=1)
+    path: str | None = None
+    #: the acoustic sum rule is the one cheap physical check that a matrix is a
+    #: force-constant matrix at all; the vasprun <dynmat> fails it by 65%
+    max_acoustic_sum_residual: float | None = None
 
 
 class DfptTaskDoc(BaseModel):
