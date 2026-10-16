@@ -31,7 +31,7 @@ from htvasp.dfpt_qha.jobs import (
     collect_dfpt_task_doc,
     validate_dfpt_task_doc,
 )
-from htvasp.dfpt_qha.phonons import supercell_structure
+from htvasp.dfpt_qha.phonons import as_structure, supercell_structure
 from htvasp.dfpt_qha.qha import (
     DEFAULT_MESH,
     DEFAULT_TEMPERATURES,
@@ -83,6 +83,10 @@ def spawn_dfpt_volume_jobs(
     validations: list[Any] = []
     cells: list[dict[str, Any]] = []
     for index, (structure, directory) in enumerate(zip(structures, directories)):
+        # ``structure`` may be a dict or a reconstructed Structure depending on
+        # how the EOS job's output was stored; the rest of this loop needs the
+        # object either way.
+        structure = as_structure(structure)
         # The DFPT job must run on phonopy's OWN supercell.  pymatgen's
         # make_supercell produces the same crystal in a different atom order,
         # and the force constants that come back are indexed by whatever order

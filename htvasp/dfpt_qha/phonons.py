@@ -35,6 +35,20 @@ from phonopy.structure.atoms import PhonopyAtoms
 from pymatgen.core import Structure
 
 
+def as_structure(value: Any) -> Structure:
+    """Accept a ``Structure`` or its serialized dict.
+
+    jobflow stores a job's output as JSON and monty's decoder rebuilds the
+    objects it recognises, so a value written as ``structure.as_dict()`` comes
+    back as a live ``Structure``.  Which form arrives depends on the runner, not
+    on the code, so every job boundary accepts both rather than assuming.
+    """
+
+    if isinstance(value, Structure):
+        return value
+    return Structure.from_dict(value)
+
+
 def phonopy_for(cell: Structure, supercell_matrix: Any) -> Phonopy:
     """A phonopy object for the primitive cell, with no force constants set.
 
@@ -101,20 +115,6 @@ def assert_same_ordering(expected: Structure, actual: Structure) -> None:
             "(see supercell_structure), not on a hand-built or "
             "pymatgen.make_supercell cell."
         )
-
-
-def as_structure(value: Any) -> Structure:
-    """Accept either a pymatgen ``Structure`` or its serialized dict.
-
-    jobflow hands a value back in whichever form it was stored: a plain dict if
-    the job wrote one, but a reconstructed ``Structure`` when monty's decoder
-    recognised the ``@module`` key.  Callers on a job boundary must accept both,
-    because which one arrives depends on the runner, not on the code.
-    """
-
-    if isinstance(value, Structure):
-        return value
-    return Structure.from_dict(value)
 
 
 __all__ = [
