@@ -104,6 +104,9 @@ def volume_free_energy(
         "thermal_temperatures": [float(x) for x in curve[0]],
         "n_atoms_supercell": int(n_supercell),
         "n_atoms_cell": len(cell),
+        # phonopy's thermal properties are per mole of ITS primitive cell, which
+        # is not always the recipe cell (fcc SER: 1 atom vs 4).
+        "n_atoms_primitive": len(phonon.primitive),
         "supercell_ordering_fingerprint": ordering_fingerprint(supercell),
         "mesh_min_THz": float(mesh_frequencies.min()),
         "n_imaginary_modes": int((mesh_frequencies < -1e-4).sum()),
@@ -220,13 +223,28 @@ def analyze_dfpt_qha(
             f"free energy is not defined there"
         )
 
-    # phonopy reports per mole of cells; convert to eV per cell to match DFT.
+    # phonopy reports kJ per mole of its own PRIMITIVE cell (it divides by
+    # ``sum(weights)``), while the DFT energies are per recipe cell.  The two
+    # coincide for B2, where the primitive cell IS the 2-atom cell, but not for
+    # an fcc SER entry, whose primitive cell is 1 atom against a 4-atom
+    # conventional cell.  The ratio is therefore explicit rather than assumed.
+    # Multiplying by the atom count alone -- a bug this replaced -- inflates
+    # every free energy by n_atoms_cell; the zero-point energy is the check
+    # that catches it (30 meV/atom here, against 32 meV/atom from the Debye
+    # temperatures of Al and Ta).
+    per_volume_scale = [
+        r["n_atoms_cell"] / r["n_atoms_primitive"] for r in per_volume
+    ]
+    if len(set(per_volume_scale)) != 1:
+        problems.append(
+            f"volumes disagree on the cell/primitive ratio: {per_volume_scale}"
+        )
     free_energy = np.array(
         [
             [
                 r["free_energy_kJ_per_mol"][i]
-                * n_atoms_cell
                 / EV_PER_ATOM_TO_KJ_PER_MOL
+                * (r["n_atoms_cell"] / r["n_atoms_primitive"])
                 for i in range(len(temperatures))
             ]
             for r in per_volume
