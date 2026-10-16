@@ -134,6 +134,42 @@ def test_flow_ends_in_the_qha_analysis_and_gates_on_validation():
     )
 
 
+def test_generators_build_a_real_incar():
+    """``.incar``, not just ``incar_updates``.
+
+    The first real Slurm run died here: pymatgen expands a per-element MAGMOM
+    dict into a per-site list while building the INCAR from the settings dict,
+    and it only consults ``user_incar_settings`` to do it.  A dict left in
+    ``incar_updates`` -- which pymatgen applies afterwards -- reached
+    ``Incar(...)`` unexpanded and raised KeyError: 0.  Asserting only
+    ``incar_updates`` (as the earlier tests did) cannot see that.
+    """
+
+    cell = structure()
+    for generator, ibrion in (
+        (DfptRelaxSetGenerator(recipe=recipe(), isif=3), 2),
+        (DfptRelaxSetGenerator(recipe=recipe(), isif=2), 2),
+        (DfptInputSetGenerator(recipe=recipe()), 8),
+    ):
+        generator.structure = cell
+        incar = generator.incar  # must not raise
+        assert incar["IBRION"] == ibrion
+        assert incar["ISPIN"] == 2
+        # expanded per site, in POSCAR order: Al then Ta
+        assert incar["MAGMOM"] == [1.0, 3.0], (type(generator).__name__, incar["MAGMOM"])
+        assert incar["ISMEAR"] == 1 and abs(incar["SIGMA"] - 0.20) < 1e-12
+        assert generator.potcar_symbols
+
+
+def test_dfpt_generator_leaves_no_dict_valued_incar_key():
+    """Any dict-valued setting other than a resolved one would crash pymatgen."""
+
+    generator = DfptInputSetGenerator(recipe=recipe())
+    generator.structure = structure()
+    for key, value in generator.incar.items():
+        assert not isinstance(value, dict), f"{key} is a dict: {value!r}"
+
+
 def test_supercell_kpoints_are_the_fold_matched_ones():
     cell_generator = DfptInputSetGenerator(recipe=recipe(), use_supercell_kpoints=False)
     supercell_generator = DfptInputSetGenerator(recipe=recipe(), use_supercell_kpoints=True)

@@ -61,7 +61,16 @@ DFPT_MODE: dict[str, Any] = {"IBRION": 8, "ISIF": 2, "NSW": 1}
 
 
 class _RecipeGenerator(VaspInputGenerator):
-    """Common plumbing: recipe-derived INCAR values and k-mesh selection."""
+    """Common plumbing: recipe-derived INCAR values and k-mesh selection.
+
+    MAGMOM goes through ``user_incar_settings``, not ``incar_updates``.  That is
+    not a style choice: pymatgen expands a per-element MAGMOM dict into the
+    per-site list while building the INCAR from the settings dict, and it
+    consults ``user_incar_settings`` to do it.  ``incar_updates`` is applied
+    afterwards, so a dict left there reaches ``Incar(...)`` unexpanded and
+    raises ``KeyError: 0`` inside pymatgen.  The rest of the settings are
+    scalars and are unaffected by the ordering.
+    """
 
     recipe: Recipe | None = None
     use_supercell_kpoints: bool = False
@@ -80,8 +89,12 @@ class _RecipeGenerator(VaspInputGenerator):
             "ISMEAR": recipe.smearing.ISMEAR,
             "SIGMA": recipe.smearing.SIGMA,
             "ISPIN": 2,
-            "MAGMOM": MAGMOM_BY_ELEMENT,
         }
+
+    def _apply_recipe_settings(self) -> None:
+        """Install the recipe's MAGMOM so pymatgen expands it per site."""
+
+        self.user_incar_settings.setdefault("MAGMOM", dict(MAGMOM_BY_ELEMENT))
 
     @property
     def kpoints_updates(self) -> Kpoints:
@@ -119,6 +132,10 @@ class DfptRelaxSetGenerator(_RecipeGenerator):
             "ISIF": self.isif,
         }
 
+    def __post_init__(self) -> None:
+        self._apply_recipe_settings()
+        super().__post_init__()
+
 
 @dataclass
 class DfptInputSetGenerator(_RecipeGenerator):
@@ -137,6 +154,10 @@ class DfptInputSetGenerator(_RecipeGenerator):
     @property
     def incar_updates(self) -> dict[str, Any]:
         return {**self._recipe_defaults(), **DFPT_ELECTRONIC, **DFPT_MODE}
+
+    def __post_init__(self) -> None:
+        self._apply_recipe_settings()
+        super().__post_init__()
 
 
 __all__ = [
