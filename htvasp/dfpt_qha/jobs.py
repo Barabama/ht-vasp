@@ -36,6 +36,7 @@ phonopy's index order the same list.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -242,6 +243,43 @@ class DfptVaspMaker(BaseVaspMaker):
             )
 
 
+def _task_payload(task_doc: Any) -> dict[str, Any]:
+    """Reduce whatever a jobflow boundary handed us to a JSON-safe mapping.
+
+    Three shapes arrive here, and which one depends on the runner rather than on
+    the code:
+
+    * a plain ``dict`` -- a job that wrote one;
+    * a ``TaskDoc`` pydantic model -- ``BaseVaspMaker``'s output schema;
+    * a dict monty's decoder rebuilt from JSON, whose nested ``input.kpoints``,
+      ``structure`` and ``orig_inputs.incar`` are live pymatgen objects again.
+
+    The third is the one that bites: it survives until something serializes the
+    document a second time, and then raises ``Unable to serialize unknown type:
+    Kpoints`` -- which happened three jobs downstream, inside the validation
+    gate, where the cause is hardest to read.  Sanitizing at this boundary makes
+    "this document is JSON" true for everything after it.
+
+    ``jsanitize`` is asked for ``strict=True`` because ``strict=False`` falls
+    back to ``str(obj)`` for anything it does not recognise, which silently
+    turns a pydantic model into its repr.  ``strict=True`` raises instead, and
+    the repr of a whole TaskDoc is exactly the kind of quiet corruption this
+    project keeps finding.
+    """
+
+    payload = jsanitize(
+        task_doc, strict=True, allow_bson=True, recursive_msonable=True
+    )
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"DFPT TaskDoc did not reduce to a mapping: {type(task_doc).__name__}"
+        )
+    # jsanitize keeps datetime objects, which the job store accepts but a plain
+    # JSON dump does not; the document is read as data downstream, so they are
+    # rendered as ISO strings.
+    return json.loads(json.dumps(payload, default=str))
+
+
 @job
 def collect_dfpt_task_doc(
     task_doc: Any,
@@ -262,26 +300,8 @@ def collect_dfpt_task_doc(
     assertion compares two independently-known structures.
     """
 
-    if hasattr(task_doc, "model_dump"):
-        task_payload = task_doc.model_dump(mode="json")
-        directory = task_doc.dir_name
-    else:
-        task_payload = dict(task_doc)
-        directory = task_payload.get("dir_name")
-    # jobflow stores a job's output as JSON and monty's decoder rebuilds the
-    # objects it recognises, so what arrives here can be a plain dict OR a
-    # reconstructed TaskDoc whose ``input.kpoints`` is a pymatgen Kpoints.  The
-    # latter survives until something tries to serialize it again, and then
-    # fails with "Unable to serialize unknown type: Kpoints" -- three jobs
-    # downstream, in the validation gate.  Sanitizing once, at the boundary,
-    # keeps the contract "this document is JSON" true from here on.
-    task_payload = jsanitize(
-        task_payload, strict=False, allow_bson=True, recursive_msonable=True
-    )
-    if not isinstance(task_payload, dict):
-        raise ValueError(
-            f"DFPT TaskDoc did not reduce to a mapping: {type(task_payload).__name__}"
-        )
+    task_payload = _task_payload(task_doc)
+    directory = task_payload.get("dir_name")
     # TaskDoc.dir_name is an emmet URI ("host:/abs/path"); atomate2 strips the
     # host for the same value in copy_vasp_outputs, so the collector must too.
     job_dir = Path(strip_hostname(str(vasprun_path or directory)))

@@ -124,6 +124,50 @@ def test_thermal_job_reports_the_primitive_cell_size():
     assert len(record["free_energy_kJ_per_mol"]) == 2
 
 
+def test_thermal_job_reports_the_grid_phonopy_actually_evaluated():
+    """phonopy builds its grid from (min, max, step), so it can differ from the
+    requested one: 0, 300, 600, 1000 evaluates 0, 300, 600, 900.
+
+    Reporting the requested list while indexing phonopy's arrays by position
+    would pair every free energy with the wrong temperature, and the resulting
+    curve would still look smooth.
+    """
+
+    cell = _cell("BCC-Al-Ta-2")
+    phonon = phonopy_for(cell, MATRIX)
+    phonon.generate_displacements(distance=1.0)
+    n = len(phonon.supercell)
+    phonon.forces = [np.zeros((n, 3)) for _ in phonon.displacements]
+    phonon.produce_force_constants()
+    supercell = Structure(
+        phonon.supercell.cell,
+        list(phonon.supercell.symbols),
+        [np.array(p) for p in phonon.supercell.scaled_positions],
+        coords_are_cartesian=False,
+    )
+    collected = {
+        "volumes": [
+            {
+                "index": 0,
+                "cell": cell.as_dict(),
+                "supercell": supercell.as_dict(),
+                "volume_angstrom3": float(cell.volume),
+                "static_energy_eV": -15.0,
+                "force_constants": np.array(phonon.force_constants).tolist(),
+            }
+        ]
+    }
+    thermal = dfpt_thermal_properties(
+        collected, supercell_matrix=MATRIX, mesh=(4, 4, 4),
+        temperatures=[0.0, 300.0, 600.0, 1000.0],
+    ).run(_store()).output
+    assert thermal["requested_temperatures"] == [0.0, 300.0, 600.0, 1000.0]
+    assert thermal["temperatures"] == [0.0, 300.0, 600.0, 900.0]
+    record = thermal["volumes"][0]
+    assert len(record["free_energy_kJ_per_mol"]) == len(thermal["temperatures"])
+    assert record["thermal_temperatures"] == thermal["temperatures"]
+
+
 def test_birch_murnaghan_recovers_a_synthetic_curve():
     v0, b0, bp = 33.5, 1.0, 4.0  # eV/Angstrom^3
 

@@ -28,6 +28,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import logging
+
 import numpy as np
 from jobflow import Response, job
 from pymatgen.core import Structure
@@ -38,6 +40,8 @@ from htvasp.dfpt_qha.phonons import (
     ordering_fingerprint,
     phonopy_for,
 )
+
+log = logging.getLogger(__name__)
 
 #: 1 eV/atom expressed in kJ/mol (elementary charge x Avogadro).
 EV_PER_ATOM_TO_KJ_PER_MOL = 96.48533212331002
@@ -176,9 +180,32 @@ def dfpt_thermal_properties(
         )
         per_volume.append(result)
     per_volume.sort(key=lambda r: r["volume_angstrom3"])
+
+    # phonopy builds its own temperature grid from (min, max, step), so the
+    # grid it actually evaluated is not necessarily the one that was requested
+    # -- asking for 0, 300, 600, 1000 yields 0, 300, 600, 900.  Reporting the
+    # requested list while indexing phonopy's arrays by position would pair
+    # every free energy with the wrong temperature, and the curve would still
+    # look smooth.  The evaluated grid is therefore the one carried forward,
+    # and it must be the same at every volume or the columns do not line up.
+    grids = {tuple(r["thermal_temperatures"]) for r in per_volume}
+    if len(grids) != 1:
+        raise ValueError(
+            f"volumes evaluated different temperature grids: "
+            f"{sorted(len(g) for g in grids)} points; the free-energy columns "
+            f"cannot be compared"
+        )
+    evaluated = list(grids.pop())
+    if not np.allclose(evaluated, temperatures):
+        log.warning(
+            "phonopy evaluated %s K rather than the requested %s K; the "
+            "evaluated grid is what the analysis will report",
+            evaluated, temperatures,
+        )
     return {
         "volumes": per_volume,
-        "temperatures": temperatures,
+        "temperatures": evaluated,
+        "requested_temperatures": temperatures,
         "rejected_volume_indices": collected.get("rejected_volume_indices", []),
         "n_validated": collected.get("n_validated"),
         "n_requested": collected.get("n_requested"),
