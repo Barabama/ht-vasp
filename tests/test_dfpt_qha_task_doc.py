@@ -293,6 +293,53 @@ def test_validation_survives_a_task_doc_holding_pymatgen_objects(tmp_path):
     json.dumps(result.output)
 
 
+def test_validation_accepts_a_task_doc_that_came_back_as_a_model(tmp_path):
+    """The document crosses three job boundaries; each one may rebuild it.
+
+    jobflow stores output as JSON and monty's decoder rebuilds recognised
+    objects, so by the time the gate sees ``task_doc`` it can be a live emmet
+    ``TaskDoc`` again.  A field typed ``dict[str, Any]`` rejects that outright:
+    "Input should be a valid dictionary ... input_type=TaskDoc".  This is the
+    second time the same boundary has bitten -- the first was a Kpoints nested
+    inside it.
+    """
+
+    from atomate2.vasp.jobs.base import get_vasp_task_document
+
+    # A phonopy-ordered supercell with a zero dynamical matrix: the point is the
+    # TaskDoc surviving the boundary, not the physics.
+    base = cell()
+    supercell = supercell_structure(base, MATRIX)
+    fc = np.zeros((len(supercell), len(supercell), 3, 3))
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    (job_dir / "DYNMAT").write_text(synthetic_dynmat(base, supercell, fc))
+
+    # a document as the collector would emit it
+    payload = collect_dfpt_task_doc(
+        {"dir_name": str(job_dir), "state": "successful",
+         "structure": supercell.as_dict()},
+        recipe=recipe_dict(),
+        cell=base.as_dict(),
+        supercell_matrix=MATRIX,
+    ).run(_store()).output
+
+    # ...and the same document after a job boundary rebuilt the TaskDoc.
+    # get_vasp_task_document needs a real directory, so the rebuilt form is
+    # emulated with the one monty would construct from the stored JSON.
+    from emmet.core.tasks import TaskDoc
+
+    rebuilt = dict(payload)
+    rebuilt["task_doc"] = TaskDoc.model_validate(payload["task_doc"])
+    assert not isinstance(rebuilt["task_doc"], dict)
+
+    result = validate_dfpt_task_doc(rebuilt, recipe=recipe_dict()).run(_store())
+    assert result.output["ok"] is True, result.output
+    import json
+
+    json.dumps(result.output)
+
+
 def test_validation_rejects_a_matrix_from_the_wrong_cell():
     """A Gamma-only result from the 2-atom cell is square and non-empty.
 

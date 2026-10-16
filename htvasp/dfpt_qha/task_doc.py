@@ -4,7 +4,33 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from monty.json import jsanitize
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _as_json_mapping(value: Any) -> dict[str, Any]:
+    """Reduce whatever arrived to a JSON-safe mapping.
+
+    A field typed ``dict[str, Any]`` is not enough on its own.  jobflow stores a
+    job's output as JSON and monty's decoder rebuilds the objects it recognises
+    from the ``@module``/``@class`` keys, so an emmet ``TaskDoc`` written as a
+    dict comes back as a ``TaskDoc`` -- and pydantic then rejects it with
+    "Input should be a valid dictionary".  Coercing here keeps the contract true
+    no matter how many times the document crosses a job boundary.
+
+    ``strict=True`` on purpose: the non-strict fallback is ``str(obj)``, which
+    would turn the document into its repr and let the run continue on garbage
+    that still validates as a string.
+    """
+
+    if isinstance(value, BaseModel):
+        value = value.model_dump(mode="json")
+    payload = jsanitize(value, strict=True, allow_bson=True, recursive_msonable=True)
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"expected a mapping, got {type(value).__name__}"
+        )
+    return payload
 
 
 class DfptForceConstantsProvenance(BaseModel):
@@ -46,6 +72,11 @@ class DfptTaskDoc(BaseModel):
     force_constants: list[list[list[list[float]]]]
     force_constants_provenance: DfptForceConstantsProvenance
     provenance: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("task_doc", "recipe", "provenance", mode="before")
+    @classmethod
+    def _coerce_to_mapping(cls, value: Any) -> dict[str, Any]:
+        return _as_json_mapping(value)
 
 
 __all__ = ["DfptForceConstantsProvenance", "DfptTaskDoc"]
