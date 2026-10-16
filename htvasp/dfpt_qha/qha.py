@@ -33,6 +33,7 @@ from jobflow import Response, job
 from pymatgen.core import Structure
 
 from htvasp.dfpt_qha.phonons import (
+    as_structure,
     assert_same_ordering,
     ordering_fingerprint,
     phonopy_for,
@@ -159,8 +160,8 @@ def dfpt_thermal_properties(
     per_volume = []
     for record in collected["volumes"]:
         result = volume_free_energy(
-            Structure.from_dict(record["cell"]),
-            Structure.from_dict(record["supercell"]),
+            as_structure(record["cell"]),
+            as_structure(record["supercell"]),
             record["force_constants"],
             supercell_matrix=supercell_matrix,
             mesh=mesh,

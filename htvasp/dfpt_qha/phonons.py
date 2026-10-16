@@ -103,7 +103,22 @@ def assert_same_ordering(expected: Structure, actual: Structure) -> None:
         )
 
 
+def as_structure(value: Any) -> Structure:
+    """Accept either a pymatgen ``Structure`` or its serialized dict.
+
+    jobflow hands a value back in whichever form it was stored: a plain dict if
+    the job wrote one, but a reconstructed ``Structure`` when monty's decoder
+    recognised the ``@module`` key.  Callers on a job boundary must accept both,
+    because which one arrives depends on the runner, not on the code.
+    """
+
+    if isinstance(value, Structure):
+        return value
+    return Structure.from_dict(value)
+
+
 __all__ = [
+    "as_structure",
     "assert_same_ordering",
     "ordering_fingerprint",
     "phonopy_for",

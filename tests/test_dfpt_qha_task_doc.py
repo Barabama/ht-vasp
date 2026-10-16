@@ -254,6 +254,45 @@ def test_validation_accepts_the_real_collected_document():
     assert result.output["dfpt_doc"]["force_constants"]
 
 
+def test_validation_survives_a_task_doc_holding_pymatgen_objects(tmp_path):
+    """jobflow stores output as JSON and monty rebuilds what it recognises.
+
+    So the document the validation job receives can carry a real ``Kpoints``
+    inside ``input.kpoints``.  The gate re-serializes its verdict, and without
+    sanitizing at the collector boundary that fails with "Unable to serialize
+    unknown type: Kpoints" -- three jobs downstream of the cause, which is
+    exactly where it is hardest to read.
+    """
+
+    from pymatgen.io.vasp import Kpoints
+
+    # A phonopy-ordered supercell with a zero dynamical matrix: the point here
+    # is the Kpoints object surviving serialization, not the physics.
+    base = cell()
+    supercell = supercell_structure(base, MATRIX)
+    fc = np.zeros((len(supercell), len(supercell), 3, 3))
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    (job_dir / "DYNMAT").write_text(synthetic_dynmat(base, supercell, fc))
+
+    task_doc = {
+        "dir_name": str(job_dir),
+        "state": "successful",
+        "structure": supercell.as_dict(),
+        # a live pymatgen object, as monty's decoder would hand it back
+        "input": {"kpoints": Kpoints.monkhorst_automatic(kpts=(8, 8, 8), shift=(0.5, 0.5, 0.5))},
+    }
+    collected = collect_dfpt_task_doc(
+        task_doc, recipe=recipe_dict(), cell=base.as_dict(), supercell_matrix=MATRIX
+    ).run(_store()).output
+    result = validate_dfpt_task_doc(collected, recipe=recipe_dict()).run(_store())
+    assert result.output["ok"] is True, result.output
+    # the verdict must itself be serializable, since jobflow will store it
+    import json
+
+    json.dumps(result.output)
+
+
 def test_validation_rejects_a_matrix_from_the_wrong_cell():
     """A Gamma-only result from the 2-atom cell is square and non-empty.
 

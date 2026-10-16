@@ -45,6 +45,7 @@ from atomate2.vasp.jobs.base import BaseVaspMaker
 from atomate2.utils.path import strip_hostname
 from jobflow import Response, job
 from monty.io import zopen
+from monty.json import jsanitize
 from pymatgen.core import Structure
 
 from htvasp.dfpt_qha.input_set import DfptInputSetGenerator, DfptRelaxSetGenerator
@@ -267,6 +268,20 @@ def collect_dfpt_task_doc(
     else:
         task_payload = dict(task_doc)
         directory = task_payload.get("dir_name")
+    # jobflow stores a job's output as JSON and monty's decoder rebuilds the
+    # objects it recognises, so what arrives here can be a plain dict OR a
+    # reconstructed TaskDoc whose ``input.kpoints`` is a pymatgen Kpoints.  The
+    # latter survives until something tries to serialize it again, and then
+    # fails with "Unable to serialize unknown type: Kpoints" -- three jobs
+    # downstream, in the validation gate.  Sanitizing once, at the boundary,
+    # keeps the contract "this document is JSON" true from here on.
+    task_payload = jsanitize(
+        task_payload, strict=False, allow_bson=True, recursive_msonable=True
+    )
+    if not isinstance(task_payload, dict):
+        raise ValueError(
+            f"DFPT TaskDoc did not reduce to a mapping: {type(task_payload).__name__}"
+        )
     # TaskDoc.dir_name is an emmet URI ("host:/abs/path"); atomate2 strips the
     # host for the same value in copy_vasp_outputs, so the collector must too.
     job_dir = Path(strip_hostname(str(vasprun_path or directory)))
@@ -364,12 +379,22 @@ def validate_dfpt_task_doc(
                 )
     except Exception as exc:
         return Response(output={"ok": False, "error": str(exc)}, stop_children=True)
+    try:
+        document = parsed.model_dump(mode="json")
+    except Exception as exc:  # noqa: BLE001 - an unserializable document is a finding
+        return Response(
+            output={
+                "ok": False,
+                "error": f"validated DFPT document could not be serialized: {exc}",
+            },
+            stop_children=True,
+        )
     return Response(
         output={
             "ok": True,
             "schema_version": parsed.schema_version,
             "n_atoms": parsed.force_constants_provenance.n_atoms,
-            "dfpt_doc": parsed.model_dump(mode="json"),
+            "dfpt_doc": document,
         }
     )
 
