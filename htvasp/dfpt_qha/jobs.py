@@ -5,8 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from atomate2.vasp.jobs.base import BaseVaspMaker, get_vasp_task_document
+from atomate2.vasp.jobs.base import BaseVaspMaker
+from atomate2.utils.path import strip_hostname
 from jobflow import Response, job
+from monty.io import zopen
 from pymatgen.io.vasp.outputs import Vasprun
 
 from htvasp.dfpt_qha.task_doc import DfptForceConstantsProvenance, DfptTaskDoc
@@ -48,9 +50,13 @@ def collect_dfpt_task_doc(
     else:
         task_payload = dict(task_doc)
         directory = task_payload.get("dir_name")
-    path = Path(vasprun_path or directory) / "vasprun.xml"
-    if not path.is_file():
-        raise ValueError(f"DFPT TaskDoc directory has no vasprun.xml: {path}")
+    raw_directory = str(vasprun_path or directory)
+    directory_path = Path(strip_hostname(raw_directory))
+    plain = directory_path / "vasprun.xml"
+    compressed = directory_path / "vasprun.xml.gz"
+    path = plain if plain.is_file() else compressed if compressed.is_file() else None
+    if path is None:
+        raise ValueError(f"DFPT TaskDoc directory has no vasprun.xml(.gz): {directory_path}")
     vasprun = Vasprun(str(path), parse_potcar_file=False)
     force_constants = getattr(vasprun, "force_constants", None)
     if force_constants is None:
