@@ -74,6 +74,12 @@ MESH = (12, 12, 12)
 TEMPERATURES = list(range(0, 1001, 100))
 PRESSURE_GPA = 0.0
 
+#: MPI ranks per job.  The cluster has two nodes (48 and 64 cores) and both are
+#: shared with partGPU, so a 48-rank job monopolises a node and the pool runs
+#: strictly serially.  32 fits two jobs at once and was measured not to slow the
+#: per-volume DFPT noticeably.
+DEFAULT_NTASKS = 32
+
 DEFAULT_ENDPOINT = "BCC-Al-Ta-2"
 
 
@@ -226,6 +232,7 @@ def _submission_plan(
     rerun: bool = False,
     number_of_frames: int | None = None,
     mesh: tuple[int, int, int] | None = None,
+    ntasks: int = DEFAULT_NTASKS,
 ) -> dict:
     structure, recipe = load_endpoint(name)
     frames = NUMBER_OF_FRAMES if number_of_frames is None else number_of_frames
@@ -241,6 +248,7 @@ def _submission_plan(
             "number_of_frames": frames,
             "supercell_matrix": SUPERCELL_MATRIX,
             "mesh": dfpt_mesh,
+            "ntasks": int(ntasks),
             "temperatures": TEMPERATURES,
             "pressure_gpa": PRESSURE_GPA,
         },
@@ -258,12 +266,14 @@ def _submission_plan(
         command += f" --mesh {int(dfpt_mesh[0])} {int(dfpt_mesh[1])} {int(dfpt_mesh[2])}"
     if rerun:
         command += " --rerun"
-    # DFPT on a 16-atom supercell at ENCUT 520 with the recipe k-mesh: the
-    # verified e1-dfpt run used 48 tasks / 96G / 6h on partCPU.
+    # 16-atom supercell, ENCUT 520, recipe k-mesh.  ntasks is a throughput
+    # choice, not a scientific one: it changes only how the ranks are laid out,
+    # and the INCAR's KPAR=2 is independent of it.  32 lets two jobs share the
+    # two nodes instead of monopolising one.
     config = manager.get_cpu_config(
         job_name=f"{name}-dfpt-qha",
         output_log=f"logs/{name}-dfpt-qha.log",
-        ntasks=48,
+        ntasks=int(ntasks),
         memory="96G",
         time_limit="24:00:00",
         module_name="vasp-cpu",
@@ -313,10 +323,11 @@ def submit_job(
     dry_run: bool = False,
     number_of_frames: int | None = None,
     mesh: tuple[int, int, int] | None = None,
+    ntasks: int = DEFAULT_NTASKS,
 ):
     plan = _submission_plan(
         name, manager, rerun=rerun,
-        number_of_frames=number_of_frames, mesh=mesh,
+        number_of_frames=number_of_frames, mesh=mesh, ntasks=ntasks,
     )
     if dry_run:
         _print_submission_plan(plan)
@@ -357,6 +368,11 @@ if __name__ == "__main__":
     parser.add_argument("--check", "-c", action="store_true", help="Check the result JSON")
     parser.add_argument("--run-id", help="Operate on an explicit immutable run")
     parser.add_argument(
+        "--ntasks", type=int, default=DEFAULT_NTASKS,
+        help=f"MPI ranks for the Slurm job (default {DEFAULT_NTASKS}); a "
+             f"throughput choice, not a scientific one",
+    )
+    parser.add_argument(
         "--frames", type=int, default=None,
         help=f"EOS deformation frames (default {NUMBER_OF_FRAMES}); the QHA "
              f"analysis needs at least 4",
@@ -375,6 +391,7 @@ if __name__ == "__main__":
             args.name, SlurmJobManager(), rerun=args.rerun, dry_run=args.dry_run,
             number_of_frames=args.frames,
             mesh=tuple(args.mesh) if args.mesh else None,
+            ntasks=args.ntasks,
         )
     elif args.dry_run or args.flow_graph:
         run_tick(
