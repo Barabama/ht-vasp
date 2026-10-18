@@ -33,7 +33,6 @@ from jobflow import Flow, Response, job
 from pymatgen.core import Structure
 
 from htvasp.dfpt_qha.jobs import (
-    DfptRelaxMaker,
     DfptVaspMaker,
     collect_dfpt_task_doc,
     validate_dfpt_task_doc,
@@ -41,7 +40,6 @@ from htvasp.dfpt_qha.jobs import (
 from htvasp.dfpt_qha.phonons import (
     as_structure,
     assert_same_ordering,
-    ordering_fingerprint,
     phonopy_for,
     supercell_structure,
 )

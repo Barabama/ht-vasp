@@ -58,7 +58,6 @@ from pymatgen.core import Structure
 from htvasp.dfpt_qha.input_audit import audit_vasp_inputs
 from htvasp.dfpt_qha.input_set import DfptInputSetGenerator, DfptRelaxSetGenerator
 from htvasp.dfpt_qha.phonons import (
-    as_structure,
     assert_same_ordering,
     ordering_fingerprint,
     phonopy_for,
