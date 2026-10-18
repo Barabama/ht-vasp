@@ -87,8 +87,49 @@ class DfptQhaWorker(Worker):
         result = self._query_store(output_job_name)
         if result is None:
             result = self._query_stability_gate()
+        if result is None:
+            result = self._query_validation_failure()
         self.close()
         return result
+
+    def _query_validation_failure(self) -> dict[str, Any] | None:
+        """A volume rejected before the stability job: report which and why.
+
+        The validator stops the flow when a DFPT document does not match the
+        recipe (wrong atom count, unusable shape).  That is a different failure
+        from a soft mode, and without this the endpoint would report ``None``.
+        """
+
+        if not self.store:
+            return None
+        try:
+            self.store.connect()
+            jobs = self.store.query(
+                criteria={"name": {"$regex": "validate DFPT volume"}},
+                properties=["uuid", "index", "name"],
+                sort={"index": 1},
+            )
+            failed = []
+            for job in jobs:
+                output = self.store.get_output(
+                    uuid=job["uuid"], which="last", load=True
+                )
+                if isinstance(output, dict) and output.get("ok") is False:
+                    failed.append(
+                        {"job_name": job.get("name"), "error": output.get("error")}
+                    )
+            if not failed:
+                return None
+            return {
+                "gate": "dfpt_validation",
+                "ok": False,
+                "n_failed": len(failed),
+                "failures": failed,
+            }
+        except Exception as exc:  # noqa: BLE001 - a missing store is reported
+            log.error(f"Failed to read the DFPT validation gate: {exc}")
+            log.error(traceback.format_exc())
+            return None
 
     def _query_stability_gate(self) -> dict[str, Any] | None:
         """The classification job's stored output, if the flow reached it.

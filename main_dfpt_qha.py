@@ -200,6 +200,13 @@ def run_tick(
                 eos.get("B0_GPa", float("nan")),
                 output["temperatures"][0], output["temperatures"][-1],
             )
+        elif output.get("gate") == "dfpt_validation":
+            log.warning(
+                "  stopped at the DFPT validation gate: %d volume(s) rejected",
+                output.get("n_failed", 0),
+            )
+            for failure in output.get("failures") or []:
+                log.warning("    %s: %s", failure["job_name"], failure["error"])
         elif output.get("gate") == "dfpt_stability":
             # The flow stopped at the stability gate, so there is no analysis by
             # design.  The verdicts are the result: they say which volume is not
@@ -236,6 +243,14 @@ def check_jobs(stage: str = "dfpt-qha") -> None:
             log.info("%s: not run", name)
             continue
         data = json.loads(json_path.read_text(encoding="utf-8"))
+        if data.get("gate") == "dfpt_validation":
+            log.info(
+                "%s: stopped at the DFPT validation gate, %d volume(s) rejected",
+                name, data.get("n_failed", 0),
+            )
+            for failure in data.get("failures") or []:
+                log.info("  %s: %s", failure["job_name"], failure["error"])
+            continue
         if data.get("gate") == "dfpt_stability":
             log.info(
                 "%s: stopped at the DFPT stability gate, %d/%d volumes blocked",

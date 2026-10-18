@@ -297,3 +297,38 @@ def test_worker_falls_back_to_the_stability_verdict_when_the_flow_stopped():
     assert result["gate"] == "dfpt_stability"
     assert result["blocked_volume_indices"] == [1]
     assert result["reports"][0]["status"] == "finite_q_soft_mode"
+
+
+def test_worker_reports_a_validation_failure_when_no_stability_job_exists():
+    """A volume rejected before collection was previously reported as ``None``.
+
+    That is the other fail-closed path -- wrong atom count, unusable shape --
+    and it happens before the stability job exists.
+    """
+
+    from htvasp.workflows.dfpt_qha import DfptQhaWorker
+
+    worker = DfptQhaWorker(recipe=recipe())
+    store = JobStore(_memory())
+    store.connect()
+    store.update(
+        {"uuid": "u0", "index": 5, "name": "validate DFPT volume 2/5",
+         "output": {"ok": False,
+                    "error": "DFPT ran on 2 atoms but the recipe's phonon "
+                             "supercell is 16 atoms"}},
+        key="uuid",
+        save=True,
+    )
+    store.update(
+        {"uuid": "u1", "index": 4, "name": "validate DFPT volume 1/5",
+         "output": {"ok": True, "dfpt_doc": {}}},
+        key="uuid",
+        save=True,
+    )
+    worker.store = store
+
+    result = worker.get_result()
+    assert result is not None
+    assert result["gate"] == "dfpt_validation"
+    assert result["n_failed"] == 1
+    assert "16 atoms" in result["failures"][0]["error"]
