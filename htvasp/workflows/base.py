@@ -17,12 +17,12 @@ warnings.filterwarnings(
 )
 
 from jobflow import Flow, JobStore
-from custodian.vasp.handlers import VaspErrorHandler
 from maggma.stores import JSONStore, MemoryStore
 from maggma.core import Store
 from pymatgen.core import Structure
 
 from htvasp.utils.local import run_locally_custom
+from htvasp.utils.vasp_handlers import with_handlers
 
 log = logging.getLogger(__name__)
 
@@ -54,14 +54,11 @@ class Worker:
         # Store will be initialized in run_flow to allow custom paths
         self.store = None
         self.worker_name = worker_name
-        self.run_vasp_kwargs = {
-            "handlers": [VaspErrorHandler()],
-            "custodian_kwargs": {
-                "max_errors_per_job": 3,
-                "gzipped_output": False,
-            },
-            **(vasp_args or {}),
-        }
+        # The handler set is composed rather than replaced: `vasp_args` may add
+        # handlers, but it may not drop the base set.  Replacing it is how ten of
+        # atomate2's eleven defaults -- including the only one that reacts to a
+        # non-converged SCF -- went missing before.  See htvasp/utils/vasp_handlers.
+        self.run_vasp_kwargs = with_handlers(run_vasp_kwargs=vasp_args)
         self.potcar_functional = potcar_functional
 
         # Default INCAR settings

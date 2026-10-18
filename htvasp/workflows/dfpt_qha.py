@@ -15,6 +15,7 @@ from pymatgen.core import Structure
 
 from htvasp.dfpt_qha.maker import DfptQhaMaker
 from htvasp.model.dfpt_qha_recipe import Recipe
+from htvasp.utils.vasp_handlers import dfpt_handlers
 from htvasp.workflows.base import Worker
 
 
@@ -44,6 +45,13 @@ class DfptQhaWorker(Worker):
         )
         self.recipe = recipe
         self.supercell_matrix = supercell_matrix
+        # DFPT adds one detector on top of the base set: VASP aborts a
+        # dynamical-matrix run when the perturbed cell would need a different
+        # k-point set, and the only "fixes" would change the mesh or the
+        # parallelisation -- both scientific inputs.  So it fails loudly instead.
+        self.run_vasp_kwargs["handlers"] = (
+            list(self.run_vasp_kwargs["handlers"]) + dfpt_handlers()
+        )
         self.flow_maker = DfptQhaMaker(
             name=worker_name,
             recipe=recipe,

@@ -105,6 +105,11 @@ def spawn_dfpt_volume_jobs(
             recipe=recipe,
             cell=structure.as_dict(),
             supercell_matrix=supercell_matrix,
+            # The DFPT run recomputes the ground state on the supercell, so its
+            # energy per atom must match the static energy of this same volume.
+            # A diverged SCF that still stopped early would otherwise pass the
+            # TaskDoc state check.
+            expected_static_energy_per_atom=float(energies[index]) / len(structure),
         )
         collector.name = f"collect DFPT volume {index + 1}/{len(structures)}"
         validation = validate_dfpt_task_doc(collector.output, recipe=recipe)

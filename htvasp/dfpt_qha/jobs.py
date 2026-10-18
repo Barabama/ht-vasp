@@ -280,6 +280,15 @@ def _task_payload(task_doc: Any) -> dict[str, Any]:
     return json.loads(json.dumps(payload, default=str))
 
 
+#: A DFPT run recomputes the ground state on its own (larger) cell.  Its energy
+#: per atom must therefore agree with the static energy of the volume it was
+#: built from.  Healthy agreement on this pool is a few meV/atom; a diverged
+#: SCF shows up as hundreds or thousands.  See the BCC-Co-Ti-2 case where a
+#: ground state that ran away to +4.4e3 eV still carried no "unconverged"
+#: marker anywhere in the OUTCAR.
+STATIC_ENERGY_TOL_MEV_PER_ATOM = 100.0
+
+
 @job
 def collect_dfpt_task_doc(
     task_doc: Any,
@@ -288,6 +297,7 @@ def collect_dfpt_task_doc(
     cell: dict[str, Any],
     supercell_matrix: Any = None,
     vasprun_path: str | Path | None = None,
+    expected_static_energy_per_atom: float | None = None,
 ) -> dict[str, Any]:
     """Convert one completed atomate2 TaskDoc into a DFPT TaskDoc.
 
@@ -302,6 +312,22 @@ def collect_dfpt_task_doc(
 
     task_payload = _task_payload(task_doc)
     directory = task_payload.get("dir_name")
+
+    # The TaskDoc state is the job-level verdict: emmet derives it from
+    # ``vasprun.converged``, which is electronic AND ionic convergence of the
+    # final step.  Custodian's ``VaspErrorHandler`` has 45 text signatures and
+    # none of them matches "aborting loop EDIFF was not reached", so a
+    # non-converged SCF reaches this point looking like a finished run.  The
+    # collector is the last place where the run's own verdict is still attached,
+    # so it is checked here rather than three jobs downstream.
+    state = task_payload.get("state")
+    if state != "successful":
+        raise ValueError(
+            f"DFPT TaskDoc is not successful: state={state!r}.  The calculation "
+            f"did not converge (or was otherwise marked failed); its dynamical "
+            f"matrix must not be used."
+        )
+
     # TaskDoc.dir_name is an emmet URI ("host:/abs/path"); atomate2 strips the
     # host for the same value in copy_vasp_outputs, so the collector must too.
     job_dir = Path(strip_hostname(str(vasprun_path or directory)))
@@ -346,6 +372,33 @@ def collect_dfpt_task_doc(
             f"DFPT force constants violate the acoustic sum rule "
             f"(max|sum_j Phi_ij| = {residual:.4g} vs max|Phi| = {scale:.4g})"
         )
+
+    # Physical convergence gate.  The task state above is the job-level verdict,
+    # and it is derived from "did the last electronic step stop before NELM" --
+    # which a run that diverged and then happened to stop early would also
+    # satisfy.  This compares the DFPT run's own ground-state energy with the
+    # static energy of the volume it was launched from: the two are the same
+    # crystal at the same volume, so they must agree to a few meV/atom.
+    energy_delta_mev_per_atom: float | None = None
+    if expected_static_energy_per_atom is not None:
+        output = task_payload.get("output") or {}
+        energy = output.get("energy")
+        n_atoms = len(supercell)
+        if energy is None:
+            raise ValueError("DFPT TaskDoc carries no total energy to compare")
+        actual_per_atom = float(energy) / n_atoms
+        energy_delta_mev_per_atom = 1e3 * (
+            actual_per_atom - float(expected_static_energy_per_atom)
+        )
+        if abs(energy_delta_mev_per_atom) > STATIC_ENERGY_TOL_MEV_PER_ATOM:
+            raise ValueError(
+                f"DFPT ground state disagrees with the static energy of its "
+                f"volume by {energy_delta_mev_per_atom:.1f} meV/atom "
+                f"(DFPT {actual_per_atom:.6f} vs static "
+                f"{float(expected_static_energy_per_atom):.6f} eV/atom, tolerance "
+                f"{STATIC_ENERGY_TOL_MEV_PER_ATOM:g}).  The SCF did not converge to "
+                f"the same state the EOS used; the dynamical matrix is not usable."
+            )
     doc = DfptTaskDoc(
         task_doc=task_payload,
         recipe=recipe,
@@ -364,6 +417,8 @@ def collect_dfpt_task_doc(
             "task_doc_dir": str(job_dir),
             "task_state": task_payload.get("state"),
             "n_perturbations": len(perturbations),
+            "energy_vs_static_meV_per_atom": energy_delta_mev_per_atom,
+            "energy_vs_static_tolerance_meV_per_atom": STATIC_ENERGY_TOL_MEV_PER_ATOM,
         },
     )
     return doc.model_dump(mode="json")
