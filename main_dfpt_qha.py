@@ -200,6 +200,15 @@ def run_tick(
                 eos.get("B0_GPa", float("nan")),
                 output["temperatures"][0], output["temperatures"][-1],
             )
+        elif output.get("gate") == "dfpt_stability":
+            # The flow stopped at the tier-A/tier-B gate, so there is no analysis
+            # by design.  The report is the result: it says which volume is not
+            # harmonic-QHA-applicable and why.
+            report = output.get("report") or {}
+            log.warning(
+                "  stopped at the DFPT stability gate: %s (%s)",
+                report.get("status"), report.get("reason"),
+            )
         else:
             log.warning("  analysis did not succeed: %s", output.get("error"))
     except Exception as exc:  # noqa: BLE001 - the Worker already logs; keep the tick alive
@@ -216,6 +225,17 @@ def check_jobs(stage: str = "dfpt-qha") -> None:
             log.info("%s: not run", name)
             continue
         data = json.loads(json_path.read_text(encoding="utf-8"))
+        if data.get("gate") == "dfpt_stability":
+            report = data.get("report") or {}
+            log.info(
+                "%s: stopped at the DFPT stability gate (%s), %d/%d volumes blocked",
+                name, report.get("status"),
+                data.get("n_volumes_blocked", 0), data.get("n_volumes_classified", 0),
+            )
+            for volume in data.get("volumes") or []:
+                if not volume.get("qha_allowed"):
+                    log.info("  %s: %s", volume.get("job_name"), volume.get("reason"))
+            continue
         if not data.get("ok"):
             log.info("%s: analysis failed: %s", name, data.get("error"))
             continue

@@ -25,6 +25,7 @@ from htvasp.dfpt_qha.jobs import (
     validate_dfpt_task_doc,
 )
 from htvasp.dfpt_qha.phonons import phonopy_for, supercell_structure
+from htvasp.dfpt_qha.stability import force_constants_sha256
 from htvasp.dfpt_qha.task_doc import DfptTaskDoc
 from htvasp.model.dfpt_qha_recipe import Recipe
 
@@ -364,3 +365,118 @@ def test_validation_rejects_a_matrix_from_the_wrong_cell():
     assert result.output["ok"] is False
     assert result.stop_children is True
     assert "phonon supercell" in result.output["error"]
+
+
+def _collected_zero_matrix(tmp_path):
+    """A validated-shape DFPT document, with a zero dynamical matrix.
+
+    The physics is deliberately empty: these tests are about the gate reading
+    the stability verdict, not about the frequencies in it.
+    """
+
+    base = cell()
+    supercell = supercell_structure(base, MATRIX)
+    fc = np.zeros((len(supercell), len(supercell), 3, 3))
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    (job_dir / "DYNMAT").write_text(synthetic_dynmat(base, supercell, fc))
+    return (
+        collect_dfpt_task_doc(
+            {"dir_name": str(job_dir), "state": "successful",
+             "structure": supercell.as_dict()},
+            recipe=recipe_dict(),
+            cell=base.as_dict(),
+            supercell_matrix=MATRIX,
+        ).run(_store()).output,
+        fc,
+    )
+
+
+def _verdict(document, *, status, qha_allowed, sha=None, reason="test verdict"):
+    return {
+        "schema_version": "htvasp-dfpt-stability/v1",
+        "status": status,
+        "qha_allowed": qha_allowed,
+        "reason": reason,
+        "checks": {},
+        "commensurate_qpoints": [],
+        "mesh_diagnostic": {},
+        "force_constants_sha256": (
+            sha
+            if sha is not None
+            else force_constants_sha256(np.array(document["force_constants"], dtype=float))
+        ),
+        "structure_hash": "",
+        "recipe_hash": "",
+        "units": {},
+    }
+
+
+def test_validation_stops_on_a_soft_mode_verdict(tmp_path):
+    """A finite-q imaginary branch means harmonic QHA is not applicable.
+
+    Carrying the volume into the free-energy fit anyway produces a smooth curve
+    over numbers that do not mean anything, which is worse than no curve.
+    """
+
+    document, _ = _collected_zero_matrix(tmp_path)
+    verdict = _verdict(
+        document, status="finite_q_soft_mode_diagnostic", qha_allowed=False
+    )
+    result = validate_dfpt_task_doc(
+        document, recipe=recipe_dict(), stability=verdict
+    ).run(_store())
+    assert result.output["ok"] is False
+    assert result.stop_children is True
+    assert "not QHA-applicable" in result.output["error"]
+    # the verdict travels with the rejection: the flow is stopped, so this is
+    # the only record of why
+    assert result.output["stability"]["status"] == "finite_q_soft_mode_diagnostic"
+
+
+def test_validation_accepts_a_harmonic_verdict(tmp_path):
+    document, _ = _collected_zero_matrix(tmp_path)
+    verdict = _verdict(
+        document, status="harmonic_QHA_applicable", qha_allowed=True
+    )
+    result = validate_dfpt_task_doc(
+        document, recipe=recipe_dict(), stability=verdict
+    ).run(_store())
+    assert result.output["ok"] is True, result.output
+    assert result.output["qha_allowed"] is True
+    assert result.output["stability"]["status"] == "harmonic_QHA_applicable"
+
+
+def test_validation_rejects_a_verdict_about_a_different_matrix(tmp_path):
+    """The verdict is attached to a specific matrix by hash.
+
+    Without this check a replayed or hand-assembled flow could release a volume
+    whose diagnosis was computed for someone else's force constants.
+    """
+
+    document, _ = _collected_zero_matrix(tmp_path)
+    verdict = _verdict(
+        document,
+        status="harmonic_QHA_applicable",
+        qha_allowed=True,
+        sha="0" * 64,
+    )
+    result = validate_dfpt_task_doc(
+        document, recipe=recipe_dict(), stability=verdict
+    ).run(_store())
+    assert result.output["ok"] is False
+    assert result.stop_children is True
+    assert "different force-constant matrix" in result.output["error"]
+
+
+def test_validation_still_works_without_a_verdict(tmp_path):
+    """The verdict is optional so the gate can be replayed on archived runs.
+
+    An archived document predates the classification job; it must not become
+    unusable just because no report exists for it.
+    """
+
+    document, _ = _collected_zero_matrix(tmp_path)
+    result = validate_dfpt_task_doc(document, recipe=recipe_dict()).run(_store())
+    assert result.output["ok"] is True
+    assert result.output["qha_allowed"] is None

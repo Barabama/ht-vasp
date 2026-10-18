@@ -9,13 +9,15 @@ Flow shape, per endpoint::
     CommonEosMaker                 E(V) and the relaxed cell at each volume
       -> spawn_dfpt_volume_jobs    one DFPT run per volume, on the recipe supercell
            -> collect_dfpt_task_doc    vasprun <dynmat> -> DfptTaskDoc
-           -> validate_dfpt_task_doc   fail-closed: cell, shape, provenance
+           -> classify_dfpt_volume     tier-A integrity + tier-B soft-mode report
+           -> validate_dfpt_task_doc   fail-closed: cell, shape, stability verdict
       -> collect_validated_volumes  gather the survivors
       -> dfpt_thermal_properties    F(V,T) from the dynamical matrices
       -> analyze_dfpt_qha           G(T), V(T) and the EOS fit
 
 The validation job is a pass-through, so a stopped volume stops the thermal and
-QHA jobs behind it -- which is the whole point of the gate.
+QHA jobs behind it -- which is the whole point of the gate.  The classification
+runs before it and stores its report, so a halted flow still says why.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from pymatgen.core import Structure
 from htvasp.dfpt_qha.jobs import (
     DfptRelaxMaker,
     DfptVaspMaker,
+    classify_dfpt_volume,
     collect_dfpt_task_doc,
     validate_dfpt_task_doc,
 )
@@ -112,9 +115,18 @@ def spawn_dfpt_volume_jobs(
             expected_static_energy_per_atom=float(energies[index]) / len(structure),
         )
         collector.name = f"collect DFPT volume {index + 1}/{len(structures)}"
-        validation = validate_dfpt_task_doc(collector.output, recipe=recipe)
+        classification = classify_dfpt_volume(
+            collector.output,
+            cell=structure.as_dict(),
+            supercell_matrix=supercell_matrix,
+            mesh=tuple(int(x) for x in mesh),
+        )
+        classification.name = f"classify DFPT volume {index + 1}/{len(structures)}"
+        validation = validate_dfpt_task_doc(
+            collector.output, recipe=recipe, stability=classification.output
+        )
         validation.name = f"validate DFPT volume {index + 1}/{len(structures)}"
-        jobs.extend([vasp_job, collector, validation])
+        jobs.extend([vasp_job, collector, classification, validation])
         validations.append(validation.output)
         cells.append(
             {
@@ -162,6 +174,13 @@ def collect_validated_volumes(
         if not validation or not validation.get("ok"):
             rejected.append(index)
             continue
+        stability = validation.get("stability") or {}
+        # Defence in depth for a flow that was assembled or replayed by hand:
+        # the validator is the gate, but a verdict of "not QHA-applicable" must
+        # not enter the fit even if a caller dropped the ``ok`` field.
+        if stability and not stability.get("qha_allowed"):
+            rejected.append(index)
+            continue
         document = validation.get("dfpt_doc") or {}
         kept.append(
             {
@@ -171,6 +190,8 @@ def collect_validated_volumes(
                 "ordering_fingerprint": document["force_constants_provenance"][
                     "ordering_fingerprint"
                 ],
+                "stability_status": stability.get("status"),
+                "qha_allowed": stability.get("qha_allowed"),
             }
         )
     return {

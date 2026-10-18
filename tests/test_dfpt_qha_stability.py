@@ -12,13 +12,20 @@ from pymatgen.io.vasp import Poscar
 
 from htvasp.dfpt_qha.phonons import phonopy_for
 from htvasp.dfpt_qha.stability import (
+    DfptStabilityReport,
     commensurate_qpoints,
     diagnose_stability,
     force_constants_checks,
     force_constants_sha256,
     reciprocal_check,
+    unresolved_report,
 )
-from htvasp.dfpt_qha.jobs import force_constants_from_dynmat, parse_dynmat
+from htvasp.dfpt_qha.jobs import (
+    classify_dfpt_volume,
+    collect_dfpt_task_doc,
+    force_constants_from_dynmat,
+    parse_dynmat,
+)
 
 BASE = Path("/nfs_ssd/tmp/BCC-Al-Ta-2-5e3275de/1-DFPT_volume_1/5")
 POOL = Path("/nfs_ssd/tmp/legacy-qha-pool/stage0")
@@ -103,3 +110,69 @@ def test_shape_or_asr_failure_is_not_a_physical_soft_mode():
     )
     assert report["status"] == "numerical_unresolved"
     assert report["qha_allowed"] is False
+
+
+def test_report_model_rejects_a_contradictory_verdict():
+    """``qha_allowed`` is derived from ``status``, not carried alongside it."""
+
+    report = {
+        "schema_version": "htvasp-dfpt-stability/v1",
+        "status": "finite_q_soft_mode_diagnostic",
+        "qha_allowed": True,
+        "reason": "contradiction",
+        "checks": {},
+        "commensurate_qpoints": [],
+        "mesh_diagnostic": {},
+        "force_constants_sha256": "a" * 64,
+    }
+    with pytest.raises(ValueError, match="contradicts status"):
+        DfptStabilityReport.model_validate(report)
+
+
+def test_unresolved_report_is_a_usable_artifact():
+    report = unresolved_report("phonopy would not build", force_constants=np.zeros((2,)))
+    parsed = DfptStabilityReport.model_validate(report)
+    assert parsed.status == "numerical_unresolved"
+    assert parsed.qha_allowed is False
+    assert len(parsed.force_constants_sha256) == 64
+    json.dumps(parsed.model_dump(mode="json"))
+
+
+def test_classify_job_on_the_real_fixture():
+    """The diagnosis has to survive the job boundary, not just the call."""
+
+    if not (BASE / "DYNMAT").is_file():
+        pytest.skip("real DFPT fixture unavailable")
+    cell_, _, _, recipe = _fixture()
+    import gzip
+
+    from pymatgen.io.vasp import Poscar
+
+    with gzip.open(BASE / "POSCAR.gz", "rt") as handle:
+        supercell = Poscar.from_str(handle.read()).structure
+    document = collect_dfpt_task_doc(
+        {"dir_name": str(BASE), "state": "successful",
+         "structure": supercell.as_dict()},
+        recipe=recipe,
+        cell=cell_.as_dict(),
+        supercell_matrix=MATRIX,
+    ).run(_Store()).output
+    output = classify_dfpt_volume(
+        document, cell=cell_.as_dict(), supercell_matrix=MATRIX, mesh=(4, 4, 4)
+    ).run(_Store()).output
+    parsed = DfptStabilityReport.model_validate(output)
+    assert parsed.status == "finite_q_soft_mode_diagnostic"
+    assert parsed.qha_allowed is False
+    assert parsed.force_constants_sha256 == force_constants_sha256(
+        np.array(document["force_constants"], dtype=float)
+    )
+    json.dumps(output)
+
+
+def _Store():
+    from jobflow import JobStore
+    from maggma.stores import MemoryStore
+
+    docs = MemoryStore()
+    docs.connect()
+    return JobStore(docs)

@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from phonopy.harmonic.dynmat_to_fc import get_commensurate_points
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from htvasp.dfpt_qha.phonons import ordering_fingerprint
 
@@ -26,6 +27,8 @@ SOFT_FREQUENCY_TOL_THz = 1e-4
 GAMMA_ACOUSTIC_TOL_THz = 0.1
 EIGEN_RESIDUAL_TOL = 1e-6
 PERMUTATION_DIAGNOSTIC_TOL = 1e-2
+
+SCHEMA_VERSION = "htvasp-dfpt-stability/v1"
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -158,16 +161,100 @@ def mesh_diagnostic(ph: Any, mesh: tuple[int, int, int]) -> dict[str, Any]:
     }
 
 
+class DfptStabilityReport(BaseModel):
+    """Serializable verdict for one DFPT volume.
+
+    The report is a stored artifact, not a log line: when the gate halts a flow
+    the analysis job is never produced, so this is what the Worker's
+    ``get_result`` falls back to in order to say *why* the run stopped.
+
+    ``qha_allowed`` is tied to ``status`` rather than carried independently.
+    Two sources of truth for the same decision is how a soft-mode volume ends
+    up in a free-energy fit with a clean-looking ``ok``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["htvasp-dfpt-stability/v1"] = SCHEMA_VERSION
+    status: Literal[
+        "harmonic_QHA_applicable",
+        "finite_q_soft_mode_diagnostic",
+        "gamma_soft_mode",
+        "numerical_unresolved",
+    ]
+    qha_allowed: bool
+    reason: str
+    checks: dict[str, Any]
+    commensurate_qpoints: list[dict[str, Any]]
+    mesh_diagnostic: dict[str, Any]
+    #: identifies the matrix the verdict was computed from; the gate compares it
+    #: against the document it is about to release
+    force_constants_sha256: str = Field(min_length=64, max_length=64)
+    structure_hash: str = ""
+    recipe_hash: str = ""
+    units: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _status_decides_qha(self) -> "DfptStabilityReport":
+        expected = self.status == "harmonic_QHA_applicable"
+        if self.qha_allowed != expected:
+            raise ValueError(
+                f"qha_allowed={self.qha_allowed} contradicts status={self.status!r}"
+            )
+        return self
+
+
+def unresolved_report(
+    reason: str,
+    *,
+    force_constants: Any = None,
+    structure_hash: str = "",
+    recipe_hash: str = "",
+    checks: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """A ``numerical_unresolved`` verdict for a diagnosis that could not run.
+
+    The alternative -- letting the diagnosis job raise -- loses the artifact
+    exactly when it is most needed: the matrix is unusable and the only record
+    of that would be a traceback.
+    """
+
+    matrix = np.asarray([] if force_constants is None else force_constants, dtype=float)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "numerical_unresolved",
+        "qha_allowed": False,
+        "reason": reason,
+        "checks": {"shape_ok": False, "problems": [reason], **(checks or {})},
+        "commensurate_qpoints": [],
+        "mesh_diagnostic": {},
+        "force_constants_sha256": force_constants_sha256(matrix),
+        "structure_hash": structure_hash,
+        "recipe_hash": recipe_hash,
+        "units": {"frequency": "THz", "force_constants": "eV/Angstrom^2"},
+    }
+
+
 def diagnose_stability(ph: Any, force_constants: Any, *, structure: Any, recipe: Any,
-                       supercell_matrix: Any, mesh: tuple[int, int, int]) -> dict[str, Any]:
+                       supercell_matrix: Any, mesh: tuple[int, int, int],
+                       ordering_ok: bool = True) -> dict[str, Any]:
     checks = force_constants_checks(force_constants)
+    # The caller asserts the supercell ordering before handing over the matrix;
+    # recording the outcome here keeps it part of the structural verdict rather
+    # than an unstated precondition.
+    checks["ordering_ok"] = bool(ordering_ok)
     reciprocal = reciprocal_check(ph)
     gamma = gamma_acoustic_report(ph)
     qpoints = commensurate_qpoints(supercell_matrix)
     q_reports = [qpoint_report(ph, q) for q in qpoints]
     finite_q = [r for r in q_reports if r["q_fractional"] != [0.0, 0.0, 0.0] and r["n_imaginary"]]
     gamma_report = next(r for r in q_reports if r["q_fractional"] == [0.0, 0.0, 0.0])
-    structural_ok = checks.get("shape_ok") and checks.get("asr_ok") and checks.get("ordering_ok", True) and reciprocal["ok"]
+    structural_ok = bool(
+        checks.get("shape_ok")
+        and checks.get("asr_ok")
+        and checks.get("ordering_ok", False)
+        and reciprocal["ok"]
+    )
     if not structural_ok:
         status, allowed, reason = "numerical_unresolved", False, "tier-A structural check failed"
     elif finite_q:
@@ -177,7 +264,7 @@ def diagnose_stability(ph: Any, force_constants: Any, *, structure: Any, recipe:
     else:
         status, allowed, reason = "harmonic_QHA_applicable", True, "no commensurate imaginary branch"
     return {
-        "schema_version": "htvasp-dfpt-stability/v1",
+        "schema_version": SCHEMA_VERSION,
         "status": status, "qha_allowed": allowed, "reason": reason,
         "checks": {**checks, "reciprocal": reciprocal, "gamma": gamma},
         "commensurate_qpoints": q_reports,
@@ -189,6 +276,8 @@ def diagnose_stability(ph: Any, force_constants: Any, *, structure: Any, recipe:
     }
 
 
-__all__ = ["commensurate_qpoints", "diagnose_stability", "force_constants_checks",
-           "force_constants_sha256", "gamma_acoustic_report", "mesh_diagnostic",
-           "qpoint_report", "reciprocal_check", "reciprocal_lattice", "recipe_sha256"]
+__all__ = ["DfptStabilityReport", "commensurate_qpoints",
+           "diagnose_stability", "force_constants_checks", "force_constants_sha256",
+           "gamma_acoustic_report", "mesh_diagnostic", "qpoint_report",
+           "recipe_sha256", "reciprocal_check", "reciprocal_lattice",
+           "unresolved_report"]

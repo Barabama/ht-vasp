@@ -9,13 +9,18 @@ Flow shape, per endpoint::
     CommonEosMaker                 E(V) and the relaxed cell at each volume
       -> spawn_dfpt_volume_jobs    one DFPT run per volume, on the recipe supercell
            -> collect_dfpt_task_doc    DYNMAT -> force constants -> DfptTaskDoc
-           -> validate_dfpt_task_doc   fail-closed: cell, shape, provenance
+           -> classify_dfpt_volume     tier-A integrity + tier-B soft-mode report
+           -> validate_dfpt_task_doc   fail-closed: cell, shape, stability verdict
       -> collect_validated_volumes  gather the survivors
       -> dfpt_thermal_properties    F(V,T) from the dynamical matrices
       -> analyze_dfpt_qha           G(T), V(T) and the EOS fit
 
 The validation job is a pass-through, so a stopped volume stops the thermal and
 QHA jobs behind it -- which is the whole point of the gate.
+
+The classification is a separate job on purpose.  When it rejects a volume the
+analysis job never exists, so the report it wrote is the only surviving record
+of why; ``DfptQhaWorker.get_result`` falls back to it.
 
 What VASP actually writes
 -------------------------
@@ -51,10 +56,17 @@ from pymatgen.core import Structure
 
 from htvasp.dfpt_qha.input_set import DfptInputSetGenerator, DfptRelaxSetGenerator
 from htvasp.dfpt_qha.phonons import (
+    as_structure,
     assert_same_ordering,
     ordering_fingerprint,
     phonopy_for,
     supercell_structure,
+)
+from htvasp.dfpt_qha.stability import (
+    DfptStabilityReport,
+    diagnose_stability,
+    force_constants_sha256,
+    unresolved_report,
 )
 from htvasp.dfpt_qha.task_doc import DfptForceConstantsProvenance, DfptTaskDoc
 from htvasp.model.dfpt_qha_recipe import Recipe
@@ -425,17 +437,80 @@ def collect_dfpt_task_doc(
 
 
 @job
+def classify_dfpt_volume(
+    dfpt_doc: dict[str, Any],
+    *,
+    cell: dict[str, Any],
+    supercell_matrix: Any,
+    mesh: tuple[int, int, int] = (12, 12, 12),
+) -> dict[str, Any]:
+    """Tier-A integrity checks and tier-B soft-mode diagnosis for one volume.
+
+    Diagnosis is an artifact, not a log line: when the gate downstream halts
+    the flow, the analysis never runs, and this report is what the Worker's
+    ``get_result`` falls back to.  So a diagnosis that cannot be completed is
+    recorded as ``numerical_unresolved`` rather than raised.
+
+    ``cell`` is the primitive cell the supercell was built from, passed
+    explicitly for the same reason the collector takes it: the ordering
+    assertion needs two independently known structures.
+    """
+
+    structure = force_constants = None
+    try:
+        doc = DfptTaskDoc.model_validate(dfpt_doc)
+        structure = as_structure(doc.task_doc.get("structure"))
+        cell_structure = as_structure(cell)
+        force_constants = np.array(doc.force_constants, dtype=float)
+        phonon = phonopy_for(cell_structure, supercell_matrix)
+        # asserts the matrix is indexed for the cell phonopy will diagonalise;
+        # a mismatch still returns plausible frequencies at Gamma
+        assert_same_ordering(
+            structure, supercell_structure(cell_structure, supercell_matrix)
+        )
+        phonon.force_constants = force_constants
+        report = diagnose_stability(
+            phonon,
+            force_constants,
+            structure=structure,
+            recipe=doc.recipe,
+            supercell_matrix=supercell_matrix,
+            mesh=tuple(int(x) for x in mesh),
+            ordering_ok=True,
+        )
+    except Exception as exc:  # noqa: BLE001 - the report is the failure record
+        report = unresolved_report(
+            f"stability diagnosis could not be completed: {exc}",
+            force_constants=force_constants,
+            structure_hash=(
+                ordering_fingerprint(structure) if structure is not None else ""
+            ),
+            recipe_hash="",
+        )
+    return DfptStabilityReport.model_validate(report).model_dump(mode="json")
+
+
+@job
 def validate_dfpt_task_doc(
-    dfpt_doc: dict[str, Any], *, recipe: dict[str, Any] | None = None
+    dfpt_doc: dict[str, Any],
+    *,
+    recipe: dict[str, Any] | None = None,
+    stability: dict[str, Any] | None = None,
 ) -> Response:
-    """Stop descendants unless the DFPT result matches the recipe it claims.
+    """Stop descendants unless the DFPT result matches the recipe and is usable.
 
     The shape check is not decoration.  A DFPT run on the wrong cell still
     returns a square ``(n, n, 3, 3)`` force-constant array, so a Gamma-only
     result from the 2-atom cell would otherwise be recorded as a valid volume
     and silently lose the finite-q instability the recipe exists to find.
+
+    ``stability`` is the tier-A/tier-B verdict from ``classify_dfpt_volume``.
+    It gates the volume: a finite-q imaginary branch means the harmonic QHA is
+    not applicable, and carrying the volume into the free-energy fit anyway
+    produces a smooth curve over meaningless numbers.
     """
 
+    report = None
     try:
         parsed = DfptTaskDoc.model_validate(dfpt_doc)
         if not parsed.force_constants:
@@ -452,8 +527,32 @@ def validate_dfpt_task_doc(
                     f"(cell {expected.kpoints.cell_atoms} x factor "
                     f"{expected.kpoints.supercell_factor})"
                 )
+        if stability is not None:
+            report = DfptStabilityReport.model_validate(stability)
+            actual = force_constants_sha256(
+                np.array(parsed.force_constants, dtype=float)
+            )
+            if report.force_constants_sha256 != actual:
+                raise ValueError(
+                    "the stability report was computed for a different "
+                    "force-constant matrix than the one being released"
+                )
+            if not report.qha_allowed:
+                raise ValueError(
+                    f"volume is not QHA-applicable ({report.status}): "
+                    f"{report.reason}"
+                )
     except Exception as exc:
-        return Response(output={"ok": False, "error": str(exc)}, stop_children=True)
+        return Response(
+            output={
+                "ok": False,
+                "error": str(exc),
+                "stability": (
+                    report.model_dump(mode="json") if report is not None else None
+                ),
+            },
+            stop_children=True,
+        )
     try:
         document = parsed.model_dump(mode="json")
     except Exception as exc:  # noqa: BLE001 - an unserializable document is a finding
@@ -470,6 +569,8 @@ def validate_dfpt_task_doc(
             "schema_version": parsed.schema_version,
             "n_atoms": parsed.force_constants_provenance.n_atoms,
             "dfpt_doc": document,
+            "stability": report.model_dump(mode="json") if report is not None else None,
+            "qha_allowed": report.qha_allowed if report is not None else None,
         }
     )
 
@@ -478,6 +579,7 @@ __all__ = [
     "DYNMAT_UNIT",
     "DfptRelaxMaker",
     "DfptVaspMaker",
+    "classify_dfpt_volume",
     "collect_dfpt_task_doc",
     "force_constants_from_dynmat",
     "parse_dynmat",
