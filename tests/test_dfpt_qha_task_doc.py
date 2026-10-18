@@ -35,8 +35,8 @@ STRUCTURE_FILE = Path("/nfs_ssd/tmp/legacy-qha-pool/stage0/pool_structures.json"
 ENDPOINT = "BCC-Al-Ta-2"
 MATRIX = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
 
-#: A real DFPT job directory, if one happens to be on disk.
-LIVE_CANDIDATES = sorted(Path("/nfs_ssd/tmp").glob("BCC-Al-Ta-2-*/1-DFPT_volume_1/5"))
+#: A real DFPT job directory, vendored so the tests do not need scratch space.
+LIVE_CANDIDATES = [Path(__file__).parent / "fixtures" / "BCC-Al-Ta-2-dfpt-volume-1"]
 
 
 def _store() -> JobStore:

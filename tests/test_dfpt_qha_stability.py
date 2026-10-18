@@ -17,6 +17,7 @@ from htvasp.dfpt_qha.stability import (
     diagnose_stability,
     force_constants_checks,
     force_constants_sha256,
+    gamma_acoustic_report,
     reciprocal_check,
     unresolved_report,
 )
@@ -27,7 +28,7 @@ from htvasp.dfpt_qha.jobs import (
     parse_dynmat,
 )
 
-BASE = Path("/nfs_ssd/tmp/BCC-Al-Ta-2-5e3275de/1-DFPT_volume_1/5")
+BASE = Path(__file__).parent / "fixtures" / "BCC-Al-Ta-2-dfpt-volume-1"
 POOL = Path("/nfs_ssd/tmp/legacy-qha-pool/stage0")
 MATRIX = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
 
@@ -56,10 +57,33 @@ def _fixture():
 
 
 def test_commensurate_points_for_two_by_two_by_two():
-    points = commensurate_qpoints(MATRIX)
+    cell, _, ph, _ = _fixture()
+    points = commensurate_qpoints(ph)
     assert len(points) == 8
     assert (0.5, 0.5, 0.0) in points
     assert (0.5, 0.5, 0.5) in points
+
+
+def test_commensurate_points_follow_the_primitive_cell_not_the_recipe_cell():
+    """fcc A=A: a 4-atom conventional cell with a 1-atom primitive.
+
+    The 2x2x2 recipe supercell holds 32 primitive cells, so 32 q points are
+    exactly representable.  Computing them from the recipe matrix instead gives
+    8, and the other 24 -- including (1/4,1/4,1/4) -- are never tested.
+    """
+
+    fcc = Structure(
+        [[4.0, 0, 0], [0, 4.0, 0], [0, 0, 4.0]], ["Al"] * 4,
+        [[0, 0, 0], [0, 0.5, 0.5], [0.5, 0, 0.5], [0.5, 0.5, 0]],
+    )
+    phonon = phonopy_for(fcc, MATRIX)
+    points = commensurate_qpoints(phonon)
+    assert len(points) == 32
+    # a quarter of the way along the primitive reciprocal axes: representable
+    # by 32 primitive cells, invisible to a {0, 1/2}^3 grid
+    assert any(abs(x[0]) < 1e-9 and abs(x[1] - 0.25) < 1e-9 for x in points)
+    cell, _, b2, _ = _fixture()
+    assert len(commensurate_qpoints(b2)) == 8
 
 
 def test_force_constant_checks_real_fixture():
@@ -258,3 +282,114 @@ def _Store():
     docs = MemoryStore()
     docs.connect()
     return JobStore(docs)
+
+
+def _dimer_model(cell, phonon, spring):
+    """A force-constant matrix with a flat optical branch of controlled sign.
+
+    Every atom couples to every atom of the other sublattice and to nothing
+    else, so the acoustic branches are exactly flat at zero (the coupling is
+    q-independent) and the optical branches have no dispersion.  With
+    ``spring > 0`` the optical branch is imaginary at Gamma and at every other
+    q -- which is what makes it a test of the *tier order*: Gamma must win.
+    """
+
+    mapping = np.array(phonon.primitive.s2p_map)
+    parts = {value: index for index, value in enumerate(np.unique(mapping))}
+    sublattice = np.array([parts[value] for value in mapping])
+    n = len(sublattice)
+    n_other = {
+        0: int((sublattice == 1).sum()), 1: int((sublattice == 0).sum())
+    }
+    fc = np.zeros((n, n, 3, 3))
+    for i in range(n):
+        part = sublattice[i]
+        for j in range(n):
+            if sublattice[j] != part:
+                fc[i, j] = spring * np.eye(3)
+        fc[i, i] -= n_other[part] * spring * np.eye(3)
+    return fc
+
+
+def test_gamma_optical_soft_mode_is_not_swallowed_by_the_acoustic_slice():
+    """phonopy sorts frequencies ascending, so an imaginary optical branch
+    sorts BELOW the three ~0 THz acoustic modes.
+
+    Slicing ``frequencies[:3]`` as "acoustic" therefore hands the instability
+    the acoustic noise allowance and reports the volume as usable.  The
+    branches are identified by eigenvector character instead.
+    """
+
+    cell, _, phonon, recipe = _fixture()
+    model = _dimer_model(cell, phonon, spring=1.0)
+    phonon.force_constants = model
+    gamma = gamma_acoustic_report(phonon)
+    frequencies = np.array(gamma["frequency_THz"])
+    # the imaginary optical branch sorts first ...
+    assert frequencies[0] < -1.0
+    # ... but it is NOT one of the acoustic branches
+    assert 0 not in gamma["acoustic_bands"]
+    assert max(abs(x) for x in gamma["acoustic_frequencies_THz"]) < 0.1
+    assert gamma["optical_soft_THz"]
+
+    report = diagnose_stability(
+        phonon, model, structure=cell, recipe=recipe,
+        supercell_matrix=MATRIX, mesh=(4, 4, 4),
+    )
+    assert report["status"] == "gamma_soft_mode"
+    assert report["qha_allowed"] is False
+
+
+def test_a_deep_mesh_minimum_away_from_every_exact_q_is_suspected():
+    """The tier that catches an instability the supercell cannot represent.
+
+    A 2x2x2 supercell represents a finite set of q points.  A branch far below
+    zero on a dense mesh at a q no commensurate point covers is neither a
+    truncation artifact nor an exact-q instability: the cell is too small to
+    decide, and QHA must not proceed.  The matrix here is stable at every
+    exact q (the dimer model's flat optical branch is positive, its acoustic
+    branches are exactly zero), so only the patched mesh minimum can fire.
+    """
+
+    from unittest.mock import patch
+
+    cell, _, phonon, recipe = _fixture()
+    model = _dimer_model(cell, phonon, spring=-1.0)
+    phonon.force_constants = model
+    fake = {
+        "mesh": [12, 12, 12], "mesh_min_qpoint": [0.4167, 0.0, 0.0],
+        "mesh_min_frequency_THz": -1.5, "n_mesh_imaginary_modes": 3,
+        "n_modes": 1728 * 3, "note": "interpolated diagnostic only",
+    }
+    with patch("htvasp.dfpt_qha.stability.mesh_diagnostic", return_value=fake):
+        report = diagnose_stability(
+            phonon, model, structure=cell, recipe=recipe,
+            supercell_matrix=MATRIX, mesh=(12, 12, 12),
+        )
+    assert report["status"] == "incommensurate_soft_mode_suspected"
+    assert report["qha_allowed"] is False
+    assert "no commensurate q point" in report["reason"]
+
+
+def test_a_shallow_mesh_minimum_is_recorded_and_does_not_block():
+    """The BCC-Nb-Nb-2 shape: -0.024 THz at q=(-1/24,1/24,1/24), stable at
+    every exact q point.  The endpoint must pass with a warning."""
+
+    from unittest.mock import patch
+
+    cell, _, phonon, recipe = _fixture()
+    model = _dimer_model(cell, phonon, spring=-1.0)
+    phonon.force_constants = model
+    fake = {
+        "mesh": [12, 12, 12], "mesh_min_qpoint": [-0.0417, 0.0417, 0.0417],
+        "mesh_min_frequency_THz": -0.0238, "n_mesh_imaginary_modes": 1,
+        "n_modes": 1728 * 3, "note": "interpolated diagnostic only",
+    }
+    with patch("htvasp.dfpt_qha.stability.mesh_diagnostic", return_value=fake):
+        report = diagnose_stability(
+            phonon, model, structure=cell, recipe=recipe,
+            supercell_matrix=MATRIX, mesh=(12, 12, 12),
+        )
+    assert report["status"] == "harmonic_QHA_applicable"
+    assert report["qha_allowed"] is True
+    assert any("interpolation artifact" in w for w in report["warnings"])

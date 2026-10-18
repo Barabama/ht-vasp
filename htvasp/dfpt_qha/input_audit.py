@@ -150,7 +150,12 @@ def _poscar_changes(original: dict[str, Any], current: dict[str, Any]) -> dict[s
             "current": list(current["frac_coords"].shape),
         }
     else:
-        delta = np.abs(original["frac_coords"] - current["frac_coords"]).max()
+        # wrap into (-1/2, 1/2]: 0.0 and 1.0 are the same site, and a custodian
+        # rewrite that only re-wraps the coordinates must not read as a
+        # full-cell displacement
+        diff = original["frac_coords"] - current["frac_coords"]
+        wrapped = (diff + 0.5) % 1.0 - 0.5
+        delta = np.abs(wrapped).max()
         if delta > COORD_TOL:
             changes["frac_coords_max_abs_diff"] = float(delta)
     return changes
@@ -196,16 +201,23 @@ def audit_vasp_inputs(directory: Path | str) -> dict[str, Any]:
             record["missing_current_files"].append(name)
             continue
         record["current_files"][name] = current_path.name
-        record["hashes"].setdefault(name, {})["original"] = sha256_file(original_path)
-        record["hashes"].setdefault(name, {})["current"] = sha256_file(current_path)
 
         parse, compare = parsers[name]
         try:
+            record["hashes"].setdefault(name, {})["original"] = sha256_file(
+                original_path
+            )
+            record["hashes"].setdefault(name, {})["current"] = sha256_file(
+                current_path
+            )
             changes = compare(
                 parse(_read_text(original_path)), parse(_read_text(current_path))
             )
         except Exception as exc:  # noqa: BLE001 - an unreadable input is a finding
-            changes = {"parse_error": str(exc)}
+            # A truncated .gz (an interrupted atomate2 gzip_output_folder, a
+            # partial copy) must be recorded, not allowed to kill the collector
+            # three jobs downstream of the cause.
+            changes = {"error": f"{type(exc).__name__}: {exc}"}
         if changes:
             record["modified_files"].append(name)
             record["changes"][name] = changes
@@ -221,8 +233,13 @@ def audit_vasp_inputs(directory: Path | str) -> dict[str, Any]:
             record["missing_current_files"].append(name)
             continue
         record["current_files"][name] = current_path.name
-        original_hash = sha256_file(original_path)
-        current_hash = sha256_file(current_path)
+        try:
+            original_hash = sha256_file(original_path)
+            current_hash = sha256_file(current_path)
+        except Exception as exc:  # noqa: BLE001 - an unreadable input is a finding
+            record["changes"][name] = {"error": f"{type(exc).__name__}: {exc}"}
+            record["modified_files"].append(name)
+            continue
         record["hashes"].setdefault(name, {})["original"] = original_hash
         record["hashes"].setdefault(name, {})["current"] = current_hash
         if original_hash != current_hash:

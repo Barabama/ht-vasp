@@ -298,6 +298,10 @@ def collect_validated_volumes(
                 "force_constants_source": document["force_constants_provenance"][
                     "source"
                 ],
+                # custodian's corrections are recorded by the collector, and
+                # they have to survive into the artifact: the per-volume
+                # collector output is not part of the final JSON.
+                "input_audit": (document.get("provenance") or {}).get("input_audit"),
             }
         )
     return {

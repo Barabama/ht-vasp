@@ -19,13 +19,9 @@ from htvasp.utils.vasp_handlers import (
     with_handlers,
 )
 
-#: A real DFPT job directory whose POSCAR is in phonopy's atom order.  The
-#: legacy e1 directory is NOT usable here: its POSCAR was hand-built, so the
-#: ordering assertion correctly refuses it.
-FIXTURE = Path(
-    "/nfs_hdd/2025/gaominliang/ht-vasp/data/endpoints/BCC-Al-Ta-2/dfpt-qhaflow"
-    "/runs/dfpt-qha-20261016T142130Z-a5a8ce189c/1-DFPT_volume_1/5"
-)
+#: A real DFPT job directory whose POSCAR is in phonopy's atom order, vendored
+#: into the repository so the tests do not depend on /nfs_ssd scratch space.
+FIXTURE = Path(__file__).parent / "fixtures" / "BCC-Al-Ta-2-dfpt-volume-1"
 POOL = Path("/nfs_ssd/tmp/legacy-qha-pool/stage0")
 MATRIX = [[2, 0, 0], [0, 2, 0], [0, 0, 2]]
 
@@ -217,3 +213,21 @@ def test_collector_rejects_a_diverged_ground_state():
 
 def test_static_energy_tolerance_is_the_documented_value():
     assert STATIC_ENERGY_TOL_MEV_PER_ATOM == 100.0
+
+
+def test_the_worker_actually_uses_the_composed_handler_set():
+    """The regression the module docstring describes: Worker replaced the list.
+
+    Without this, restoring ``base_handlers()`` while putting
+    ``{"handlers": [VaspErrorHandler()]}`` back in ``Worker.__init__`` leaves
+    every handler test green and real runs drop the two handlers that react to
+    non-convergence.
+    """
+
+    from htvasp.workflows.base import Worker
+
+    worker = Worker("test-worker")
+    names = [type(handler).__name__ for handler in worker.run_vasp_kwargs["handlers"]]
+    assert "UnconvergedErrorHandler" in names
+    assert "NonConvergingErrorHandler" in names
+    assert names[0] == "VaspErrorHandler"

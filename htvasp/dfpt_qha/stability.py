@@ -35,7 +35,7 @@ import json
 from typing import Any, Literal
 
 import numpy as np
-from phonopy.harmonic.dynmat_to_fc import get_commensurate_points
+from phonopy.harmonic.dynmat_to_fc import DynmatToForceConstants
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from htvasp.dfpt_qha.phonons import ordering_fingerprint
@@ -116,9 +116,27 @@ def reciprocal_check(ph: Any, tol: float = 1e-10) -> dict[str, Any]:
     return {"ok": deviation <= tol, "max_deviation": deviation, "tol": tol}
 
 
-def commensurate_qpoints(supercell_matrix: Any) -> list[tuple[float, float, float]]:
-    points = get_commensurate_points(np.asarray(supercell_matrix, dtype=int))
-    return sorted({tuple(float(x % 1.0) for x in q) for q in np.asarray(points)})
+def commensurate_qpoints(phonon: Any) -> list[tuple[float, float, float]]:
+    """Exact q points the supercell can represent, in the primitive basis.
+
+    Taken from phonopy's own ``DynmatToForceConstants`` rather than computed
+    from the recipe's supercell matrix.  ``get_commensurate_points`` documents
+    its argument as "with respect to primitive cell basis vectors", and the
+    recipe matrix is expressed in the *unit* cell: for an fcc A=A endpoint the
+    4-atom conventional cell has a 1-atom primitive, so the 2x2x2 recipe matrix
+    is 8 primitives per axis pair -- 32 commensurate points, not 8.  Passing the
+    recipe matrix would silently test a third of them.
+
+    Deriving the set from the constructed phonopy object removes the conversion
+    entirely: it is whatever that object's supercell actually is.
+    """
+
+    points = DynmatToForceConstants(
+        phonon.primitive, phonon.supercell
+    ).commensurate_points
+    return sorted(
+        {tuple(float(x % 1.0) for x in q) for q in np.asarray(points, dtype=float)}
+    )
 
 
 def _q_distance(a: np.ndarray, b: np.ndarray) -> float:
@@ -163,11 +181,71 @@ def qpoint_report(ph: Any, qpoint: tuple[float, float, float], tol_thz: float = 
     }
 
 
+def _translational_overlaps(ph: Any, report: dict[str, Any]) -> list[float]:
+    """How much of each Gamma eigenvector is a rigid translation of the cell.
+
+    The acoustic branches are identified by their eigenvector, not by their
+    position in the sorted frequency list.  phonopy returns frequencies in
+    ascending order, so an imaginary *optical* branch sorts BELOW the three
+    ~0 THz acoustic modes; slicing ``frequencies[:3]`` would then hand the
+    optical instability the acoustic noise allowance and report the volume as
+    harmonic-QHA-applicable.
+
+    In mass-weighted coordinates a rigid translation along alpha is
+    ``sqrt(m_i) e_alpha`` for every atom i, so the projection onto those three
+    vectors is 1 for an acoustic mode and 0 for an optical one.
+    """
+
+    masses = np.asarray(ph.primitive.masses, dtype=float)
+    n_atoms = len(masses)
+    basis = []
+    for alpha in range(3):
+        vector = np.zeros((n_atoms, 3), dtype=float)
+        vector[:, alpha] = np.sqrt(masses)
+        basis.append(vector.ravel() / np.linalg.norm(vector))
+
+    overlaps: list[float] = []
+    for band in report["bands"]:
+        vector = np.array(
+            [complex(x["re"], x["im"]) for x in band["eigenvector"]], dtype=complex
+        )
+        norm = np.linalg.norm(vector) or 1.0
+        vector = vector / norm
+        overlaps.append(float(max(abs(np.vdot(b, vector)) for b in basis)))
+    return overlaps
+
+
 def gamma_acoustic_report(ph: Any) -> dict[str, Any]:
     report = qpoint_report(ph, (0.0, 0.0, 0.0))
-    acoustic = report["frequencies_THz"][:3]
-    return {"frequencies_THz": acoustic, "max_abs_THz": max(abs(x) for x in acoustic),
-            "noise_ok": max(abs(x) for x in acoustic) < GAMMA_ACOUSTIC_TOL_THz}
+    frequencies = report["frequencies_THz"]
+    overlaps = _translational_overlaps(ph, report)
+    # the three most translation-like branches ARE the acoustic branches
+    acoustic_bands = sorted(
+        int(i) for i in np.argsort(overlaps)[::-1][:3]
+    )
+    acoustic = [frequencies[i] for i in acoustic_bands]
+    optical = [
+        frequencies[i] for i in range(len(frequencies)) if i not in acoustic_bands
+    ]
+    return {
+        "frequency_THz": [float(x) for x in frequencies],
+        "acoustic_bands": acoustic_bands,
+        "acoustic_overlap": [float(overlaps[i]) for i in acoustic_bands],
+        "acoustic_frequencies_THz": [float(x) for x in acoustic],
+        "max_abs_THz": max(abs(x) for x in acoustic) if acoustic else 0.0,
+        "noise_ok": (
+            max(abs(x) for x in acoustic) < GAMMA_ACOUSTIC_TOL_THz
+            if acoustic
+            else True
+        ),
+        "optical_frequencies_THz": [float(x) for x in optical],
+        "optical_min_THz": float(min(optical)) if optical else None,
+        # an optical branch gets NO acoustic tolerance: any negative value
+        # beyond print noise is a soft mode
+        "optical_soft_THz": [
+            float(x) for x in optical if x < -SOFT_FREQUENCY_TOL_THz
+        ],
+    }
 
 
 def mesh_diagnostic(ph: Any, mesh: tuple[int, int, int]) -> dict[str, Any]:
@@ -309,7 +387,7 @@ def diagnose_stability(
     checks["ordering_ok"] = bool(ordering_ok)
     reciprocal = reciprocal_check(ph)
     gamma = gamma_acoustic_report(ph)
-    qpoints = commensurate_qpoints(supercell_matrix)
+    qpoints = commensurate_qpoints(ph)
     q_reports = [qpoint_report(ph, q) for q in qpoints]
     gamma_report = next(r for r in q_reports if r["q_fractional"] == [0.0, 0.0, 0.0])
     finite_reports = [
@@ -328,9 +406,7 @@ def diagnose_stability(
     # Gamma: the first three branches are acoustic and are allowed numerical
     # noise.  Everything above them is an optical branch and gets no allowance,
     # however close to zero it sits.
-    gamma_optical_soft = [
-        f for f in gamma_report["frequencies_THz"][3:] if f < -SOFT_FREQUENCY_TOL_THz
-    ]
+    gamma_optical_soft = gamma["optical_soft_THz"]
     softest_finite = _softest(finite_reports)
     mesh_min = mesh_report["mesh_min_frequency_THz"]
 

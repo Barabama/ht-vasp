@@ -332,3 +332,63 @@ def test_worker_reports_a_validation_failure_when_no_stability_job_exists():
     assert result["gate"] == "dfpt_validation"
     assert result["n_failed"] == 1
     assert "16 atoms" in result["failures"][0]["error"]
+
+
+def test_the_thermal_job_consumes_the_stability_output():
+    """Naming the jobs in the right order is not the same as wiring them.
+
+    ``dfpt_thermal_properties(collected.output, ...)`` keeps the job names and
+    their order, but bypasses the gate: every endpoint would then stop at the
+    thermal job after all five VASP volumes had been paid for.
+    """
+
+    flow = _spawned_flow()
+    stability = next(j for j in flow.jobs if j.name == "classify DFPT stability")
+    thermal = next(j for j in flow.jobs if j.name == "DFPT thermal properties")
+    source = thermal.function_args[0]
+    assert getattr(source, "uuid", None) == stability.uuid
+
+
+def test_worker_prefers_the_analysis_over_the_gate():
+    """Both jobs exist on a successful run; the analysis is the result."""
+
+    from htvasp.workflows.dfpt_qha import DfptQhaWorker
+
+    worker = DfptQhaWorker(recipe=recipe())
+    store = JobStore(_memory())
+    store.connect()
+    store.update(
+        {"uuid": "a", "index": 7, "name": "classify DFPT stability",
+         "output": {"gate": "dfpt_stability", "ok": True, "qha_allowed": True}},
+        key="uuid", save=True,
+    )
+    store.update(
+        {"uuid": "b", "index": 9, "name": "analyze DFPT-QHA",
+         "output": {"ok": True, "eos": {"V0_angstrom3": 36.0}, "temperatures": [0.0]}},
+        key="uuid", save=True,
+    )
+    worker.store = store
+    result = worker.get_result()
+    assert result["eos"]["V0_angstrom3"] == 36.0
+    assert "gate" not in result
+
+
+def test_worker_does_not_report_a_passed_gate_as_a_result():
+    """A passed gate with no analysis means the flow died elsewhere.
+
+    Returning the gate document there would be written to the endpoint's JSON,
+    marked complete, and skipped forever -- with ok=true and no Gibbs curve.
+    """
+
+    from htvasp.workflows.dfpt_qha import DfptQhaWorker
+
+    worker = DfptQhaWorker(recipe=recipe())
+    store = JobStore(_memory())
+    store.connect()
+    store.update(
+        {"uuid": "a", "index": 7, "name": "classify DFPT stability",
+         "output": {"gate": "dfpt_stability", "ok": True, "qha_allowed": True}},
+        key="uuid", save=True,
+    )
+    worker.store = store
+    assert worker.get_result() is None

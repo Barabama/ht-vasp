@@ -145,3 +145,29 @@ def test_gzipped_inputs_are_audited_like_plain_ones(tmp_path):
     audit = audit_vasp_inputs(tmp_path)
     assert audit["modified_files"] == ["INCAR"]
     assert audit["changes"]["INCAR"]["ALGO"]["current"] == "All"
+
+
+def test_a_periodic_image_is_not_a_modification(tmp_path):
+    """0.0 and 1.0 are the same site; a re-wrap is not a custodian rewrite."""
+
+    _clean(tmp_path)
+    wrapped = POSCAR.replace("0.5 0.5 0.5", "1.5 1.5 1.5")
+    _write(tmp_path, "POSCAR", wrapped)
+    audit = audit_vasp_inputs(tmp_path)
+    assert audit["modified_files"] == []
+
+
+def test_a_truncated_gzip_is_recorded_not_raised(tmp_path):
+    """An interrupted gzip_output_folder must not kill the collector.
+
+    The audit is provenance: it may report that it could not read a file, but
+    it may not take down a completed DFPT run three jobs downstream.
+    """
+
+    _clean(tmp_path, gz=True)
+    path = tmp_path / "INCAR.orig.gz"
+    data = path.read_bytes()
+    path.write_bytes(data[: len(data) // 2])
+    audit = audit_vasp_inputs(tmp_path)
+    assert audit["modified_files"] == ["INCAR"]
+    assert "error" in audit["changes"]["INCAR"]

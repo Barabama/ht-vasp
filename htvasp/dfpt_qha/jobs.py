@@ -47,6 +47,10 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from phonopy.harmonic.force_constants import (
+    set_permutation_symmetry,
+    set_translational_invariance,
+)
 from phonopy.interface.vasp import Vasprun as VaspVasprun
 from atomate2.vasp.jobs.base import BaseVaspMaker
 from atomate2.utils.path import strip_hostname
@@ -68,6 +72,17 @@ from htvasp.model.dfpt_qha_recipe import Recipe
 
 #: 1 eV/Angstrom^2 expressed in GPa (for the bulk modulus, if needed).
 DYNMAT_UNIT = "eV/Angstrom^2"
+
+#: Above this relative acoustic-sum-rule residual the raw matrix is not a
+#: force-constant matrix and must not be "repaired" into one.  VASP's own DFPT
+#: Hessian is not ASR-consistent -- the archived Co-Ti runs sit at 8e-3 to
+#: 2e-2, and one broken volume at 0.36 (Gamma acoustic -14 THz, optical
+#: 26.8 THz where the healthy runs are 5-7 THz).  Enforcing translational
+#: invariance is standard practice and changes the optical frequencies of the
+#: healthy runs by 0.1-0.2%; on the broken one it would hide a 22% error.
+ASR_CORRECTION_MAX_REL = 0.1
+#: Gate applied to the matrix AFTER the correction.
+ASR_TOL_REL = 1e-2
 
 #: VASP's own Hessian.  This is the authoritative source: it is complete,
 #: exactly symmetric, and independent of phonopy's symmetry-reduced finite
@@ -467,15 +482,30 @@ def collect_dfpt_task_doc(
     shape = tuple(int(x) for x in force_constants.shape)
     if len(shape) != 4 or shape[0] != shape[1] or shape[2:] != (3, 3):
         raise ValueError(f"unexpected DFPT force_constants shape: {shape}")
-    # Acoustic sum rule: sum_j Phi_ij must vanish for every i.  A matrix that
-    # fails it is not a force-constant matrix, whatever its shape.
-    residual = float(np.abs(force_constants.sum(axis=1)).max())
+
+    # Acoustic sum rule: sum_j Phi_ij must vanish for every i.  VASP does NOT
+    # enforce it on the raw DFPT Hessian, and the residual is not small: the
+    # archived VASP 5 Co-Ti volumes sit at 8e-3 to 2e-2 relative.  Rejecting
+    # them outright would fail every endpoint; accepting them uncorrected puts
+    # a spurious ~0.1 THz on the Gamma acoustic branches and contaminates the
+    # thermal sums.  So the standard correction is applied here, the residual
+    # before and after is recorded, and a matrix the correction cannot fix is
+    # passed through untouched for the classification job to reject with a
+    # stored verdict (rather than raising here where nothing is recorded).
     scale = float(np.abs(force_constants).max()) or 1.0
-    if residual / scale > 1e-2:
-        raise ValueError(
-            f"DFPT force constants violate the acoustic sum rule "
-            f"(max|sum_j Phi_ij| = {residual:.4g} vs max|Phi| = {scale:.4g})"
-        )
+    residual_before = float(np.abs(force_constants.sum(axis=1)).max())
+    asr_rel_before = residual_before / scale
+    asr_correction_applied = False
+    residual = residual_before
+    if asr_rel_before <= ASR_CORRECTION_MAX_REL:
+        corrected = np.array(force_constants, dtype=float)
+        set_translational_invariance(corrected)
+        set_permutation_symmetry(corrected)
+        residual_after = float(np.abs(corrected.sum(axis=1)).max())
+        if residual_after / scale <= ASR_TOL_REL:
+            force_constants = corrected
+            residual = residual_after
+            asr_correction_applied = True
 
     # Physical convergence gate.  The task state above is the job-level verdict,
     # and it is derived from "did the last electronic step stop before NELM" --
@@ -527,6 +557,9 @@ def collect_dfpt_task_doc(
             "task_state": task_payload.get("state"),
             "n_perturbations": len(perturbations),
             "vasprun_hessian_error": vasprun_error,
+            "asr_rel_before": asr_rel_before,
+            "asr_rel_after": residual / scale,
+            "asr_correction_applied": asr_correction_applied,
             "dynmat": dynmat_provenance,
             "input_audit": input_audit,
             "energy_vs_static_meV_per_atom": energy_delta_mev_per_atom,

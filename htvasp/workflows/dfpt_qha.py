@@ -86,7 +86,13 @@ class DfptQhaWorker(Worker):
 
         result = self._query_store(output_job_name)
         if result is None:
-            result = self._query_stability_gate()
+            # Only a FAILED gate is a result.  A gate that passed means the
+            # analysis should exist; if it does not, the flow died somewhere
+            # else and returning the gate document would be recorded as a
+            # completed endpoint with no V0, B0 or Gibbs curve.
+            gate = self._query_stability_gate()
+            if gate is not None and gate.get("ok") is False:
+                result = gate
         if result is None:
             result = self._query_validation_failure()
         self.close()

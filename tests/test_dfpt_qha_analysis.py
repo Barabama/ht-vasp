@@ -370,3 +370,35 @@ def test_fcc_zero_point_energy_survives_the_primitive_to_cell_conversion():
         result["free_energy_kJ_per_mol"][1] / EV_PER_ATOM_TO_KJ_PER_MOL
         / result["n_atoms_primitive"], rel=1e-12
     )
+
+
+def test_analyze_converts_primitive_free_energy_to_the_recipe_cell():
+    """The fcc 4:1 conversion, exercised through the analysis itself.
+
+    ``volume_free_energy`` reports kJ per mole of phonopy's PRIMITIVE cell.
+    For an fcc A=A endpoint the recipe cell holds four of them, so the free
+    energy the analysis fits must be four times the reported value.  Inverting
+    the ratio gives 0.25x and every Gibbs curve is off by 16.
+
+    This must go through ``analyze_dfpt_qha``: an assertion that recomputes the
+    same ratio by hand is an algebraic identity and passes for either direction.
+    """
+
+    thermal = {
+        "temperatures": [0.0, 300.0],
+        "volumes": [
+            _volume(i, 30.0 + i, -10.0 + 0.02 * (i - 2) ** 2,
+                    free_energy_kj=(-1.0 - 0.1 * i, -2.0),
+                    n_cell=4, n_primitive=1)
+            for i in range(5)
+        ],
+    }
+    result = analyze_dfpt_qha(thermal).run(_store())
+    assert result.output["ok"] is True
+    per_cell = result.output["free_energies_eV"]
+    for index in range(5):
+        expected = (-1.0 - 0.1 * index) / EV_PER_ATOM_TO_KJ_PER_MOL * 4
+        assert per_cell[index][0] == pytest.approx(expected, rel=1e-12)
+    # the inverted ratio would land here, and must not
+    inverted = -1.0 / EV_PER_ATOM_TO_KJ_PER_MOL * 0.25
+    assert per_cell[0][0] != pytest.approx(inverted, rel=1e-6)

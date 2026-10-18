@@ -190,8 +190,14 @@ def run_tick(
             resume=not rerun,
         )
         output = worker.get_result() or {}
-        worker.write_result(data=output, json_path=json_path)
-        mark_artifact_from_ledger(ledger_path, json_path)
+        if output:
+            worker.write_result(data=output, json_path=json_path)
+            mark_artifact_from_ledger(ledger_path, json_path)
+        else:
+            # Nothing was stored: the flow died without a verdict to report.
+            # Marking the artifact here would make the next invocation skip the
+            # endpoint as "already done".
+            log.error("  no result was stored; the endpoint is not marked done")
         if output.get("ok"):
             eos = output.get("eos", {})
             log.info(
