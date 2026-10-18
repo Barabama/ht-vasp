@@ -20,8 +20,8 @@ from htvasp.dfpt_qha.stability import (
     reciprocal_check,
     unresolved_report,
 )
+from htvasp.dfpt_qha.flow_jobs import classify_dfpt_stability
 from htvasp.dfpt_qha.jobs import (
-    classify_dfpt_volume,
     collect_dfpt_task_doc,
     force_constants_from_dynmat,
     parse_dynmat,
@@ -82,12 +82,16 @@ def test_real_alta_is_tier_b_finite_q_soft_mode():
     report = diagnose_stability(
         ph, fc, structure=cell, recipe=recipe, supercell_matrix=MATRIX, mesh=(12, 12, 12)
     )
-    assert report["status"] == "finite_q_soft_mode_diagnostic"
+    assert report["status"] == "finite_q_soft_mode"
     assert report["qha_allowed"] is False
     soft = [q for q in report["commensurate_qpoints"] if q["n_imaginary"]]
     assert any(q["q_fractional"] == [0.0, 0.5, 0.5] for q in soft)
     assert report["checks"]["gamma"]["noise_ok"] is True
-    assert report["mesh_diagnostic"]["note"].startswith("mesh minimum")
+    assert report["mesh_diagnostic"]["note"].startswith("interpolated diagnostic")
+    # -3.59 THz is far past the borderline threshold: no larger supercell will
+    # turn this into a truncation artifact
+    assert report["confirmation_required"] is False
+    assert report["supercell_convergence"] == "not_checked"
     json.dumps(report)
 
 
@@ -117,7 +121,7 @@ def test_report_model_rejects_a_contradictory_verdict():
 
     report = {
         "schema_version": "htvasp-dfpt-stability/v1",
-        "status": "finite_q_soft_mode_diagnostic",
+        "status": "finite_q_soft_mode",
         "qha_allowed": True,
         "reason": "contradiction",
         "checks": {},
@@ -138,35 +142,113 @@ def test_unresolved_report_is_a_usable_artifact():
     json.dumps(parsed.model_dump(mode="json"))
 
 
-def test_classify_job_on_the_real_fixture():
-    """The diagnosis has to survive the job boundary, not just the call."""
+def test_a_borderline_soft_mode_asks_for_a_larger_supercell():
+    """The agreed policy: strong soft modes die, borderline ones get confirmed.
 
-    if not (BASE / "DYNMAT").is_file():
-        pytest.skip("real DFPT fixture unavailable")
-    cell_, _, _, recipe = _fixture()
-    import gzip
+    Scaling the force constants by s scales every frequency by sqrt(s).  The
+    real BCC-Al-Ta-2 N-point mode at -3.59 THz becomes -0.5 THz, which is
+    inside the 1 THz confirmation window -- same physics, different verdict.
+    """
 
-    from pymatgen.io.vasp import Poscar
-
-    with gzip.open(BASE / "POSCAR.gz", "rt") as handle:
-        supercell = Poscar.from_str(handle.read()).structure
-    document = collect_dfpt_task_doc(
-        {"dir_name": str(BASE), "state": "successful",
-         "structure": supercell.as_dict()},
-        recipe=recipe,
-        cell=cell_.as_dict(),
-        supercell_matrix=MATRIX,
-    ).run(_Store()).output
-    output = classify_dfpt_volume(
-        document, cell=cell_.as_dict(), supercell_matrix=MATRIX, mesh=(4, 4, 4)
-    ).run(_Store()).output
-    parsed = DfptStabilityReport.model_validate(output)
-    assert parsed.status == "finite_q_soft_mode_diagnostic"
-    assert parsed.qha_allowed is False
-    assert parsed.force_constants_sha256 == force_constants_sha256(
-        np.array(document["force_constants"], dtype=float)
+    cell, fc, ph, recipe = _fixture()
+    scale = (0.5 / 3.59) ** 2
+    softened = np.array(fc) * scale
+    phonon = phonopy_for(cell, MATRIX)
+    phonon.force_constants = softened
+    report = diagnose_stability(
+        phonon, softened, structure=cell, recipe=recipe,
+        supercell_matrix=MATRIX, mesh=(4, 4, 4),
     )
+    assert report["status"] == "finite_q_soft_mode"
+    assert report["qha_allowed"] is False
+    assert report["confirmation_required"] is True
+    assert "larger supercell" in report["confirmation_reason"]
+
+
+def test_classify_endpoint_blocks_a_soft_volume_and_keeps_the_artifact():
+    """One soft volume fails the whole endpoint, and says which one."""
+
+    cell, fc, _, recipe = _fixture()
+    collected = {
+        "volumes": [
+            {
+                "index": 0,
+                "cell": cell.as_dict(),
+                "supercell": phonopy_supercell(cell).as_dict(),
+                "volume_angstrom3": float(cell.volume),
+                "static_energy_eV": -10.0,
+                "force_constants": np.array(fc).tolist(),
+                "n_atoms_supercell": len(fc),
+                "ordering_fingerprint": "x" * 64,
+            }
+        ],
+        "rejected_volume_indices": [],
+        "n_requested": 1,
+        "n_validated": 1,
+    }
+    result = classify_dfpt_stability(
+        collected, recipe=recipe, supercell_matrix=MATRIX, mesh=(4, 4, 4)
+    ).run(_Store())
+    output = result.output
+    assert result.stop_children is True
+    assert output["ok"] is False
+    assert output["blocked_volume_indices"] == [0]
+    assert output["reports"][0]["status"] == "finite_q_soft_mode"
+    assert output["reports"][0]["commensurate_qpoints"]
     json.dumps(output)
+
+
+@pytest.mark.skipif(
+    not Path(
+        "/nfs_hdd/2025/gaominliang/ht-vasp/data/endpoints/BCC-Nb-Nb-2"
+        "/dfpt-qhaflow/runs/dfpt-qha-f23783fe35518cb42436/store.json"
+    ).is_file(),
+    reason="archived BCC-Nb-Nb-2 run unavailable",
+)
+def test_archived_nb_nb_passes_a_gate_that_used_to_reject_it():
+    """The regression the three-tier rule exists for.
+
+    BCC-Nb-Nb-2 volume 1 has a 12x12x12 mesh minimum of -0.0238 THz at
+    q = (-1/24, 1/24, 1/24) while every exact commensurate q point is stable.
+    The old mesh gate rejected the endpoint; the interpolation artifact must now
+    be recorded as a warning and the endpoint must pass.
+    """
+
+    import json as _json
+
+    run = Path(
+        "/nfs_hdd/2025/gaominliang/ht-vasp/data/endpoints/BCC-Nb-Nb-2"
+        "/dfpt-qhaflow/runs/dfpt-qha-f23783fe35518cb42436"
+    )
+    documents = _json.loads((run / "store.json").read_text())
+    collected = next(
+        d for d in documents if d.get("name") == "collect validated volumes"
+    )["output"]
+    recipe = _json.loads((POOL / "pool_recipes.json").read_text())["endpoints"][
+        "BCC-Nb-Nb-2"
+    ]["recipe"]
+
+    result = classify_dfpt_stability(
+        collected, recipe=recipe, supercell_matrix=MATRIX, mesh=(12, 12, 12)
+    ).run(_Store())
+    output = result.output
+    assert result.stop_children is False
+    assert output["ok"] is True
+    assert output["blocked_volume_indices"] == []
+    shallow = [
+        r for r in output["reports"]
+        if (r["mesh_diagnostic"] or {}).get("mesh_min_frequency_THz", 0.0) < 0.0
+    ]
+    assert shallow, "the archived run no longer reproduces the artifact"
+    for report in shallow:
+        assert report["status"] == "harmonic_QHA_applicable"
+        assert any("interpolation artifact" in w for w in report["warnings"])
+
+
+def phonopy_supercell(cell):
+    from htvasp.dfpt_qha.phonons import supercell_structure
+
+    return supercell_structure(cell, MATRIX)
 
 
 def _Store():

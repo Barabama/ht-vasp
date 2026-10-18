@@ -212,45 +212,46 @@ def _spawned_flow():
     return job.run(JobStore(store)).replace
 
 
-def test_classification_sits_between_the_collector_and_the_gate():
-    """Tier-A/B diagnosis is a stored job, not a line in the collector.
+def test_stability_is_one_job_after_collection():
+    """The verdict is per endpoint, so it runs after every volume is in.
 
-    When it rejects a volume the analysis is never produced, so its output is
-    the only record of why the run stopped; it has to exist as its own job for
-    ``DfptQhaWorker.get_result`` to find it.
+    A soft volume fails the endpoint rather than being dropped from the fit: a
+    hole in F(V,T) is invisible to the analysis, and the curve still looks
+    smooth.  A per-volume job would also save nothing -- the VASP time is spent
+    before either job runs.
     """
 
     names = [j.name for j in _spawned_flow().jobs]
-    collect = names.index("collect DFPT volume 1/1")
-    classify = names.index("classify DFPT volume 1/1")
-    validate = names.index("validate DFPT volume 1/1")
-    assert collect < classify < validate
-    assert validate < names.index("collect validated volumes")
+    collected = names.index("collect validated volumes")
+    classify = names.index("classify DFPT stability")
+    thermal = names.index("DFPT thermal properties")
+    analysis = names.index("analyze DFPT-QHA")
+    assert collected < classify < thermal < analysis
+    assert not any(name.startswith("classify DFPT volume") for name in names)
 
 
-def test_collect_drops_a_volume_the_verdict_did_not_allow():
-    """Defence in depth for a hand-assembled or replayed flow.
+def test_validated_volumes_carry_where_the_matrix_came_from():
+    """Provenance is part of the record, not a log line.
 
-    The validator is the gate, but a caller that dropped ``ok`` must still not
-    get a soft-mode matrix into the free-energy fit.
+    The Hessian in vasprun.xml and the DYNMAT replay are both VASP output; a
+    reader downstream has to be able to tell which one produced the frequencies.
     """
 
-    document = {"force_constants": [], "force_constants_provenance": {
-        "n_atoms": 16, "ordering_fingerprint": "x" * 64}}
-    validations = [
-        {"ok": True, "dfpt_doc": document,
-         "stability": {"status": "harmonic_QHA_applicable", "qha_allowed": True}},
-        {"ok": True, "dfpt_doc": document,
-         "stability": {"status": "finite_q_soft_mode_diagnostic", "qha_allowed": False}},
-    ]
-    cells = [{"index": i, "cell": {}, "supercell": {}, "volume_angstrom3": 1.0,
-              "static_energy_eV": -1.0} for i in range(2)]
-    output = collect_validated_volumes(validations, cells=cells).run(
-        JobStore(_memory())
-    ).output
+    document = {
+        "force_constants": [],
+        "force_constants_provenance": {
+            "n_atoms": 16,
+            "ordering_fingerprint": "x" * 64,
+            "source": "vasprun.xml dynmat hessian",
+        },
+    }
+    cells = [{"index": 0, "cell": {}, "supercell": {}, "volume_angstrom3": 1.0,
+              "static_energy_eV": -1.0}]
+    output = collect_validated_volumes(
+        [{"ok": True, "dfpt_doc": document}], cells=cells
+    ).run(JobStore(_memory())).output
     assert output["n_validated"] == 1
-    assert output["rejected_volume_indices"] == [1]
-    assert output["volumes"][0]["qha_allowed"] is True
+    assert output["volumes"][0]["force_constants_source"] == "vasprun.xml dynmat hessian"
 
 
 def _memory():
@@ -271,24 +272,28 @@ def test_worker_falls_back_to_the_stability_verdict_when_the_flow_stopped():
     worker = DfptQhaWorker(recipe=recipe())
     store = JobStore(_memory())
     store.connect()
-    blocked = {"status": "finite_q_soft_mode_diagnostic", "qha_allowed": False,
-               "reason": "commensurate finite-q imaginary branch"}
-    allowed = {"status": "harmonic_QHA_applicable", "qha_allowed": True,
-               "reason": "no commensurate imaginary branch"}
-    for index, payload in enumerate([allowed, blocked]):
-        store.update(
-            {"uuid": f"u{index}", "index": index, "name": f"classify DFPT volume {index + 1}/2",
-             "output": payload},
-            key="uuid",
-            save=True,
-        )
+    payload = {
+        "gate": "dfpt_stability",
+        "ok": False,
+        "qha_allowed": False,
+        "n_volumes": 5,
+        "n_blocked": 1,
+        "blocked_volume_indices": [1],
+        "reports": [
+            {"index": 1, "status": "finite_q_soft_mode", "qha_allowed": False,
+             "reason": "commensurate finite-q imaginary branch"},
+        ],
+    }
+    store.update(
+        {"uuid": "u0", "index": 7, "name": "classify DFPT stability",
+         "output": payload},
+        key="uuid",
+        save=True,
+    )
     worker.store = store
 
     result = worker.get_result()
     assert result is not None
     assert result["gate"] == "dfpt_stability"
-    assert result["n_volumes_blocked"] == 1
     assert result["blocked_volume_indices"] == [1]
-    assert result["report"] == blocked
-    # the analysis would have been found if it existed
-    assert result["n_volumes_classified"] == 2
+    assert result["reports"][0]["status"] == "finite_q_soft_mode"

@@ -201,14 +201,25 @@ def run_tick(
                 output["temperatures"][0], output["temperatures"][-1],
             )
         elif output.get("gate") == "dfpt_stability":
-            # The flow stopped at the tier-A/tier-B gate, so there is no analysis
-            # by design.  The report is the result: it says which volume is not
+            # The flow stopped at the stability gate, so there is no analysis by
+            # design.  The verdicts are the result: they say which volume is not
             # harmonic-QHA-applicable and why.
-            report = output.get("report") or {}
             log.warning(
-                "  stopped at the DFPT stability gate: %s (%s)",
-                report.get("status"), report.get("reason"),
+                "  stopped at the DFPT stability gate: %d of %d volumes blocked",
+                output.get("n_blocked", 0), output.get("n_volumes", 0),
             )
+            for report in output.get("reports") or []:
+                if not report.get("qha_allowed"):
+                    log.warning(
+                        "    volume %s: %s (%s)",
+                        report.get("index"), report.get("status"),
+                        report.get("reason"),
+                    )
+            if output.get("confirmation_volume_indices"):
+                log.warning(
+                    "    borderline volumes needing a larger supercell: %s",
+                    output["confirmation_volume_indices"],
+                )
         else:
             log.warning("  analysis did not succeed: %s", output.get("error"))
     except Exception as exc:  # noqa: BLE001 - the Worker already logs; keep the tick alive
@@ -226,15 +237,22 @@ def check_jobs(stage: str = "dfpt-qha") -> None:
             continue
         data = json.loads(json_path.read_text(encoding="utf-8"))
         if data.get("gate") == "dfpt_stability":
-            report = data.get("report") or {}
             log.info(
-                "%s: stopped at the DFPT stability gate (%s), %d/%d volumes blocked",
-                name, report.get("status"),
-                data.get("n_volumes_blocked", 0), data.get("n_volumes_classified", 0),
+                "%s: stopped at the DFPT stability gate, %d/%d volumes blocked",
+                name, data.get("n_blocked", 0), data.get("n_volumes", 0),
             )
-            for volume in data.get("volumes") or []:
-                if not volume.get("qha_allowed"):
-                    log.info("  %s: %s", volume.get("job_name"), volume.get("reason"))
+            for report in data.get("reports") or []:
+                if not report.get("qha_allowed"):
+                    log.info(
+                        "  volume %s: %s (%s)",
+                        report.get("index"), report.get("status"),
+                        report.get("reason"),
+                    )
+            if data.get("confirmation_volume_indices"):
+                log.info(
+                    "  borderline volumes needing a larger supercell: %s",
+                    data["confirmation_volume_indices"],
+                )
             continue
         if not data.get("ok"):
             log.info("%s: analysis failed: %s", name, data.get("error"))

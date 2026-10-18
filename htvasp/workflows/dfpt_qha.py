@@ -91,50 +91,32 @@ class DfptQhaWorker(Worker):
         return result
 
     def _query_stability_gate(self) -> dict[str, Any] | None:
+        """The classification job's stored output, if the flow reached it.
+
+        A flow halted at the stability gate has no analysis job, and returning
+        ``None`` there would report a failed endpoint with no reason.  The
+        verdict -- status, exact-q frequencies, eigenvector subspace -- is the
+        deliverable in that case.
+        """
+
         if not self.store:
             log.error("Store is not initialized. Run the flow first.")
             return None
         try:
             self.store.connect()
-            jobs = self.store.query(
-                criteria={"name": {"$regex": "classify DFPT volume"}},
+            job = self.store.query_one(
+                criteria={"name": {"$regex": "classify DFPT stability"}},
                 properties=["uuid", "index", "name"],
-                sort={"index": 1},
+                sort={"index": -1},
             )
-            reports: list[dict[str, Any]] = []
-            for job in jobs:
-                output = self.store.get_output(
-                    uuid=job["uuid"], which="last", load=True
-                )
-                if not isinstance(output, dict):
-                    continue
-                reports.append(
-                    {
-                        "job_name": job.get("name"),
-                        "index": job.get("index"),
-                        "status": output.get("status"),
-                        "qha_allowed": output.get("qha_allowed"),
-                        "reason": output.get("reason"),
-                        "report": output,
-                    }
-                )
+            if not job:
+                log.error("No job matching 'classify DFPT stability' found")
+                return None
+            return self.store.get_output(uuid=job["uuid"], which="last", load=True)
         except Exception as exc:  # noqa: BLE001 - a missing store is reported
             log.error(f"Failed to read the DFPT stability gate: {exc}")
             log.error(traceback.format_exc())
             return None
-        if not reports:
-            log.error("No job matching 'classify DFPT volume' found")
-            return None
-        blocked = [r for r in reports if not r.get("qha_allowed")]
-        chosen = blocked[0] if blocked else reports[-1]
-        return {
-            "gate": "dfpt_stability",
-            "n_volumes_classified": len(reports),
-            "n_volumes_blocked": len(blocked),
-            "blocked_volume_indices": [r["index"] for r in blocked],
-            "volumes": reports,
-            "report": chosen["report"],
-        }
 
 
 __all__ = ["DfptQhaWorker"]

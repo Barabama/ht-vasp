@@ -8,19 +8,18 @@ Flow shape, per endpoint::
 
     CommonEosMaker                 E(V) and the relaxed cell at each volume
       -> spawn_dfpt_volume_jobs    one DFPT run per volume, on the recipe supercell
-           -> collect_dfpt_task_doc    DYNMAT -> force constants -> DfptTaskDoc
-           -> classify_dfpt_volume     tier-A integrity + tier-B soft-mode report
-           -> validate_dfpt_task_doc   fail-closed: cell, shape, stability verdict
+           -> collect_dfpt_task_doc    VASP DFPT output -> force constants
+           -> validate_dfpt_task_doc   fail-closed: cell, shape, provenance
       -> collect_validated_volumes  gather the survivors
+      -> classify_dfpt_stability    one verdict per volume, endpoint gate
       -> dfpt_thermal_properties    F(V,T) from the dynamical matrices
       -> analyze_dfpt_qha           G(T), V(T) and the EOS fit
 
 The validation job is a pass-through, so a stopped volume stops the thermal and
-QHA jobs behind it -- which is the whole point of the gate.
-
-The classification is a separate job on purpose.  When it rejects a volume the
-analysis job never exists, so the report it wrote is the only surviving record
-of why; ``DfptQhaWorker.get_result`` falls back to it.
+QHA jobs behind it.  Stability is a single job after collection rather than one
+per volume: the decision belongs to the endpoint (a soft volume fails the
+endpoint instead of being dropped from the fit), and the VASP time is already
+spent by then, so a per-volume fail-fast would buy nothing.
 
 What VASP actually writes
 -------------------------
@@ -41,12 +40,14 @@ phonopy's index order the same list.
 
 from __future__ import annotations
 
+import gzip
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+from phonopy.interface.vasp import Vasprun as VaspVasprun
 from atomate2.vasp.jobs.base import BaseVaspMaker
 from atomate2.utils.path import strip_hostname
 from jobflow import Response, job
@@ -54,6 +55,7 @@ from monty.io import zopen
 from monty.json import jsanitize
 from pymatgen.core import Structure
 
+from htvasp.dfpt_qha.input_audit import audit_vasp_inputs
 from htvasp.dfpt_qha.input_set import DfptInputSetGenerator, DfptRelaxSetGenerator
 from htvasp.dfpt_qha.phonons import (
     as_structure,
@@ -62,17 +64,19 @@ from htvasp.dfpt_qha.phonons import (
     phonopy_for,
     supercell_structure,
 )
-from htvasp.dfpt_qha.stability import (
-    DfptStabilityReport,
-    diagnose_stability,
-    force_constants_sha256,
-    unresolved_report,
-)
 from htvasp.dfpt_qha.task_doc import DfptForceConstantsProvenance, DfptTaskDoc
 from htvasp.model.dfpt_qha_recipe import Recipe
 
 #: 1 eV/Angstrom^2 expressed in GPa (for the bulk modulus, if needed).
 DYNMAT_UNIT = "eV/Angstrom^2"
+
+#: VASP's own Hessian.  This is the authoritative source: it is complete,
+#: exactly symmetric, and independent of phonopy's symmetry-reduced finite
+#: displacement list.  ``DYNMAT`` is the fallback.
+VASPRUN_FC_SOURCE = "vasprun.xml dynmat hessian"
+VASPRUN_FC_PARSER = "phonopy VASP vasprun parser"
+DYNMAT_FC_SOURCE = "DYNMAT"
+DYNMAT_FC_PARSER = "phonopy replay at unit displacement"
 
 
 def _find_file(directory: Path, name: str) -> Path | None:
@@ -142,6 +146,50 @@ def parse_dynmat(path: Path | str) -> tuple[list[dict[str, Any]], int]:
             }
         )
     return perturbations, n_atoms
+
+
+def force_constants_from_vasprun(
+    path: Path | str, supercell: Structure
+) -> np.ndarray:
+    """DFPT force constants from the ``<dynmat><hessian>`` block of vasprun.xml.
+
+    VASP's Hessian is the authoritative DFPT output.  Unlike the ``DYNMAT``
+    text file it is complete, and unlike a phonopy finite-displacement fit it
+    does not depend on VASP's perturbation list matching phonopy's
+    symmetry-reduced one -- which it does not for FCC/L1_2 and HCP.
+
+    phonopy's parser handles the two conventions VASP writes (VASP 5 in
+    eV/Angstrom^2 with the sqrt(m_i m_j) mass factor, VASP 6 in THz^2), and
+    applies the same mass normalisation, so the result is directly comparable
+    with the ``DYNMAT`` replay: on the archived BCC-Al-Ta-2 run the two agree
+    to 2.4e-9 eV/Angstrom^2 after symmetrisation.
+    """
+
+    path = Path(path)
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt", errors="replace") as handle:
+        force_constants, elements = VaspVasprun(handle).read_force_constants()
+
+    force_constants = np.asarray(force_constants, dtype=float)
+    expected = (len(supercell), len(supercell), 3, 3)
+    if force_constants.shape != expected:
+        raise ValueError(
+            f"{path.name} carries force constants of shape "
+            f"{force_constants.shape}, expected {expected}"
+        )
+
+    symbols = [str(site.specie) for site in supercell]
+    atomtypes: list[str] = []
+    for symbol in symbols:
+        if not atomtypes or atomtypes[-1] != symbol:
+            atomtypes.append(symbol)
+    if list(elements) != atomtypes:
+        raise ValueError(
+            f"{path.name} declares atom types {list(elements)} but the cell is "
+            f"{atomtypes}; the force-constant matrix is indexed by the other "
+            f"order"
+        )
+    return force_constants
 
 
 def force_constants_from_dynmat(
@@ -314,8 +362,15 @@ def collect_dfpt_task_doc(
     """Convert one completed atomate2 TaskDoc into a DFPT TaskDoc.
 
     The collector is a pure jobflow analysis boundary: it reads the job's own
-    ``DYNMAT`` and replays it through phonopy.  It never launches VASP and never
-    scans a calculation tree it was not handed.
+    DFPT output.  It never launches VASP and never scans a calculation tree it
+    was not handed.
+
+    Force constants come from VASP, in this order:
+
+    1. ``<dynmat><hessian>`` in ``vasprun.xml`` -- complete and independent of
+       phonopy's symmetry-reduced displacement list;
+    2. the ``DYNMAT`` text file replayed through phonopy -- the fallback for a
+       VASP that did not write the Hessian.
 
     ``cell`` is the primitive cell the supercell was built from.  It is passed
     explicitly rather than recovered from the supercell so that the ordering
@@ -344,14 +399,6 @@ def collect_dfpt_task_doc(
     # host for the same value in copy_vasp_outputs, so the collector must too.
     job_dir = Path(strip_hostname(str(vasprun_path or directory)))
 
-    path = _find_file(job_dir, "DYNMAT")
-    if path is None:
-        raise ValueError(
-            f"DFPT job directory has no DYNMAT: {job_dir}.  VASP writes it for "
-            f"IBRION=8; its absence means the run did not reach the "
-            f"dynamical-matrix step."
-        )
-
     structure = task_payload.get("structure")
     if structure is None:
         raise ValueError("DFPT TaskDoc carries no final structure to fingerprint")
@@ -362,16 +409,62 @@ def collect_dfpt_task_doc(
     if supercell_matrix is None:
         supercell_matrix = [[factor, 0, 0], [0, factor, 0], [0, 0, factor]]
 
-    perturbations, n_atoms_dynmat = parse_dynmat(path)
-    if n_atoms_dynmat != len(supercell):
+    vasprun_file = _find_file(job_dir, "vasprun.xml")
+    dynmat_file = _find_file(job_dir, "DYNMAT")
+    if vasprun_file is None and dynmat_file is None:
         raise ValueError(
-            f"DYNMAT describes {n_atoms_dynmat} atoms but the TaskDoc structure "
-            f"has {len(supercell)}"
+            f"DFPT job directory has neither vasprun.xml nor DYNMAT: {job_dir}.  "
+            f"VASP writes at least one of them for IBRION=8; their absence means "
+            f"the run did not reach the dynamical-matrix step."
         )
-    force_constants = force_constants_from_dynmat(
-        Structure.from_dict(cell), supercell, perturbations,
-        supercell_matrix=supercell_matrix,
-    )
+
+    # DYNMAT is always parsed when present: even when the Hessian is used, the
+    # perturbation list it records is what lets a later reader reconstruct the
+    # run, and it is the only independent cross-check on the Hessian.
+    dynmat_provenance: dict[str, Any] | None = None
+    perturbations: list[dict[str, Any]] = []
+    if dynmat_file is not None:
+        perturbations, n_atoms_dynmat = parse_dynmat(dynmat_file)
+        if n_atoms_dynmat != len(supercell):
+            raise ValueError(
+                f"DYNMAT describes {n_atoms_dynmat} atoms but the TaskDoc "
+                f"structure has {len(supercell)}"
+            )
+        dynmat_provenance = {
+            "path": str(dynmat_file),
+            "parser": "VASP DYNMAT text parser",
+            "unit": DYNMAT_UNIT,
+            "n_perturbations": len(perturbations),
+            "perturbation_atoms": [int(p["atom"]) for p in perturbations],
+            "perturbation_directions": [
+                [float(x) for x in p["displacement"]] for p in perturbations
+            ],
+            "role": "fallback and audit",
+        }
+
+    force_constants: np.ndarray | None = None
+    source = parser = None
+    force_constants_path: Path | None = None
+    vasprun_error: str | None = None
+    if vasprun_file is not None:
+        try:
+            force_constants = force_constants_from_vasprun(vasprun_file, supercell)
+            source, parser = VASPRUN_FC_SOURCE, VASPRUN_FC_PARSER
+            force_constants_path = vasprun_file
+        except Exception as exc:  # noqa: BLE001 - recorded, then the fallback runs
+            vasprun_error = f"{type(exc).__name__}: {exc}"
+    if force_constants is None:
+        if dynmat_file is None:
+            raise ValueError(
+                f"no usable DFPT force constants in {job_dir}: vasprun.xml "
+                f"carries no Hessian ({vasprun_error}) and there is no DYNMAT"
+            )
+        force_constants = force_constants_from_dynmat(
+            Structure.from_dict(cell), supercell, perturbations,
+            supercell_matrix=supercell_matrix,
+        )
+        source, parser = DYNMAT_FC_SOURCE, DYNMAT_FC_PARSER
+        force_constants_path = dynmat_file
     shape = tuple(int(x) for x in force_constants.shape)
     if len(shape) != 4 or shape[0] != shape[1] or shape[2:] != (3, 3):
         raise ValueError(f"unexpected DFPT force_constants shape: {shape}")
@@ -411,24 +504,32 @@ def collect_dfpt_task_doc(
                 f"{STATIC_ENERGY_TOL_MEV_PER_ATOM:g}).  The SCF did not converge to "
                 f"the same state the EOS used; the dynamical matrix is not usable."
             )
+    # custodian is allowed to correct inputs; what it changed is recorded here
+    # rather than used to reject the run.  A POSCAR correction is the one that
+    # matters most, because the matrix is indexed by that atom order.
+    input_audit = audit_vasp_inputs(job_dir)
+
     doc = DfptTaskDoc(
         task_doc=task_payload,
         recipe=recipe,
         force_constants=force_constants.tolist(),
         force_constants_provenance=DfptForceConstantsProvenance(
-            source="DYNMAT",
-            parser="phonopy replay at unit displacement",
+            source=source,
+            parser=parser,
             n_atoms=shape[0],
             shape=shape,
             unit=DYNMAT_UNIT,
             ordering_fingerprint=ordering_fingerprint(supercell),
-            path=str(path),
+            path=str(force_constants_path),
             max_acoustic_sum_residual=residual,
         ),
         provenance={
             "task_doc_dir": str(job_dir),
             "task_state": task_payload.get("state"),
             "n_perturbations": len(perturbations),
+            "vasprun_hessian_error": vasprun_error,
+            "dynmat": dynmat_provenance,
+            "input_audit": input_audit,
             "energy_vs_static_meV_per_atom": energy_delta_mev_per_atom,
             "energy_vs_static_tolerance_meV_per_atom": STATIC_ENERGY_TOL_MEV_PER_ATOM,
         },
@@ -437,80 +538,24 @@ def collect_dfpt_task_doc(
 
 
 @job
-def classify_dfpt_volume(
-    dfpt_doc: dict[str, Any],
-    *,
-    cell: dict[str, Any],
-    supercell_matrix: Any,
-    mesh: tuple[int, int, int] = (12, 12, 12),
-) -> dict[str, Any]:
-    """Tier-A integrity checks and tier-B soft-mode diagnosis for one volume.
-
-    Diagnosis is an artifact, not a log line: when the gate downstream halts
-    the flow, the analysis never runs, and this report is what the Worker's
-    ``get_result`` falls back to.  So a diagnosis that cannot be completed is
-    recorded as ``numerical_unresolved`` rather than raised.
-
-    ``cell`` is the primitive cell the supercell was built from, passed
-    explicitly for the same reason the collector takes it: the ordering
-    assertion needs two independently known structures.
-    """
-
-    structure = force_constants = None
-    try:
-        doc = DfptTaskDoc.model_validate(dfpt_doc)
-        structure = as_structure(doc.task_doc.get("structure"))
-        cell_structure = as_structure(cell)
-        force_constants = np.array(doc.force_constants, dtype=float)
-        phonon = phonopy_for(cell_structure, supercell_matrix)
-        # asserts the matrix is indexed for the cell phonopy will diagonalise;
-        # a mismatch still returns plausible frequencies at Gamma
-        assert_same_ordering(
-            structure, supercell_structure(cell_structure, supercell_matrix)
-        )
-        phonon.force_constants = force_constants
-        report = diagnose_stability(
-            phonon,
-            force_constants,
-            structure=structure,
-            recipe=doc.recipe,
-            supercell_matrix=supercell_matrix,
-            mesh=tuple(int(x) for x in mesh),
-            ordering_ok=True,
-        )
-    except Exception as exc:  # noqa: BLE001 - the report is the failure record
-        report = unresolved_report(
-            f"stability diagnosis could not be completed: {exc}",
-            force_constants=force_constants,
-            structure_hash=(
-                ordering_fingerprint(structure) if structure is not None else ""
-            ),
-            recipe_hash="",
-        )
-    return DfptStabilityReport.model_validate(report).model_dump(mode="json")
-
-
-@job
 def validate_dfpt_task_doc(
     dfpt_doc: dict[str, Any],
     *,
     recipe: dict[str, Any] | None = None,
-    stability: dict[str, Any] | None = None,
 ) -> Response:
-    """Stop descendants unless the DFPT result matches the recipe and is usable.
+    """Stop descendants unless the DFPT result matches the recipe it claims.
 
     The shape check is not decoration.  A DFPT run on the wrong cell still
     returns a square ``(n, n, 3, 3)`` force-constant array, so a Gamma-only
     result from the 2-atom cell would otherwise be recorded as a valid volume
     and silently lose the finite-q instability the recipe exists to find.
 
-    ``stability`` is the tier-A/tier-B verdict from ``classify_dfpt_volume``.
-    It gates the volume: a finite-q imaginary branch means the harmonic QHA is
-    not applicable, and carrying the volume into the free-energy fit anyway
-    produces a smooth curve over meaningless numbers.
+    Stability is *not* decided here.  It needs every volume at once (the
+    decision is per endpoint, and a single soft volume fails the endpoint
+    rather than being silently dropped), so it runs as its own job after
+    ``collect_validated_volumes`` -- see ``classify_dfpt_stability``.
     """
 
-    report = None
     try:
         parsed = DfptTaskDoc.model_validate(dfpt_doc)
         if not parsed.force_constants:
@@ -527,32 +572,8 @@ def validate_dfpt_task_doc(
                     f"(cell {expected.kpoints.cell_atoms} x factor "
                     f"{expected.kpoints.supercell_factor})"
                 )
-        if stability is not None:
-            report = DfptStabilityReport.model_validate(stability)
-            actual = force_constants_sha256(
-                np.array(parsed.force_constants, dtype=float)
-            )
-            if report.force_constants_sha256 != actual:
-                raise ValueError(
-                    "the stability report was computed for a different "
-                    "force-constant matrix than the one being released"
-                )
-            if not report.qha_allowed:
-                raise ValueError(
-                    f"volume is not QHA-applicable ({report.status}): "
-                    f"{report.reason}"
-                )
     except Exception as exc:
-        return Response(
-            output={
-                "ok": False,
-                "error": str(exc),
-                "stability": (
-                    report.model_dump(mode="json") if report is not None else None
-                ),
-            },
-            stop_children=True,
-        )
+        return Response(output={"ok": False, "error": str(exc)}, stop_children=True)
     try:
         document = parsed.model_dump(mode="json")
     except Exception as exc:  # noqa: BLE001 - an unserializable document is a finding
@@ -569,8 +590,6 @@ def validate_dfpt_task_doc(
             "schema_version": parsed.schema_version,
             "n_atoms": parsed.force_constants_provenance.n_atoms,
             "dfpt_doc": document,
-            "stability": report.model_dump(mode="json") if report is not None else None,
-            "qha_allowed": report.qha_allowed if report is not None else None,
         }
     )
 
@@ -579,7 +598,6 @@ __all__ = [
     "DYNMAT_UNIT",
     "DfptRelaxMaker",
     "DfptVaspMaker",
-    "classify_dfpt_volume",
     "collect_dfpt_task_doc",
     "force_constants_from_dynmat",
     "parse_dynmat",

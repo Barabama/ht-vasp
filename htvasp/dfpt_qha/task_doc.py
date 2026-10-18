@@ -49,8 +49,13 @@ class DfptForceConstantsProvenance(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    source: Literal["DYNMAT"]
-    parser: Literal["phonopy replay at unit displacement"]
+    #: VASP's own Hessian from ``vasprun.xml`` is the authority; the text
+    #: ``DYNMAT`` replay is the fallback and always recorded separately.
+    source: Literal["DYNMAT", "vasprun.xml dynmat hessian"]
+    parser: Literal[
+        "phonopy replay at unit displacement",
+        "phonopy VASP vasprun parser",
+    ]
     n_atoms: int = Field(gt=0)
     shape: tuple[int, int, int, int]
     unit: str = "eV/Angstrom^2"

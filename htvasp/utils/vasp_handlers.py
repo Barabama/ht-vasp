@@ -1,4 +1,4 @@
-"""Custodian handler sets, with the science-changing corrections guarded.
+"""Custodian handler sets for the htvasp Workers.
 
 Why this module exists
 ----------------------
@@ -9,26 +9,30 @@ that reacts to "the SCF did not converge".  A run that hit ``NELM`` therefore
 passed through custodian untouched and relied entirely on the TaskDoc state
 check at the job boundary.
 
-The reason that override existed is real, though: several default handlers
-change **scientific inputs** to make a run proceed.  ``LargeSigmaHandler``
-rewrites SIGMA, ``IncorrectSmearingHandler`` rewrites ISMEAR,
-``MeshSymmetryErrorHandler`` can rewrite the k-mesh.  In a frozen-recipe pool
-those are not fixes, they are silent recipe changes.
+Policy: custodian may correct
+-----------------------------
+Several handlers change *scientific inputs* to make a run proceed --
+``VaspErrorHandler`` can rewrite KPOINTS, ISMEAR/SIGMA, POSCAR or POTIM;
+``UnconvergedErrorHandler`` raises ALGO.  Refusing those corrections was tried
+and rejected: a run that cannot proceed is worth less than a run whose actual
+inputs are recorded.  Custodian saves ``INCAR.orig``, ``KPOINTS.orig``,
+``POSCAR.orig`` and ``POTCAR.orig`` before it touches anything, so the DFPT
+collector audits original against current and reports every difference
+(``htvasp.dfpt_qha.input_audit``).  The correction is allowed; the fact that it
+happened is not allowed to be invisible.
 
-So the set here is the union of what is useful and what is safe:
+The set is therefore the official handlers, unmodified:
 
 * ``VaspErrorHandler`` -- 45 signatures, the general input/SCF/symmetry faults.
-* ``UnconvergedErrorHandler`` and ``NonConvergingErrorHandler`` -- the two that
-  react to non-convergence, wrapped so their ALGO changes must be *more* stable.
+* ``UnconvergedErrorHandler`` and ``NonConvergingErrorHandler`` -- non-convergence.
 * ``FrozenJobErrorHandler`` -- a node that stops writing ``vasp.out``.
 * ``StdErrHandler`` -- MPI/scheduler-level aborts.
 * ``PositiveEnergyErrorHandler`` -- a diverged total energy.
 
-Not included, and why: ``LargeSigmaHandler`` (rewrites the frozen SIGMA),
-``IncorrectSmearingHandler`` (rewrites the frozen ISMEAR),
-``MeshSymmetryErrorHandler`` (can rewrite the explicit k-mesh),
-``KspacingMetalHandler`` (SCAN-only), ``PotimErrorHandler`` (rewrites the
-relaxation step size, and DFPT has no ionic loop).
+``LargeSigmaHandler``, ``IncorrectSmearingHandler``, ``MeshSymmetryErrorHandler``,
+``KspacingMetalHandler`` and ``PotimErrorHandler`` are still not added.  That is
+not a judgement on their corrections -- it is that atomate2's defaults do not
+include them, and the input audit is what makes any correction visible.
 """
 
 from __future__ import annotations
@@ -45,100 +49,8 @@ from custodian.vasp.handlers import (
     UnconvergedErrorHandler,
     VaspErrorHandler,
 )
-from pymatgen.io.vasp import Incar
 
 log = logging.getLogger(__name__)
-
-#: How much more stable an algorithm is.  ``All`` and ``Damped`` are the
-#: progressively more expensive, more robust end of the ladder; ``VeryFast`` the
-#: least.  A correction that moves DOWN this ordering is a downgrade.
-ALGO_STABILITY: dict[str, int] = {
-    "veryfast": 0,
-    "fast": 1,
-    "normal": 2,
-    "all": 3,
-    "damped": 3,
-    "chi": 3,          # response-function mode, not part of the ladder
-    "conjugate": 2,
-    "subrot": 2,
-    "eigenval": 2,
-    "none": 2,
-    "exact": 3,
-}
-
-
-class UnstableAlgoCorrection(RuntimeError):
-    """A handler proposed replacing ALGO with a less stable algorithm."""
-
-
-def _algo_rank(algo: Any) -> int | None:
-    if not isinstance(algo, str):
-        return None
-    return ALGO_STABILITY.get(algo.strip().lower())
-
-
-def guard_algo_actions(
-    result: dict[str, Any], directory: str, *, handler: str
-) -> dict[str, Any]:
-    """Drop or reject corrections that make the electronic algorithm weaker.
-
-    Custodian's own ladder is ``VeryFast -> Fast -> Normal -> All``, described in
-    its source as "progressively switch to more stable but more expensive
-    algorithms", so those moves are allowed.  The last-resort branch of the same
-    ladder sets ``ALGO = Normal`` alongside mixing parameters, which for a run
-    already at ``All`` is a downgrade -- and a downgrade applied to a DFPT run
-    silently changes the dynamical matrix it is about to compute.
-
-    Anything that lowers the rank raises ``UnstableAlgoCorrection`` rather than
-    being dropped: a correction that is quietly skipped leaves the run looking
-    handled when it is not.
-    """
-
-    actions = result.get("actions") or []
-    current = Incar.from_file(f"{directory}/INCAR").get("ALGO")
-    current_rank = _algo_rank(current)
-
-    kept: list[dict[str, Any]] = []
-    for action in actions:
-        proposed = (action.get("action") or {}).get("_set") or {}
-        if "ALGO" not in proposed:
-            kept.append(action)
-            continue
-        new_rank = _algo_rank(proposed["ALGO"])
-        if current_rank is None or new_rank is None:
-            kept.append(action)          # unranked value: leave custodian's judgement
-            continue
-        if new_rank < current_rank:
-            raise UnstableAlgoCorrection(
-                f"{handler} proposed ALGO {current!r} -> {proposed['ALGO']!r}, "
-                f"which is a less stable algorithm.  A run is only allowed to move "
-                f"toward more stable settings; anything else changes the physics "
-                f"rather than the convergence."
-            )
-        if new_rank > current_rank:
-            log.info(
-                "%s: ALGO %r -> %r (more stable, allowed)",
-                handler, current, proposed["ALGO"],
-            )
-        kept.append(action)
-
-    return {**result, "actions": kept}
-
-
-class StableUnconvergedHandler(UnconvergedErrorHandler):
-    """``UnconvergedErrorHandler`` that may only strengthen the algorithm."""
-
-    def correct(self, directory: str = "./") -> dict[str, Any]:
-        result = super().correct(directory=directory)
-        return guard_algo_actions(result, directory, handler=type(self).__name__)
-
-
-class StableNonConvergingHandler(NonConvergingErrorHandler):
-    """``NonConvergingErrorHandler`` that may only strengthen the algorithm."""
-
-    def correct(self, directory: str = "./") -> dict[str, Any]:
-        result = super().correct(directory=directory)
-        return guard_algo_actions(result, directory, handler=type(self).__name__)
 
 
 class DfptKpointSetChangeHandler(ErrorHandler):
@@ -184,7 +96,7 @@ class DfptKpointSetChangeHandler(ErrorHandler):
 
 
 def base_handlers() -> list[ErrorHandler]:
-    """The handler set every Worker gets: useful, and safe for a frozen recipe.
+    """The handler set every Worker gets.
 
     Returns a fresh list each call -- custodian keeps per-run counters on the
     handler instances, so sharing one across jobs would carry state between
@@ -193,8 +105,8 @@ def base_handlers() -> list[ErrorHandler]:
 
     return [
         VaspErrorHandler(),
-        StableUnconvergedHandler(),
-        StableNonConvergingHandler(),
+        UnconvergedErrorHandler(),
+        NonConvergingErrorHandler(),
         FrozenJobErrorHandler(),
         StdErrHandler(),
         PositiveEnergyErrorHandler(),
@@ -229,13 +141,8 @@ def with_handlers(
 
 
 __all__ = [
-    "ALGO_STABILITY",
     "DfptKpointSetChangeHandler",
-    "StableNonConvergingHandler",
-    "StableUnconvergedHandler",
-    "UnstableAlgoCorrection",
     "base_handlers",
     "dfpt_handlers",
-    "guard_algo_actions",
     "with_handlers",
 ]

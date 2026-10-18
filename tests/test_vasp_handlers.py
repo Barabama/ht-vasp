@@ -14,12 +14,8 @@ from pymatgen.core import Structure
 from htvasp.dfpt_qha.jobs import STATIC_ENERGY_TOL_MEV_PER_ATOM, collect_dfpt_task_doc
 from htvasp.utils.vasp_handlers import (
     DfptKpointSetChangeHandler,
-    StableNonConvergingHandler,
-    StableUnconvergedHandler,
-    UnstableAlgoCorrection,
     base_handlers,
     dfpt_handlers,
-    guard_algo_actions,
     with_handlers,
 )
 
@@ -49,8 +45,8 @@ def test_base_set_keeps_the_convergence_handlers():
 
     names = {type(handler).__name__ for handler in base_handlers()}
     assert "VaspErrorHandler" in names
-    assert "StableUnconvergedHandler" in names
-    assert "StableNonConvergingHandler" in names
+    assert "UnconvergedErrorHandler" in names
+    assert "NonConvergingErrorHandler" in names
     assert "FrozenJobErrorHandler" in names
     assert "StdErrHandler" in names
 
@@ -102,47 +98,39 @@ def test_dfpt_handler_ignores_a_clean_run(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# the ALGO guard
+# corrections are allowed; the inputs they changed are audited instead
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("current", "proposed"),
-    [("VeryFast", "Fast"), ("Fast", "Normal"), ("Normal", "All"), ("All", "Damped")],
-)
-def test_more_stable_algo_changes_are_allowed(tmp_path, current, proposed):
-    (tmp_path / "INCAR").write_text(f"ALGO = {current}\n")
-    result = {"errors": ["Unconverged"],
-              "actions": [{"dict": "INCAR", "action": {"_set": {"ALGO": proposed}}}]}
-    kept = guard_algo_actions(result, str(tmp_path), handler="test")
-    assert kept["actions"]
+def test_base_set_is_the_official_list_unmodified():
+    """No wrapper may silently veto a custodian correction.
+
+    The policy is: custodian may fix a run, and the collector records which
+    scientific inputs it rewrote (``htvasp.dfpt_qha.input_audit``).  Wrapping
+    the handlers to reject ALGO downgrades was tried and removed -- a run that
+    cannot proceed is worth less than one whose actual inputs are recorded.
+    """
+
+    names = [type(handler).__name__ for handler in base_handlers()]
+    assert names == [
+        "VaspErrorHandler",
+        "UnconvergedErrorHandler",
+        "NonConvergingErrorHandler",
+        "FrozenJobErrorHandler",
+        "StdErrHandler",
+        "PositiveEnergyErrorHandler",
+    ]
 
 
-@pytest.mark.parametrize(
-    ("current", "proposed"), [("All", "Normal"), ("Normal", "Fast"), ("Fast", "VeryFast")]
-)
-def test_less_stable_algo_changes_are_refused(tmp_path, current, proposed):
-    """A downgrade changes the physics rather than the convergence."""
+def test_convergence_handlers_are_not_subclassed():
+    from custodian.vasp.handlers import (
+        NonConvergingErrorHandler,
+        UnconvergedErrorHandler,
+    )
 
-    (tmp_path / "INCAR").write_text(f"ALGO = {current}\n")
-    result = {"errors": ["Unconverged"],
-              "actions": [{"dict": "INCAR", "action": {"_set": {"ALGO": proposed}}}]}
-    with pytest.raises(UnstableAlgoCorrection, match="less stable"):
-        guard_algo_actions(result, str(tmp_path), handler="test")
-
-
-def test_non_algo_actions_pass_through(tmp_path):
-    (tmp_path / "INCAR").write_text("ALGO = Normal\n")
-    result = {"errors": ["x"],
-              "actions": [{"dict": "INCAR", "action": {"_set": {"AMIX": 0.1}}}]}
-    kept = guard_algo_actions(result, str(tmp_path), handler="test")
-    assert kept["actions"] == result["actions"]
-
-
-def test_the_wrapped_handlers_are_the_guarded_ones():
-    assert issubclass(StableUnconvergedHandler, object)
-    assert StableUnconvergedHandler.correct is not None
-    assert StableNonConvergingHandler.correct is not None
+    handlers = base_handlers()
+    assert type(handlers[1]) is UnconvergedErrorHandler
+    assert type(handlers[2]) is NonConvergingErrorHandler
 
 
 def _store() -> JobStore:

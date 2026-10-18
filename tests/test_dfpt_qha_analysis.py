@@ -27,6 +27,7 @@ from htvasp.dfpt_qha.qha import (
     analyze_dfpt_qha,
     birch_murnaghan_3rd,
     dfpt_thermal_properties,
+    volume_free_energy,
 )
 
 STRUCTURE_FILE = Path("/nfs_ssd/tmp/legacy-qha-pool/stage0/pool_structures.json")
@@ -108,6 +109,9 @@ def test_thermal_job_reports_the_primitive_cell_size():
                 "volume_angstrom3": float(cell.volume),
                 "static_energy_eV": -15.0,
                 "force_constants": fc.tolist(),
+                "stability": {
+                    "status": "harmonic_QHA_applicable", "qha_allowed": True,
+                },
             }
         ],
         "rejected_volume_indices": [],
@@ -154,6 +158,9 @@ def test_thermal_job_reports_the_grid_phonopy_actually_evaluated():
                 "volume_angstrom3": float(cell.volume),
                 "static_energy_eV": -15.0,
                 "force_constants": np.array(phonon.force_constants).tolist(),
+                "stability": {
+                    "status": "harmonic_QHA_applicable", "qha_allowed": True,
+                },
             }
         ]
     }
@@ -186,7 +193,7 @@ def test_birch_murnaghan_recovers_a_synthetic_curve():
 
 
 def _volume(index, volume, energy, free_energy_kj=(-1.0, -2.0), n_cell=2,
-            n_primitive=2, imaginary=0):
+            n_primitive=2, mesh_min=0.0):
     return {
         "index": index,
         "volume_angstrom3": volume,
@@ -194,22 +201,37 @@ def _volume(index, volume, energy, free_energy_kj=(-1.0, -2.0), n_cell=2,
         "free_energy_kJ_per_mol": list(free_energy_kj),
         "n_atoms_cell": n_cell,
         "n_atoms_primitive": n_primitive,
-        "n_imaginary_modes": imaginary,
+        "mesh_diagnostic": {
+            "mesh": [12, 12, 12],
+            "mesh_min_THz": mesh_min,
+            "mesh_min_qpoint": [-0.0417, 0.0417, 0.0417],
+            "n_mesh_imaginary_modes": 1 if mesh_min < 0 else 0,
+            "note": "interpolated diagnostic only; not a stability verdict",
+        },
     }
 
 
-def test_analysis_fails_closed_on_imaginary_modes():
+def test_analysis_does_not_fail_on_a_mesh_artifact():
+    """The mesh minimum is interpolated context, not a verdict.
+
+    Gating on it rejected BCC-Nb-Nb-2, whose -0.024 THz mesh minimum sits at a
+    q no 2x2x2 supercell represents while every exact commensurate q point is
+    stable.  The decision is made by ``classify_dfpt_stability``; the analysis
+    records the numbers and moves on.
+    """
+
     thermal = {
         "temperatures": [0.0, 300.0],
         "volumes": [
-            _volume(i, 30.0 + i, -10.0 - 0.1 * i, [-1.0, -2.0], imaginary=1 if i == 2 else 0)
+            _volume(i, 30.0 + i, -10.0 + 0.02 * (i - 2) ** 2,
+                    mesh_min=-0.024 if i == 2 else 0.5)
             for i in range(5)
         ],
     }
     result = analyze_dfpt_qha(thermal).run(_store())
-    assert result.output["ok"] is False
-    assert result.stop_children is True
-    assert "imaginary" in result.output["error"]
+    assert result.output["ok"] is True
+    assert result.stop_children is False
+    assert [d["mesh_min_THz"] for d in result.output["mesh_diagnostics"]][2] == pytest.approx(-0.024)
 
 
 def test_analysis_fails_closed_on_too_few_volumes():
@@ -261,3 +283,90 @@ def test_analysis_returns_a_gibbs_curve_on_a_clean_input():
         for t in range(2)
     ]
     assert result.output["gibbs_eV"] == pytest.approx(best_f, rel=1e-9)
+
+
+# --------------------------------------------------------------------------
+# the factor-4 endpoints: fcc A=A has a 1-atom primitive against a 4-atom cell
+# --------------------------------------------------------------------------
+
+#: Legacy finite-displacement run on fcc Al: a 4-atom conventional cell, a
+#: 2x2x2 supercell, and phonopy's primitive matrix gives 1 atom.  It is the
+#: only real fcc force-constant dataset on disk, and it is the case the
+#: per-primitive -> per-cell factor has never been exercised on.
+FCC_FIXTURE = Path(
+    "/nfs_hdd/2025/gaominliang/ht-vasp/data/endmembers/SER-Al/qhaflow"
+    "/38-generate_frequencies_eigenvectors_eos_deformation_2/phonopy.yaml"
+)
+
+FACTOR_FOUR_ENDPOINTS = [
+    "FCC-Al-Al-4", "FCC-Cr-Cr-4", "FCC-Hf-Hf-4", "FCC-Nb-Nb-4",
+    "FCC-Ta-Ta-4", "FCC-Ti-Ti-4", "FCC-Zr-Zr-4", "SER-Al-1",
+]
+
+
+@pytest.mark.parametrize("name", FACTOR_FOUR_ENDPOINTS)
+def test_the_eight_factor_four_endpoints_really_are_four(name):
+    """A=A fcc: the recipe cell is 4 atoms and phonopy's primitive is 1.
+
+    Getting this ratio wrong is not a small error: it multiplies every free
+    energy by four.  The B2 case had the same bug with a factor of two, which
+    is why the ratio is explicit in ``analyze_dfpt_qha``.
+    """
+
+    cell = _cell(name)
+    phonon = phonopy_for(cell, MATRIX)
+    assert len(cell) == 4
+    assert len(phonon.primitive) == 1
+
+
+@pytest.mark.skipif(not FCC_FIXTURE.is_file(), reason="legacy SER-Al phonon data absent")
+def test_fcc_zero_point_energy_survives_the_primitive_to_cell_conversion():
+    """Real fcc force constants, 32-atom supercell, factor 4.
+
+    ZPE of fcc Al is ~50 meV/atom (mean phonon frequency ~8.1 THz).  A
+    conversion that multiplies by the atom count instead of the
+    primitive/cell ratio lands at ~200 meV/atom; one that divides by the cell
+    count lands at ~12.9 meV/atom.  Both are inside an order of magnitude of
+    the right answer and both are wrong.
+    """
+
+    import phonopy
+
+    phonon = phonopy.load(FCC_FIXTURE, produce_fc=False, log_level=0)
+    phonon.produce_force_constants()
+    unit = np.array(phonon.unitcell.cell)
+    cell = Structure(
+        unit, list(phonon.unitcell.symbols),
+        [np.array(p) for p in phonon.unitcell.scaled_positions],
+        coords_are_cartesian=False,
+    )
+    supercell = Structure(
+        np.array(phonon.supercell.cell), list(phonon.supercell.symbols),
+        [np.array(p) for p in phonon.supercell.scaled_positions],
+        coords_are_cartesian=False,
+    )
+    result = volume_free_energy(
+        cell, supercell, phonon.force_constants,
+        supercell_matrix=MATRIX, mesh=(12, 12, 12), temperatures=[0.0, 300.0],
+    )
+    assert result["n_atoms_cell"] == 4
+    assert result["n_atoms_primitive"] == 1
+    assert result["n_atoms_supercell"] == 32
+
+    zpe_ev_per_atom = (
+        result["zero_point_energy_kJ_per_mol"]
+        / EV_PER_ATOM_TO_KJ_PER_MOL
+        / result["n_atoms_primitive"]
+    )
+    assert 0.045 < zpe_ev_per_atom < 0.060, zpe_ev_per_atom
+
+    # the analysis's per-cell conversion must reproduce that per-atom value
+    ratio = result["n_atoms_cell"] / result["n_atoms_primitive"]
+    per_atom_from_cell = (
+        result["free_energy_kJ_per_mol"][1] * ratio
+        / EV_PER_ATOM_TO_KJ_PER_MOL / result["n_atoms_cell"]
+    )
+    assert per_atom_from_cell == pytest.approx(
+        result["free_energy_kJ_per_mol"][1] / EV_PER_ATOM_TO_KJ_PER_MOL
+        / result["n_atoms_primitive"], rel=1e-12
+    )

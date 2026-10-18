@@ -1,6 +1,10 @@
 """DFPT-QHA feature exports."""
 
-from htvasp.dfpt_qha.flow_jobs import collect_validated_volumes, spawn_dfpt_volume_jobs
+from htvasp.dfpt_qha.flow_jobs import (
+    classify_dfpt_stability,
+    collect_validated_volumes,
+    spawn_dfpt_volume_jobs,
+)
 from htvasp.dfpt_qha.input_set import DfptInputSetGenerator, DfptRelaxSetGenerator
 from htvasp.dfpt_qha.jobs import (
     DfptRelaxMaker,
@@ -34,6 +38,7 @@ __all__ = [
     "analyze_dfpt_qha",
     "assert_same_ordering",
     "birch_murnaghan_3rd",
+    "classify_dfpt_stability",
     "collect_dfpt_task_doc",
     "collect_validated_volumes",
     "dfpt_thermal_properties",

@@ -40,6 +40,7 @@ from htvasp.dfpt_qha.phonons import (
     ordering_fingerprint,
     phonopy_for,
 )
+from htvasp.dfpt_qha.stability import SOFT_FREQUENCY_TOL_THz
 
 log = logging.getLogger(__name__)
 
@@ -94,7 +95,9 @@ def volume_free_energy(
         t_min=min(temperatures), t_max=max(temperatures), t_step=step
     )
     thermal = phonon.thermal_properties
-    mesh_frequencies = np.array(phonon.get_mesh_dict()["frequencies"])
+    mesh_data = phonon.get_mesh_dict()
+    mesh_frequencies = np.array(mesh_data["frequencies"])
+    mesh_qpoints = np.array(mesh_data["qpoints"])
     # phonopy >= 2.4x exposes the integrated curves as a (4, n_temperatures)
     # array -- temperatures, free energy, entropy, heat capacity -- and no
     # longer as the named .free_energy / .entropy / .heat_capacity attributes.
@@ -113,9 +116,24 @@ def volume_free_energy(
         # is not always the recipe cell (fcc SER: 1 atom vs 4).
         "n_atoms_primitive": len(phonon.primitive),
         "supercell_ordering_fingerprint": ordering_fingerprint(supercell),
-        "mesh_min_THz": float(mesh_frequencies.min()),
-        "n_imaginary_modes": int((mesh_frequencies < -1e-4).sum()),
-        "n_modes": int(mesh_frequencies.size),
+        # Interpolated context, NOT a stability verdict.  The verdict is made
+        # on exact supercell-commensurate q points by
+        # ``classify_dfpt_stability``; a shallow negative minimum here can be a
+        # Fourier-interpolation artifact (BCC-Nb-Nb-2: -0.024 THz), and a real
+        # instability can sit at a q the supercell cannot represent.
+        "mesh_diagnostic": {
+            "mesh": list(mesh),
+            "mesh_min_THz": float(mesh_frequencies.min()),
+            "mesh_min_qpoint": [float(x) for x in mesh_qpoints[
+                int(np.unravel_index(int(np.argmin(mesh_frequencies)),
+                                     mesh_frequencies.shape)[0])
+            ]],
+            "n_mesh_imaginary_modes": int(
+                (mesh_frequencies < -SOFT_FREQUENCY_TOL_THz).sum()
+            ),
+            "n_modes": int(mesh_frequencies.size),
+            "note": "interpolated diagnostic only; not a stability verdict",
+        },
     }
 
 
@@ -155,14 +173,30 @@ def dfpt_thermal_properties(
 ) -> dict[str, Any]:
     """Vibrational free energy at every validated DFPT volume.
 
-    Each record must already have passed ``validate_dfpt_task_doc``; a
-    Gamma-only result cannot reach here because the validator compares the atom
-    count against the recipe's phonon supercell.
+    Each record must already have passed ``validate_dfpt_task_doc`` and
+    ``classify_dfpt_stability``; a Gamma-only result cannot reach here because
+    the validator compares the atom count against the recipe's phonon
+    supercell, and a soft-mode volume cannot reach here because the
+    classification job stops the flow.  The ``qha_allowed`` check is repeated
+    so a hand-assembled flow gets the same answer.
     """
 
     temperatures = list(temperatures or DEFAULT_TEMPERATURES)
     per_volume = []
     for record in collected["volumes"]:
+        stability = record.get("stability") or {}
+        if not stability.get("qha_allowed"):
+            return Response(
+                output={
+                    "ok": False,
+                    "error": (
+                        f"volume {record.get('index')} reached the thermal job "
+                        f"without a harmonic-QHA verdict "
+                        f"(status={stability.get('status')!r})"
+                    ),
+                },
+                stop_children=True,
+            )
         result = volume_free_energy(
             as_structure(record["cell"]),
             as_structure(record["supercell"]),
@@ -176,6 +210,7 @@ def dfpt_thermal_properties(
                 "index": int(record["index"]),
                 "volume_angstrom3": float(record["volume_angstrom3"]),
                 "static_energy_eV": float(record["static_energy_eV"]),
+                "stability_status": (record.get("stability") or {}).get("status"),
             }
         )
         per_volume.append(result)
@@ -244,12 +279,15 @@ def analyze_dfpt_qha(
 
     if np.any(np.diff(volumes) <= 0):
         problems.append("volumes are not strictly increasing after sorting")
-    unstable = [r["index"] for r in per_volume if r["n_imaginary_modes"] > 0]
-    if unstable:
-        problems.append(
-            f"imaginary phonon modes at volume index {unstable}; the harmonic "
-            f"free energy is not defined there"
-        )
+    # Deliberately NOT a gate.  The mesh minimum is an interpolated sample: a
+    # shallow negative value there is a truncation artifact, and gating on it
+    # rejected runs whose exact commensurate q points are all stable.  The
+    # harmonic-applicability decision was made per volume by
+    # ``classify_dfpt_stability``; this only carries the numbers forward.
+    mesh_diagnostics = [
+        {"index": int(r["index"]), **(r.get("mesh_diagnostic") or {})}
+        for r in per_volume
+    ]
 
     # phonopy reports kJ per mole of its own PRIMITIVE cell (it divides by
     # ``sum(weights)``), while the DFT energies are per recipe cell.  The two
@@ -327,6 +365,8 @@ def analyze_dfpt_qha(
             "rejected_volume_indices": thermal.get("rejected_volume_indices", []),
             "n_validated": thermal.get("n_validated"),
             "n_requested": thermal.get("n_requested"),
+            # carried for the record; the mesh never decided anything
+            "mesh_diagnostics": mesh_diagnostics,
             "units": {
                 "free_energies_eV": "eV per cell",
                 "gibbs_eV": "eV per cell",

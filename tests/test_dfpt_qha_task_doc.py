@@ -21,6 +21,7 @@ from pymatgen.core import Structure
 from htvasp.dfpt_qha.jobs import (
     collect_dfpt_task_doc,
     force_constants_from_dynmat,
+    force_constants_from_vasprun,
     parse_dynmat,
     validate_dfpt_task_doc,
 )
@@ -171,12 +172,17 @@ def test_force_constants_reject_a_mismatched_perturbation_count():
         force_constants_from_dynmat(base, supercell, perturbations, supercell_matrix=MATRIX)
 
 
-def test_collector_requires_the_dynmat_file(tmp_path):
-    with pytest.raises(ValueError, match="DYNMAT"):
+def test_collector_requires_a_dfpt_output_file(tmp_path):
+    """Neither the Hessian nor DYNMAT means the run never reached IBRION=8."""
+
+    base = cell()
+    supercell = supercell_structure(base, MATRIX)
+    with pytest.raises(ValueError, match="neither vasprun.xml nor DYNMAT"):
         collect_dfpt_task_doc(
-            {"dir_name": str(tmp_path), "state": "successful", "structure": {}},
+            {"dir_name": str(tmp_path), "state": "successful",
+             "structure": supercell.as_dict()},
             recipe=recipe_dict(),
-            cell=cell().as_dict(),
+            cell=base.as_dict(),
             supercell_matrix=MATRIX,
         ).run(_store())
 
@@ -219,12 +225,21 @@ def test_collector_on_a_real_dynmat_from_a_real_run():
     ).run(_store()).output
     parsed = DfptTaskDoc.model_validate(payload)
     provenance = parsed.force_constants_provenance
-    assert provenance.source == "DYNMAT"
+    # vasprun.xml carries the complete Hessian; it is the authority whenever it
+    # is present, and DYNMAT is recorded alongside as fallback/audit.
+    assert provenance.source == "vasprun.xml dynmat hessian"
+    assert provenance.parser == "phonopy VASP vasprun parser"
+    assert parsed.provenance["dynmat"]["n_perturbations"] > 0
+    assert parsed.provenance["input_audit"]["original_input_available"] is True
     assert provenance.n_atoms == 16
     assert provenance.shape == (16, 16, 3, 3)
     assert provenance.ordering_fingerprint
     scale = max(abs(x) for row in parsed.force_constants for m in row for v in m for x in v)
-    assert provenance.max_acoustic_sum_residual / scale < 1e-6
+    # VASP does not enforce the acoustic sum rule on its DFPT Hessian, so the
+    # residual is not machine zero here -- the DYNMAT replay used to reach 1e-12
+    # because phonopy's symmetry fit absorbed it.  8e-4 relative is what the raw
+    # Hessian gives, and it moves the Gamma acoustic modes by 2 mTHz.
+    assert provenance.max_acoustic_sum_residual / scale < 1e-3
 
 
 @pytest.mark.skipif(not LIVE_CANDIDATES, reason="no live DFPT job directory on disk")
@@ -370,8 +385,8 @@ def test_validation_rejects_a_matrix_from_the_wrong_cell():
 def _collected_zero_matrix(tmp_path):
     """A validated-shape DFPT document, with a zero dynamical matrix.
 
-    The physics is deliberately empty: these tests are about the gate reading
-    the stability verdict, not about the frequencies in it.
+    The physics is deliberately empty: these tests are about the collector's
+    provenance, not about the frequencies in it.
     """
 
     base = cell()
@@ -392,91 +407,106 @@ def _collected_zero_matrix(tmp_path):
     )
 
 
-def _verdict(document, *, status, qha_allowed, sha=None, reason="test verdict"):
-    return {
-        "schema_version": "htvasp-dfpt-stability/v1",
-        "status": status,
-        "qha_allowed": qha_allowed,
-        "reason": reason,
-        "checks": {},
-        "commensurate_qpoints": [],
-        "mesh_diagnostic": {},
-        "force_constants_sha256": (
-            sha
-            if sha is not None
-            else force_constants_sha256(np.array(document["force_constants"], dtype=float))
-        ),
-        "structure_hash": "",
-        "recipe_hash": "",
-        "units": {},
+def test_collector_records_an_incar_that_custodian_rewrote(tmp_path):
+    """A correction is allowed; it is not allowed to be invisible.
+
+    ``VaspErrorHandler`` may rewrite ALGO.  The audit compares ``INCAR.orig``
+    with the ``INCAR`` that actually ran and records the change, without
+    rejecting the matrix.
+    """
+
+    document, _ = _collected_zero_matrix(tmp_path)
+    job_dir = Path(document["provenance"]["task_doc_dir"])
+    (job_dir / "INCAR.orig").write_text("ALGO = Normal\nISMEAR = 1\n")
+    (job_dir / "INCAR").write_text("ALGO = All\nISMEAR = 1\n")
+    payload = collect_dfpt_task_doc(
+        {"dir_name": str(job_dir), "state": "successful",
+         "structure": document["task_doc"]["structure"]},
+        recipe=recipe_dict(),
+        cell=cell().as_dict(),
+        supercell_matrix=MATRIX,
+    ).run(_store()).output
+    audit = payload["provenance"]["input_audit"]
+    assert audit["modified_files"] == ["INCAR"]
+    assert audit["changes"]["INCAR"]["ALGO"] == {
+        "original": "Normal", "current": "All"
     }
+    assert audit["warnings"] == ["custodian modified INCAR"]
+    # the matrix is still released: the audit records, it does not gate
+    assert payload["force_constants"]
 
 
-def test_validation_stops_on_a_soft_mode_verdict(tmp_path):
-    """A finite-q imaginary branch means harmonic QHA is not applicable.
+@pytest.mark.skipif(not LIVE_CANDIDATES, reason="no live DFPT job directory on disk")
+def test_vasprun_hessian_and_dynmat_replay_are_the_same_matrix():
+    """Both are VASP output; they must describe the same force constants.
 
-    Carrying the volume into the free-energy fit anyway produces a smooth curve
-    over numbers that do not mean anything, which is worse than no curve.
+    They do, to 2.4e-9 eV/Angstrom^2 after symmetrisation.  The raw matrices
+    differ because phonopy's replay of DYNMAT is a symmetry fit (slightly
+    asymmetric, 4e-3), while VASP's Hessian is exactly symmetric.
     """
 
-    document, _ = _collected_zero_matrix(tmp_path)
-    verdict = _verdict(
-        document, status="finite_q_soft_mode_diagnostic", qha_allowed=False
+    import gzip
+
+    from pymatgen.io.vasp import Poscar
+
+    job_dir = LIVE_CANDIDATES[0]
+    with gzip.open(job_dir / "POSCAR.gz", "rt") as handle:
+        supercell = Poscar.from_str(handle.read()).structure
+    base = Structure(
+        np.array(supercell.lattice.matrix) / 2,
+        ["Al", "Ta"],
+        [[0, 0, 0], [0.5, 0.5, 0.5]],
     )
-    result = validate_dfpt_task_doc(
-        document, recipe=recipe_dict(), stability=verdict
+    hessian = force_constants_from_vasprun(job_dir / "vasprun.xml.gz", supercell)
+    replay = force_constants_from_dynmat(
+        base, supercell, parse_dynmat(job_dir / "DYNMAT")[0], supercell_matrix=MATRIX
+    )
+    symmetric_hessian = (hessian + hessian.transpose(1, 0, 3, 2)) / 2
+    symmetric_replay = (replay + replay.transpose(1, 0, 3, 2)) / 2
+    assert np.abs(symmetric_hessian - symmetric_replay).max() < 1e-6
+
+
+def test_collector_falls_back_to_dynmat_without_a_hessian(tmp_path):
+    """VASP writes the Hessian, but a collector that needs it would fail hard.
+
+    The text file is the fallback, and the reason the Hessian was unusable is
+    recorded rather than swallowed.
+    """
+
+    base = cell()
+    supercell = supercell_structure(base, MATRIX)
+    n = len(supercell)
+    fc = np.zeros((n, n, 3, 3))
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    (job_dir / "DYNMAT").write_text(synthetic_dynmat(base, supercell, fc))
+    # a vasprun with no <dynmat> block at all
+    (job_dir / "vasprun.xml").write_text(
+        '<?xml version="1.0" encoding="ISO-8859-1"?>\n<modeling>\n</modeling>\n'
+    )
+    payload = collect_dfpt_task_doc(
+        {"dir_name": str(job_dir), "state": "successful",
+         "structure": supercell.as_dict()},
+        recipe=recipe_dict(),
+        cell=base.as_dict(),
+        supercell_matrix=MATRIX,
+    ).run(_store()).output
+    assert payload["force_constants_provenance"]["source"] == "DYNMAT"
+    assert payload["provenance"]["vasprun_hessian_error"]
+    assert payload["provenance"]["dynmat"]["n_perturbations"] > 0
+
+
+def test_thermal_job_refuses_a_volume_that_never_passed_the_gate(tmp_path):
+    """A hand-assembled flow must not get a soft matrix into the free energy."""
+
+    from htvasp.dfpt_qha.qha import dfpt_thermal_properties
+
+    result = dfpt_thermal_properties(
+        {"volumes": [{"index": 3, "cell": {}, "supercell": {},
+                      "volume_angstrom3": 1.0, "static_energy_eV": -1.0,
+                      "force_constants": []}]},
+        supercell_matrix=MATRIX, mesh=(4, 4, 4), temperatures=[0.0, 300.0],
     ).run(_store())
     assert result.output["ok"] is False
     assert result.stop_children is True
-    assert "not QHA-applicable" in result.output["error"]
-    # the verdict travels with the rejection: the flow is stopped, so this is
-    # the only record of why
-    assert result.output["stability"]["status"] == "finite_q_soft_mode_diagnostic"
-
-
-def test_validation_accepts_a_harmonic_verdict(tmp_path):
-    document, _ = _collected_zero_matrix(tmp_path)
-    verdict = _verdict(
-        document, status="harmonic_QHA_applicable", qha_allowed=True
-    )
-    result = validate_dfpt_task_doc(
-        document, recipe=recipe_dict(), stability=verdict
-    ).run(_store())
-    assert result.output["ok"] is True, result.output
-    assert result.output["qha_allowed"] is True
-    assert result.output["stability"]["status"] == "harmonic_QHA_applicable"
-
-
-def test_validation_rejects_a_verdict_about_a_different_matrix(tmp_path):
-    """The verdict is attached to a specific matrix by hash.
-
-    Without this check a replayed or hand-assembled flow could release a volume
-    whose diagnosis was computed for someone else's force constants.
-    """
-
-    document, _ = _collected_zero_matrix(tmp_path)
-    verdict = _verdict(
-        document,
-        status="harmonic_QHA_applicable",
-        qha_allowed=True,
-        sha="0" * 64,
-    )
-    result = validate_dfpt_task_doc(
-        document, recipe=recipe_dict(), stability=verdict
-    ).run(_store())
-    assert result.output["ok"] is False
-    assert result.stop_children is True
-    assert "different force-constant matrix" in result.output["error"]
-
-
-def test_validation_still_works_without_a_verdict(tmp_path):
-    """The verdict is optional so the gate can be replayed on archived runs.
-
-    An archived document predates the classification job; it must not become
-    unusable just because no report exists for it.
-    """
-
-    document, _ = _collected_zero_matrix(tmp_path)
-    result = validate_dfpt_task_doc(document, recipe=recipe_dict()).run(_store())
-    assert result.output["ok"] is True
-    assert result.output["qha_allowed"] is None
+    assert "without a harmonic-QHA verdict" in result.output["error"]
