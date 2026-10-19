@@ -32,16 +32,19 @@ VASP_ARGS = {
 }
 
 # Initial magnetic moments per element (muB) - from verified submit_tb2j.sh
-# 13-element initial guess table (restored; shared with main_qha.py)
+# 16-element initial guess table (restored; shared with main_qha.py)
 MAGMOM = {
     "Al": 1.0,
     "Co": 3.0,
     "Cr": 3.0,
     "Cu": 5.0,
     "Fe": 5.0,
+    "Hf": 1.0,
     "Mn": 5.0,
+    "Mo": 3.0,
     "Nb": 3.0,
     "Ni": 2.0,
+    "Re": 1.0,
     "Ta": 3.0,
     "Ti": 3.0,
     "V": 3.0,
