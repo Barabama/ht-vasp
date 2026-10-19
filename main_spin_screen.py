@@ -78,6 +78,18 @@ STRUCTURE_TOLERANCE = 0.02
 DEFAULT_NTASKS = 32
 
 
+def _warn_if_outside_allocation() -> None:
+    """srun on a login node silently creates a one-rank Slurm job per call."""
+
+    import os
+
+    if not os.environ.get("SLURM_JOB_ID"):
+        log.warning(
+            "not inside a Slurm allocation: every `srun vasp_std` will become "
+            "its own 1-rank Slurm job.  Use --slurm to submit the whole run."
+        )
+
+
 def load_endpoint(name: str) -> tuple[Structure, Recipe]:
     """The endpoint's cell and recipe from the pool (see main_dfpt_qha.load_endpoint)."""
 
@@ -537,16 +549,21 @@ def main() -> None:
         log.info("no unresolved endpoints; nothing to do")
         return
     log.info("%d endpoint(s): %s", len(names), ", ".join(names))
-    if args.constrained_afm:
-        run_constrained(names, dry_run=args.dry_run)
-    elif args.reanalyse:
-        reanalyse(names)
-    elif args.slurm:
+    # --slurm wraps whichever mode was asked for.  Putting the mode checks
+    # first made "--slurm --constrained-afm" run VASP on the login node, where
+    # each srun silently became its own one-rank Slurm job.
+    if args.slurm:
         submit_screen(
             names, ntasks=args.ntasks, dry_run=args.dry_run,
             constrained=args.constrained_afm,
         )
+    elif args.constrained_afm:
+        _warn_if_outside_allocation()
+        run_constrained(names, dry_run=args.dry_run)
+    elif args.reanalyse:
+        reanalyse(names)
     else:
+        _warn_if_outside_allocation()
         run_screen(names, rerun=args.rerun, dry_run=args.dry_run)
 
 
