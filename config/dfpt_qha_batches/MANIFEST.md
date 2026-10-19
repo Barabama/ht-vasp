@@ -110,12 +110,18 @@ mesh gate and is expected to pass now.
 ## Refreshing the status column
 
 Status is derived from `data/endpoints/<name>/dfpt-qhaflow/runs/*/<name>-dfpt-qha.json`.
-Regenerate the table with:
+Regenerate the table with (run from the ht-vasp root, on the cluster whose
+results you want):
 
 ```bash
-python - <<'PY'
-# see the generator used on 2026-10-20: pool_recipes.json + the result JSONs
-PY
+python - <<'EOF'
+import glob, json
+from pathlib import Path
+pool = Path("/nfs_ssd/tmp/legacy-qha-pool/stage0/pool_recipes.json")
+for name in sorted(json.loads(pool.read_text())["endpoints"]):
+    hits = glob.glob(f"data/endpoints/{name}/dfpt-qhaflow/runs/*/{name}-dfpt-qha.json")
+    print(f"{name:16s}", "done" if hits else "-")
+EOF
 ```
 
 The ledger (`slurm_submissions.json`) and that JSON are the ground truth;
