@@ -34,6 +34,7 @@ from pathlib import Path
 from pymatgen.core import Structure
 
 from htvasp.model.dfpt_qha_recipe import Recipe
+from htvasp.utils.vasp_psp import psp_dir_exports
 from htvasp.slurm import (
     SlurmJobManager,
     artifact_marker_matches,
@@ -381,6 +382,10 @@ def _submission_plan(
         memory="96G",
         time_limit="24:00:00",
         module_name="vasp-cpu",
+        # the compute node's own pymatgen config may point at a POTCAR
+        # directory that does not exist on it (B5071 does); pin the value the
+        # submitting node resolved.
+        extra_commands=psp_dir_exports(),
     )
     return {
         "name": name,

@@ -231,3 +231,22 @@ def test_the_worker_actually_uses_the_composed_handler_set():
     assert "UnconvergedErrorHandler" in names
     assert "NonConvergingErrorHandler" in names
     assert names[0] == "VaspErrorHandler"
+
+
+def test_the_potcar_directory_resolves_and_exists():
+    """A per-node pymatgen config can point at a directory that is not there.
+
+    B5071's ~/.pmgrc.yaml points at /workspace/documents, which does not exist
+    on that node; a job landing there died inside pymatgen with
+    "PMG_VASP_PSP_DIR=... does not exist".  The submitting process resolves the
+    directory and the Slurm script exports it.
+    """
+
+    from pathlib import Path
+
+    from htvasp.utils.vasp_psp import psp_dir_exports, vasp_psp_dir
+
+    resolved = vasp_psp_dir()
+    assert Path(resolved).is_dir()
+    exports = psp_dir_exports()
+    assert exports == [f"export PMG_VASP_PSP_DIR={resolved}"]

@@ -33,6 +33,7 @@ from pymatgen.core import Structure
 from htvasp.dfpt_qha.jobs import DfptRelaxMaker
 from htvasp.model.dfpt_qha_recipe import Recipe
 from htvasp.slurm import SlurmJobManager
+from htvasp.utils.vasp_psp import psp_dir_exports
 from htvasp.utils.local import run_locally_custom
 from htvasp.utils.vasp_handlers import with_handlers
 
@@ -274,6 +275,7 @@ def submit_screen(names: list[str], ntasks: int = DEFAULT_NTASKS, dry_run: bool 
         memory="96G",
         time_limit="24:00:00",
         module_name="vasp-cpu",
+        extra_commands=psp_dir_exports(),
     )
     command = (
         f"{conda_env / 'bin' / 'python'} {Path(__file__).resolve()} "
