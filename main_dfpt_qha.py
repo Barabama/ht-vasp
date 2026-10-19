@@ -428,6 +428,63 @@ def _print_submission_plan(plan: dict, *, conflict: str | None = None) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
 
 
+def read_batch(path: Path) -> list[str]:
+    """Endpoint names from a batch file: one per line, '#' comments."""
+
+    names: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        name = line.split("#", 1)[0].strip()
+        if name:
+            names.append(name)
+    if not names:
+        raise ValueError(f"batch file {path} lists no endpoints")
+    return names
+
+
+def submit_batch(
+    path: Path,
+    manager: SlurmJobManager,
+    rerun: bool = False,
+    resume: bool = False,
+    dry_run: bool = False,
+    number_of_frames: int | None = None,
+    mesh: tuple[int, int, int] | None = None,
+    ntasks: int = DEFAULT_NTASKS,
+) -> list[dict]:
+    """Submit every endpoint in a batch file, one Slurm job each.
+
+    The ledger's artifact shortcut makes this safe to re-run: an endpoint whose
+    JSON is already present is reported as completed and not resubmitted.
+    """
+
+    names = read_batch(path)
+    results: list[dict] = []
+    for index, name in enumerate(names, 1):
+        log.info("[%d/%d] %s", index, len(names), name)
+        try:
+            job_id = submit_job(
+                name, manager, rerun=rerun, resume=resume, dry_run=dry_run,
+                number_of_frames=number_of_frames, mesh=mesh, ntasks=ntasks,
+            )
+        except Exception as exc:  # noqa: BLE001 - one endpoint must not stop a batch
+            log.error("  %s: submission failed: %s", name, exc)
+            results.append({"name": name, "job_id": None, "state": "error",
+                            "error": str(exc)})
+            continue
+        state = "dry-run" if dry_run else ("refused" if job_id == -1 else "submitted")
+        results.append({"name": name, "job_id": job_id, "state": state})
+        if not dry_run:
+            log.info("  -> %s (%s)", job_id, state)
+    submitted = [r for r in results if r["state"] == "submitted"]
+    log.info(
+        "batch %s: %d endpoints, %d submitted, %d refused, %d errors",
+        path.name, len(results), len(submitted),
+        sum(1 for r in results if r["state"] == "refused"),
+        sum(1 for r in results if r["state"] == "error"),
+    )
+    return results
+
+
 def submit_job(
     name: str,
     manager: SlurmJobManager,
@@ -477,6 +534,11 @@ def submit_job(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DFPT-QHA workflow")
     parser.add_argument("--name", "-n", type=str, default=None, help="Endpoint name")
+    parser.add_argument(
+        "--batch", metavar="FILE", default=None,
+        help="Submit every endpoint listed in FILE (one per line) as its own "
+             "Slurm job; already-finished endpoints are skipped by the ledger",
+    )
     parser.add_argument("--slurm", "-s", action="store_true", help="Submit to Slurm")
     parser.add_argument("--dry-run", action="store_true", help="Print the plan; no VASP")
     parser.add_argument("--flow-graph", action="store_true", help="Alias for --dry-run")
@@ -506,7 +568,21 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if args.slurm:
+    if args.batch:
+        if args.name:
+            parser.error("--batch and -n/--name are mutually exclusive")
+        if not args.slurm:
+            parser.error("--batch needs --slurm")
+        if args.rerun and args.resume:
+            parser.error("--rerun and --resume are mutually exclusive")
+        submit_batch(
+            Path(args.batch), SlurmJobManager(), rerun=args.rerun,
+            resume=args.resume, dry_run=args.dry_run,
+            number_of_frames=args.frames,
+            mesh=tuple(args.mesh) if args.mesh else None,
+            ntasks=args.ntasks,
+        )
+    elif args.slurm:
         if not args.name:
             parser.error("--slurm needs -n/--name")
         if args.rerun and args.resume:
