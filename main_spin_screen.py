@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from jobflow import Flow, JobStore, job
+from monty.json import jsanitize
 from maggma.stores import JSONStore, MemoryStore
 from pymatgen.core import Structure
 
@@ -117,7 +118,7 @@ def spin_states(structure: Structure) -> dict[str, Any]:
     return states
 
 
-def _taskdoc_fields(document: dict[str, Any] | None) -> tuple[
+def _taskdoc_fields(document: Any) -> tuple[
     float | None, int, list[float]
 ]:
     """Energy, atom count and site moments from an atomate2 TaskDoc.
@@ -128,8 +129,19 @@ def _taskdoc_fields(document: dict[str, Any] | None) -> tuple[
     report ``None`` for every state.
     """
 
+    # jobflow stores a job's output as JSON and monty's decoder rebuilds the
+    # objects it recognises, so what arrives here can be a live emmet TaskDoc
+    # rather than a dict.  ``.get`` on that raises AttributeError.
     doc = document or {}
+    if not isinstance(doc, dict):
+        doc = jsanitize(doc, strict=True, allow_bson=True, recursive_msonable=True)
+    if not isinstance(doc, dict):
+        raise ValueError(f"expected a TaskDoc mapping, got {type(document).__name__}")
     task_output = doc.get("output") or {}
+    if not isinstance(task_output, dict):
+        task_output = jsanitize(
+            task_output, strict=True, allow_bson=True, recursive_msonable=True
+        )
     output = task_output.get("output") or {}
     energy = output.get("energy", task_output.get("energy"))
     structure = output.get("structure") or doc.get("structure") or {}
