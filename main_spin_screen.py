@@ -150,7 +150,11 @@ def _taskdoc_fields(document: Any) -> tuple[
     energy = output.get("energy", task_output.get("energy"))
     structure = output.get("structure") or doc.get("structure") or {}
     n_atoms = len(structure.get("sites") or []) or int(doc.get("nsites") or 1)
-    abc = list((structure.get("lattice") or {}).get("abc") or [])
+    lattice = structure.get("lattice") or {}
+    # pymatgen serialises the cell as a/b/c, not as "abc"
+    abc = list(lattice.get("abc") or [])
+    if not abc:
+        abc = [lattice[key] for key in ("a", "b", "c") if lattice.get(key) is not None]
     moments: list[float] = []
     # calcs_reversed sits at the TaskDoc level, not inside its output block
     calcs = doc.get("calcs_reversed") or task_output.get("calcs_reversed") or []

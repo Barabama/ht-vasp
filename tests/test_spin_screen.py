@@ -32,7 +32,9 @@ class _FakeTaskDoc(MSONable):
                     "energy": self.energy,
                     "structure": {
                         "sites": [{} for _ in self.moments],
-                        "lattice": {"abc": self.abc},
+                        "lattice": {
+                            "a": self.abc[0], "b": self.abc[1], "c": self.abc[2],
+                        },
                     },
                 },
             },
