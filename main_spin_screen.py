@@ -261,6 +261,13 @@ def run_screen(names: list[str], rerun: bool = False, dry_run: bool = False) -> 
             output = store.get_output(
                 uuid=flow.output.uuid, which=flow.output.index, load=True
             )
+            # jobflow returns a one-element list for a single-index lookup
+            if isinstance(output, list):
+                output = output[0] if len(output) == 1 else output
+            if not isinstance(output, dict):
+                raise ValueError(
+                    f"the summariser returned {type(output).__name__}, expected a dict"
+                )
         except Exception as exc:  # noqa: BLE001 - one endpoint must not stop the screen
             log.error("  %s: screen failed: %s", name, exc)
             output = {
