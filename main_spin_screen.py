@@ -116,16 +116,42 @@ def spin_states(structure: Structure) -> dict[str, Any]:
     return states
 
 
+def _taskdoc_fields(document: dict[str, Any] | None) -> tuple[
+    float | None, int, list[float]
+]:
+    """Energy, atom count and site moments from an atomate2 TaskDoc.
+
+    The site moments are not in ``TaskDoc.output``; emmet keeps them under
+    ``calcs_reversed[-1].output.outcar.magnetization`` as per-site s/p/d/tot
+    blocks.  A screening that read ``output.magnetic_moments`` would silently
+    report ``None`` for every state.
+    """
+
+    doc = document or {}
+    task_output = doc.get("output") or {}
+    output = task_output.get("output") or {}
+    energy = output.get("energy", task_output.get("energy"))
+    structure = output.get("structure") or doc.get("structure") or {}
+    n_atoms = len(structure.get("sites") or []) or int(doc.get("nsites") or 1)
+    moments: list[float] = []
+    # calcs_reversed sits at the TaskDoc level, not inside its output block
+    calcs = doc.get("calcs_reversed") or task_output.get("calcs_reversed") or []
+    if calcs:
+        outcar = (calcs[-1].get("output") or {}).get("outcar") or {}
+        moments = [
+            float(entry.get("tot", 0.0))
+            for entry in outcar.get("magnetization") or []
+        ]
+    return energy, n_atoms, moments
+
+
 @job
 def summarize_states(
     endpoint: str, documents: dict[str, Any], *, threshold_mev_per_atom: float
 ) -> dict[str, Any]:
     rows: dict[str, Any] = {}
     for label, document in documents.items():
-        output = (document or {}).get("output") or {}
-        energy = output.get("energy")
-        moments = output.get("magnetic_moments") or []
-        n_atoms = len(output.get("structure", {}).get("sites", [])) or 1
+        energy, n_atoms, moments = _taskdoc_fields(document)
         rows[label] = {
             "energy_eV": energy,
             "energy_eV_per_atom": None if energy is None else energy / n_atoms,
