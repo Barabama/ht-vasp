@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from jobflow import Flow, JobStore, job
-from maggma.stores import JSONStore
+from maggma.stores import JSONStore, MemoryStore
 from pymatgen.core import Structure
 
 from htvasp.dfpt_qha.jobs import DfptRelaxMaker
@@ -235,12 +235,29 @@ def run_screen(names: list[str], rerun: bool = False, dry_run: bool = False) -> 
             ))
             continue
         run_root = root_dir / "data" / "endpoints" / name / "spin-screenflow"
-        store = JobStore(JSONStore(str(run_root / "store.json")))
-        run_locally_custom(
-            flow, store=store, root_dir=run_root, resume=not rerun
+        # read_only=False lets maggma create an empty store.json; the default
+        # read_only=True raises FileNotFoundError on a first run.
+        store = JobStore(
+            JSONStore(str(run_root / "store.json"), read_only=False),
+            additional_stores={"data": MemoryStore()},
         )
-        output = store.get_output(uuid=flow.output.uuid, which=flow.output.index, load=True)
-        store.close()
+        try:
+            run_locally_custom(
+                flow, store=store, root_dir=run_root, resume=not rerun
+            )
+            output = store.get_output(
+                uuid=flow.output.uuid, which=flow.output.index, load=True
+            )
+        except Exception as exc:  # noqa: BLE001 - one endpoint must not stop the screen
+            log.error("  %s: screen failed: %s", name, exc)
+            output = {
+                "schema_version": "htvasp-spin-screen/v1",
+                "endpoint": name,
+                "ok": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+        finally:
+            store.close()
         path = root_dir / "data" / "endpoints" / name / "spin-screen.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(output, indent=2, ensure_ascii=False, default=str))
