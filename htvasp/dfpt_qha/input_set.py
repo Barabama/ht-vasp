@@ -28,8 +28,27 @@ from pymatgen.io.vasp import Kpoints
 
 from htvasp.model.dfpt_qha_recipe import Recipe
 
+#: Initial moments per element (muB).  The full 16-element table from
+#: ``main_qha.py`` / the verified ``submit_tb2j.sh``, so the DFPT entries and
+#: the QHA/TB2J entries start from the same spin guess.  Only the seven pool
+#: elements are exercised today; the rest are carried for the shared pool.
 MAGMOM_BY_ELEMENT = {
-    "Al": 1.0, "Cr": 3.0, "Hf": 1.0, "Nb": 3.0, "Ta": 3.0, "Ti": 3.0, "Zr": 1.0,
+    "Al": 1.0,
+    "Co": 3.0,
+    "Cr": 3.0,
+    "Cu": 5.0,
+    "Fe": 5.0,
+    "Hf": 1.0,
+    "Mn": 5.0,
+    "Mo": 3.0,
+    "Nb": 3.0,
+    "Ni": 2.0,
+    "Re": 1.0,
+    "Ta": 3.0,
+    "Ti": 3.0,
+    "V": 3.0,
+    "W": 3.0,
+    "Zr": 1.0,
 }
 
 SHARED_INCAR: dict[str, Any] = {
@@ -92,6 +111,8 @@ class _RecipeGenerator(VaspInputGenerator):
 
     recipe: Recipe | None = None
     use_supercell_kpoints: bool = False
+    #: element -> initial moment; None uses MAGMOM_BY_ELEMENT
+    magmom: dict[str, float] | None = None
 
     def _recipe_defaults(self) -> dict[str, Any]:
         recipe = self.recipe
@@ -112,7 +133,8 @@ class _RecipeGenerator(VaspInputGenerator):
     def _apply_recipe_settings(self) -> None:
         """Install the recipe's MAGMOM so pymatgen expands it per site."""
 
-        self.user_incar_settings.setdefault("MAGMOM", dict(MAGMOM_BY_ELEMENT))
+        table = self.magmom if self.magmom is not None else MAGMOM_BY_ELEMENT
+        self.user_incar_settings.setdefault("MAGMOM", dict(table))
 
     @property
     def kpoints_updates(self) -> Kpoints:
@@ -134,6 +156,7 @@ class DfptRelaxSetGenerator(_RecipeGenerator):
     isif: Literal[2, 3] = 2
     use_supercell_kpoints: bool = False
     user_incar_settings: dict[str, Any] = field(default_factory=dict)
+    magmom: dict[str, float] | None = None
     user_kpoints_settings: dict[str, Any] = field(default_factory=dict)
     user_potcar_settings: dict[str, str] = field(default_factory=dict)
     user_potcar_functional: str = "PBE"
@@ -163,6 +186,7 @@ class DfptInputSetGenerator(_RecipeGenerator):
     use_supercell_kpoints: bool = True
     user_incar_settings: dict[str, Any] = field(default_factory=dict)
     user_kpoints_settings: dict[str, Any] = field(default_factory=dict)
+    magmom: dict[str, float] | None = None
     user_potcar_settings: dict[str, str] = field(default_factory=dict)
     user_potcar_functional: str = "PBE"
     auto_ispin: bool = False

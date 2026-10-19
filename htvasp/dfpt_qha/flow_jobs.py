@@ -63,6 +63,7 @@ def spawn_dfpt_volume_jobs(
     *,
     recipe: dict[str, Any],
     run_vasp_kwargs: dict[str, Any] | None = None,
+    magmom: dict[str, float] | None = None,
     supercell_matrix: Any = None,
     mesh: tuple[int, int, int] = DEFAULT_MESH,
     temperatures: list[float] | None = None,
@@ -114,6 +115,7 @@ def spawn_dfpt_volume_jobs(
             name=f"DFPT volume {index + 1}/{len(structures)}",
             recipe=parsed,
             run_vasp_kwargs=vasp_kwargs,
+            magmom=dict(magmom) if magmom is not None else None,
         )
         vasp_job = maker.make(cell, prev_dir=directory)
         collector = collect_dfpt_task_doc(
@@ -165,6 +167,24 @@ def spawn_dfpt_volume_jobs(
     return Response(replace=Flow(jobs, output=analysis.output, name="DFPT volume jobs"))
 
 
+#: worst-first: the endpoint is only "harmonic" if every volume is
+APPLICABILITY_ORDER = (
+    "numerical_unresolved",
+    "gamma_soft_mode",
+    "finite_q_soft_mode",
+    "incommensurate_soft_mode_suspected",
+    "harmonic_QHA_applicable",
+)
+
+
+def _applicability(statuses: list[str]) -> str:
+    present = set(statuses)
+    for status in APPLICABILITY_ORDER:
+        if status in present:
+            return status
+    return "numerical_unresolved"
+
+
 @job
 def classify_dfpt_stability(
     collected: dict[str, Any],
@@ -181,9 +201,16 @@ def classify_dfpt_stability(
     And the VASP time is already spent by this point, so a per-volume fail-fast
     would save nothing while multiplying the serialization boundaries.
 
-    Each verdict is a stored artifact.  When the endpoint fails, the analysis
-    job never exists, so this output is what ``DfptQhaWorker.get_result``
-    returns -- including the exact-q frequencies and eigenvector subspace.
+    The verdict does NOT stop the flow.  A dynamically unstable volume is a
+    physical result, not a failed calculation: the thermal and QHA jobs still
+    run, and their product carries ``qha_applicability`` so that the consumer
+    (em-tdb-v2) can decide whether it may enter a production TDB.  Stopping
+    here would leave every unstable endpoint with a diagnostic and no G(T),
+    which is the one thing a batch run cannot recover without reanalysing every
+    store by hand.
+
+    The verdicts remain a stored artifact in their own right: exact-q
+    frequencies, eigenvector subspace, the mesh diagnostic and the tier.
     """
 
     mesh = tuple(int(x) for x in mesh)
@@ -228,8 +255,9 @@ def classify_dfpt_stability(
         reports.append(verdict)
         volumes.append({**record, "stability": verdict})
 
-    blocked = [r for r in reports if not r["qha_allowed"]]
+    non_harmonic = [r for r in reports if not r["qha_allowed"]]
     confirmation = [r for r in reports if r.get("confirmation_required")]
+    applicability = _applicability([r["status"] for r in reports])
     output = {
         **{key: value for key, value in collected.items() if key != "volumes"},
         "schema_version": "htvasp-dfpt-stability/v1",
@@ -237,10 +265,11 @@ def classify_dfpt_stability(
         "volumes": volumes,
         "reports": reports,
         "n_volumes": len(reports),
-        "n_blocked": len(blocked),
-        "blocked_volume_indices": [r["index"] for r in blocked],
+        "n_non_harmonic": len(non_harmonic),
+        "non_harmonic_volume_indices": [r["index"] for r in non_harmonic],
+        "qha_applicability": applicability,
         "confirmation_volume_indices": [r["index"] for r in confirmation],
-        "qha_allowed": not blocked,
+        "qha_allowed": not non_harmonic,
         "mesh": list(mesh),
         "supercell_matrix": [
             [int(x) for x in row] for row in np.asarray(supercell_matrix, dtype=int)
@@ -250,20 +279,19 @@ def classify_dfpt_stability(
             warning for r in reports for warning in r.get("warnings") or []
         ],
     }
-    if blocked:
-        message = (
-            f"{len(blocked)} of {len(reports)} volumes are not "
+    if non_harmonic:
+        output["error"] = (
+            f"{len(non_harmonic)} of {len(reports)} volumes are not "
             f"harmonic-QHA-applicable: "
             + "; ".join(
                 f"volume {r['index']} {r['status']} ({r['reason']})"
-                for r in blocked
+                for r in non_harmonic
             )
         )
-        output["error"] = message
-        output["ok"] = False
-    else:
-        output["ok"] = True
-    return Response(output=output, stop_children=bool(blocked))
+    output["ok"] = not non_harmonic
+    # deliberately NOT stop_children: the QHA product is still built and
+    # labelled.  See the docstring.
+    return Response(output=output)
 
 
 @job

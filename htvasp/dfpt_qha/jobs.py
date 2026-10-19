@@ -275,6 +275,7 @@ class DfptRelaxMaker(BaseVaspMaker):
     recipe: Recipe | None = None
     isif: int = 2
     use_supercell_kpoints: bool = False
+    magmom: dict[str, float] | None = None
     input_set_generator: Any = None
     run_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
     stop_children_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -287,6 +288,7 @@ class DfptRelaxMaker(BaseVaspMaker):
                 recipe=self.recipe,
                 isif=self.isif,
                 use_supercell_kpoints=self.use_supercell_kpoints,
+                magmom=self.magmom,
             )
         # BaseVaspMaker is a plain dataclass in this atomate2 release and
         # defines no post-init hook.
@@ -304,6 +306,7 @@ class DfptVaspMaker(BaseVaspMaker):
     name: str = "DFPT job"
     recipe: Recipe | None = None
     use_supercell_kpoints: bool = True
+    magmom: dict[str, float] | None = None
     input_set_generator: Any = None
     run_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
     stop_children_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -313,7 +316,9 @@ class DfptVaspMaker(BaseVaspMaker):
             if self.recipe is None:
                 raise ValueError("DfptVaspMaker requires an explicit Recipe")
             self.input_set_generator = DfptInputSetGenerator(
-                recipe=self.recipe, use_supercell_kpoints=self.use_supercell_kpoints
+                recipe=self.recipe,
+                use_supercell_kpoints=self.use_supercell_kpoints,
+                magmom=self.magmom,
             )
 
 

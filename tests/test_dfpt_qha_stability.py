@@ -189,8 +189,14 @@ def test_a_borderline_soft_mode_asks_for_a_larger_supercell():
     assert "larger supercell" in report["confirmation_reason"]
 
 
-def test_classify_endpoint_blocks_a_soft_volume_and_keeps_the_artifact():
-    """One soft volume fails the whole endpoint, and says which one."""
+def test_classify_endpoint_flags_a_soft_volume_without_stopping_the_flow():
+    """One soft volume makes the endpoint conditional, and says which one.
+
+    The flow keeps going: the thermal and QHA jobs still produce F(V,T) and
+    G(T), labelled with the verdict.  Stopping here would leave every unstable
+    endpoint with a diagnostic and no G(T), and a batch run cannot recover that
+    without reanalysing every store by hand.
+    """
 
     cell, fc, _, recipe = _fixture()
     collected = {
@@ -214,9 +220,10 @@ def test_classify_endpoint_blocks_a_soft_volume_and_keeps_the_artifact():
         collected, recipe=recipe, supercell_matrix=MATRIX, mesh=(4, 4, 4)
     ).run(_Store())
     output = result.output
-    assert result.stop_children is True
+    assert result.stop_children is False
     assert output["ok"] is False
-    assert output["blocked_volume_indices"] == [0]
+    assert output["qha_applicability"] == "finite_q_soft_mode"
+    assert output["non_harmonic_volume_indices"] == [0]
     assert output["reports"][0]["status"] == "finite_q_soft_mode"
     assert output["reports"][0]["commensurate_qpoints"]
     json.dumps(output)
@@ -258,7 +265,8 @@ def test_archived_nb_nb_passes_a_gate_that_used_to_reject_it():
     output = result.output
     assert result.stop_children is False
     assert output["ok"] is True
-    assert output["blocked_volume_indices"] == []
+    assert output["qha_applicability"] == "harmonic_QHA_applicable"
+    assert output["non_harmonic_volume_indices"] == []
     shallow = [
         r for r in output["reports"]
         if (r["mesh_diagnostic"] or {}).get("mesh_min_frequency_THz", 0.0) < 0.0

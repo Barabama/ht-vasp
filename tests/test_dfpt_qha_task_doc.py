@@ -509,4 +509,4 @@ def test_thermal_job_refuses_a_volume_that_never_passed_the_gate(tmp_path):
     ).run(_store())
     assert result.output["ok"] is False
     assert result.stop_children is True
-    assert "without a harmonic-QHA verdict" in result.output["error"]
+    assert "without a stability verdict" in result.output["error"]

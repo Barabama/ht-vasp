@@ -402,3 +402,71 @@ def test_analyze_converts_primitive_free_energy_to_the_recipe_cell():
     # the inverted ratio would land here, and must not
     inverted = -1.0 / EV_PER_ATOM_TO_KJ_PER_MOL * 0.25
     assert per_cell[0][0] != pytest.approx(inverted, rel=1e-6)
+
+
+@pytest.mark.skipif(not FCC_FIXTURE.is_file(), reason="legacy SER-Al phonon data absent")
+def test_thermal_job_runs_on_a_volume_that_is_not_harmonic(tmp_path):
+    """A soft volume still gets its free energy -- labelled, not blocked.
+
+    The harmonic sums drop the imaginary branches; that is exactly why the
+    product must carry the verdict instead of pretending the curve is a
+    harmonic free energy.
+    """
+
+    import gzip
+
+    import phonopy
+    from pymatgen.io.vasp import Poscar
+
+    from htvasp.dfpt_qha.jobs import force_constants_from_vasprun
+    from htvasp.dfpt_qha.phonons import supercell_structure
+
+    fixture = Path(__file__).parent / "fixtures" / "BCC-Al-Ta-2-dfpt-volume-1"
+    with gzip.open(fixture / "POSCAR.gz", "rt") as handle:
+        supercell = Poscar.from_str(handle.read()).structure
+    # the cell the fixture's supercell was built from (the EOS-relaxed one)
+    cell = Structure(
+        np.array(supercell.lattice.matrix) / 2, ["Al", "Ta"],
+        [[0, 0, 0], [0.5, 0.5, 0.5]],
+    )
+    fc = force_constants_from_vasprun(fixture / "vasprun.xml.gz", supercell)
+    assert fc.shape[0] == len(supercell)
+
+    collected = {
+        "volumes": [{
+            "index": 0, "cell": cell.as_dict(), "supercell": supercell.as_dict(),
+            "volume_angstrom3": float(cell.volume), "static_energy_eV": -15.0,
+            "force_constants": fc.tolist(),
+            "stability": {"status": "finite_q_soft_mode", "qha_allowed": False,
+                          "reason": "commensurate finite-q imaginary branch"},
+        }],
+        "rejected_volume_indices": [], "n_validated": 1, "n_requested": 1,
+        "qha_applicability": "finite_q_soft_mode",
+        "non_harmonic_volume_indices": [0],
+    }
+    thermal = dfpt_thermal_properties(
+        collected, supercell_matrix=MATRIX, mesh=(4, 4, 4),
+        temperatures=[0.0, 300.0],
+    ).run(_store()).output
+    assert thermal["volumes"][0]["stability_status"] == "finite_q_soft_mode"
+    assert len(thermal["volumes"][0]["free_energy_kJ_per_mol"]) == 2
+    assert thermal["qha_applicability"] == "finite_q_soft_mode"
+
+
+def test_analysis_labels_a_conditional_product():
+    thermal = {
+        "temperatures": [0.0, 300.0],
+        "volumes": [
+            _volume(i, 30.0 + i, -10.0 + 0.02 * (i - 2) ** 2,
+                    free_energy_kj=(-1.0 - 0.1 * i, -2.0))
+            for i in range(5)
+        ],
+        "qha_applicability": "finite_q_soft_mode",
+        "non_harmonic_volume_indices": [2],
+    }
+    result = analyze_dfpt_qha(thermal).run(_store())
+    assert result.output["ok"] is True
+    assert result.output["qha_applicability"] == "finite_q_soft_mode"
+    assert result.output["non_harmonic_volume_indices"] == [2]
+    assert result.output["dynamically_unstable_conditional"] is True
+    assert len(result.output["volume_stability"]) == 5

@@ -65,8 +65,34 @@ VASP_ARGS = {
     "vasp_gamma_cmd": "/bin/bash -c '. /etc/profile.d/modules.sh && module purge && module load vasp-cpu && srun vasp_gam'",
 }
 
-# EOS deformation window and supercell.  The DFPT k-mesh, POTCAR, smearing,
-# magnetic moments and displacement all come from the recipe.
+# Initial magnetic moments per element (muB).  Copied verbatim from
+# main_qha.py (itself from the verified submit_tb2j.sh) so the DFPT and QHA/TB2J
+# entries start from the SAME spin guess: a zero start falls into the
+# non-magnetic solution for Cr-containing cells, which is 0.28 eV/atom above the
+# magnetic ground state.  Elements outside the 7-element pool are carried for
+# the shared pool; the values for the pool elements are identical to the
+# package default in htvasp.dfpt_qha.input_set.
+MAGMOM = {
+    "Al": 1.0,
+    "Co": 3.0,
+    "Cr": 3.0,
+    "Cu": 5.0,
+    "Fe": 5.0,
+    "Hf": 1.0,
+    "Mn": 5.0,
+    "Mo": 3.0,
+    "Nb": 3.0,
+    "Ni": 2.0,
+    "Re": 1.0,
+    "Ta": 3.0,
+    "Ti": 3.0,
+    "V": 3.0,
+    "W": 3.0,
+    "Zr": 1.0,
+}
+
+# EOS deformation window and supercell.  The DFPT k-mesh, POTCAR, smearing and
+# displacement come from the recipe; MAGMOM comes from the table above.
 LINEAR_STRAIN = (-0.05, 0.05)
 NUMBER_OF_FRAMES = 6
 SUPERCELL_MATRIX = ((2, 0, 0), (0, 2, 0), (0, 0, 2))
@@ -148,6 +174,7 @@ def run_tick(
             recipe=recipe,
             vasp_args=VASP_ARGS,
             potcar_functional=recipe.potcar.functional,
+            magmom=MAGMOM,
             supercell_matrix=SUPERCELL_MATRIX,
             linear_strain=LINEAR_STRAIN,
             number_of_frames=frames,
@@ -175,6 +202,7 @@ def run_tick(
             recipe=recipe,
             vasp_args=VASP_ARGS,
             potcar_functional=recipe.potcar.functional,
+            magmom=MAGMOM,
             supercell_matrix=SUPERCELL_MATRIX,
             linear_strain=LINEAR_STRAIN,
             number_of_frames=frames,
@@ -201,11 +229,20 @@ def run_tick(
         if output.get("ok"):
             eos = output.get("eos", {})
             log.info(
-                "  V0=%.4f A^3  B0=%.2f GPa  T=%s..%s K",
+                "  V0=%.4f A^3  B0=%.2f GPa  T=%s..%s K  applicability=%s",
                 eos.get("V0_angstrom3", float("nan")),
                 eos.get("B0_GPa", float("nan")),
                 output["temperatures"][0], output["temperatures"][-1],
+                output.get("qha_applicability"),
             )
+            if output.get("dynamically_unstable_conditional"):
+                log.warning(
+                    "  conditional product: volumes %s are not harmonic "
+                    "(branches excluded from the thermal sums).  F(V,T) is "
+                    "not a harmonic free energy for those volumes; do not "
+                    "promote this endpoint to a production TDB.",
+                    output.get("non_harmonic_volume_indices"),
+                )
         elif output.get("gate") == "dfpt_validation":
             log.warning(
                 "  stopped at the DFPT validation gate: %d volume(s) rejected",
@@ -214,12 +251,13 @@ def run_tick(
             for failure in output.get("failures") or []:
                 log.warning("    %s: %s", failure["job_name"], failure["error"])
         elif output.get("gate") == "dfpt_stability":
-            # The flow stopped at the stability gate, so there is no analysis by
-            # design.  The verdicts are the result: they say which volume is not
-            # harmonic-QHA-applicable and why.
+            # Only reached when the analysis job itself did not run; the gate no
+            # longer stops the flow.  The verdicts are still the best record.
             log.warning(
-                "  stopped at the DFPT stability gate: %d of %d volumes blocked",
-                output.get("n_blocked", 0), output.get("n_volumes", 0),
+                "  no analysis was stored; stability verdict: %s, "
+                "%d of %d volumes non-harmonic",
+                output.get("qha_applicability"),
+                output.get("n_non_harmonic", 0), output.get("n_volumes", 0),
             )
             for report in output.get("reports") or []:
                 if not report.get("qha_allowed"):
@@ -259,8 +297,9 @@ def check_jobs(stage: str = "dfpt-qha") -> None:
             continue
         if data.get("gate") == "dfpt_stability":
             log.info(
-                "%s: stopped at the DFPT stability gate, %d/%d volumes blocked",
-                name, data.get("n_blocked", 0), data.get("n_volumes", 0),
+                "%s: no analysis stored; %d/%d volumes non-harmonic (%s)",
+                name, data.get("n_non_harmonic", 0), data.get("n_volumes", 0),
+                data.get("qha_applicability"),
             )
             for report in data.get("reports") or []:
                 if not report.get("qha_allowed"):
@@ -279,10 +318,16 @@ def check_jobs(stage: str = "dfpt-qha") -> None:
             log.info("%s: analysis failed: %s", name, data.get("error"))
             continue
         log.info(
-            "%s: V0=%.4f A^3 B0=%.2f GPa, %d temperatures",
+            "%s: V0=%.4f A^3 B0=%.2f GPa, %d temperatures, applicability=%s",
             name, data["eos"]["V0_angstrom3"], data["eos"]["B0_GPa"],
-            len(data["temperatures"]),
+            len(data["temperatures"]), data.get("qha_applicability"),
         )
+        if data.get("dynamically_unstable_conditional"):
+            log.warning(
+                "  conditionally unstable: volumes %s; not a production TDB "
+                "endmember without an explicit decision",
+                data.get("non_harmonic_volume_indices"),
+            )
 
 
 def _submission_plan(
@@ -349,10 +394,18 @@ def _submission_plan(
         "run_root": run_root,
         "ledger_path": ledger_path,
         "settings_fingerprint": payload_fingerprint(run_payload["settings"]),
+        # The MAGMOM table lives in the MANIFEST fingerprint, not in
+        # ``settings``: the settings dict feeds ``stable_run_id``, and the table
+        # is a constant whose effective values for the pool elements did not
+        # change when it was made explicit.  Putting it in ``settings`` would
+        # mint a new run_id for every already-validated endpoint and throw away
+        # its store.  Here it is still part of the intent identity, so a real
+        # change to the table still produces a new ledger entry.
         "manifest_fingerprint": payload_fingerprint({
             "system": name,
             "stage": "dfpt-qha",
             "recipe": DFPT_QHA_RECIPE_VERSION,
+            "magmom": MAGMOM,
         }),
         "endpoint_recipe": recipe.model_dump(mode="json"),
     }
@@ -379,6 +432,7 @@ def submit_job(
     name: str,
     manager: SlurmJobManager,
     rerun: bool = False,
+    resume: bool = False,
     dry_run: bool = False,
     number_of_frames: int | None = None,
     mesh: tuple[int, int, int] | None = None,
@@ -405,7 +459,10 @@ def submit_job(
         conda_env=str(conda_env),
         work_dir=root_dir,
         run_id=plan["run_id"],
-        retry=rerun,
+        # ``rerun`` starts a NEW run id (fresh store); ``resume`` retries a
+        # failed/timed-out entry with the SAME run id so run_locally_custom can
+        # reuse the DFPT volumes already on disk.
+        retry=rerun or resume,
         artifact_path=result_path,
         artifact_checker=lambda entry: artifact_marker_matches(result_path, entry),
         artifact_shortcut=True,
@@ -423,7 +480,13 @@ if __name__ == "__main__":
     parser.add_argument("--slurm", "-s", action="store_true", help="Submit to Slurm")
     parser.add_argument("--dry-run", action="store_true", help="Print the plan; no VASP")
     parser.add_argument("--flow-graph", action="store_true", help="Alias for --dry-run")
-    parser.add_argument("--rerun", "-r", action="store_true", help="Force a re-run")
+    parser.add_argument("--rerun", "-r", action="store_true",
+                        help="Force a re-run under a NEW run id (fresh store)")
+    parser.add_argument(
+        "--resume", action="store_true",
+        help="Retry a failed or timed-out Slurm entry with the SAME run id, so "
+             "completed DFPT volumes are reused",
+    )
     parser.add_argument("--check", "-c", action="store_true", help="Check the result JSON")
     parser.add_argument("--run-id", help="Operate on an explicit immutable run")
     parser.add_argument(
@@ -446,8 +509,11 @@ if __name__ == "__main__":
     if args.slurm:
         if not args.name:
             parser.error("--slurm needs -n/--name")
+        if args.rerun and args.resume:
+            parser.error("--rerun and --resume are mutually exclusive")
         submit_job(
-            args.name, SlurmJobManager(), rerun=args.rerun, dry_run=args.dry_run,
+            args.name, SlurmJobManager(), rerun=args.rerun, resume=args.resume,
+            dry_run=args.dry_run,
             number_of_frames=args.frames,
             mesh=tuple(args.mesh) if args.mesh else None,
             ntasks=args.ntasks,

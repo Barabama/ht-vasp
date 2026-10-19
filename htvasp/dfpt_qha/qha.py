@@ -176,23 +176,27 @@ def dfpt_thermal_properties(
     Each record must already have passed ``validate_dfpt_task_doc`` and
     ``classify_dfpt_stability``; a Gamma-only result cannot reach here because
     the validator compares the atom count against the recipe's phonon
-    supercell, and a soft-mode volume cannot reach here because the
-    classification job stops the flow.  The ``qha_allowed`` check is repeated
-    so a hand-assembled flow gets the same answer.
+    supercell.
+
+    A verdict of "not harmonic-QHA-applicable" does NOT stop this job.  The
+    free energy is still integrated and the verdict is carried forward, so one
+    DFPT run yields both the diagnostic and the (labelled) G(T).  Only a
+    missing verdict fails, because that means the flow was wired around the
+    classification and the numbers would be unlabelled.
     """
 
     temperatures = list(temperatures or DEFAULT_TEMPERATURES)
     per_volume = []
     for record in collected["volumes"]:
         stability = record.get("stability") or {}
-        if not stability.get("qha_allowed"):
+        if "status" not in stability:
             return Response(
                 output={
                     "ok": False,
                     "error": (
                         f"volume {record.get('index')} reached the thermal job "
-                        f"without a harmonic-QHA verdict "
-                        f"(status={stability.get('status')!r})"
+                        f"without a stability verdict (status={stability.get('status')!r}); "
+                        f"the classification job was bypassed"
                     ),
                 },
                 stop_children=True,
@@ -244,6 +248,14 @@ def dfpt_thermal_properties(
         "rejected_volume_indices": collected.get("rejected_volume_indices", []),
         "n_validated": collected.get("n_validated"),
         "n_requested": collected.get("n_requested"),
+        # carried through from classify_dfpt_stability: the curve is computed
+        # either way, but a consumer must be able to tell what it is
+        "qha_applicability": collected.get(
+            "qha_applicability", "harmonic_QHA_applicable"
+        ),
+        "non_harmonic_volume_indices": collected.get(
+            "non_harmonic_volume_indices", []
+        ),
     }
 
 
@@ -339,6 +351,14 @@ def analyze_dfpt_qha(
         gibbs.append(float(total[best]))
         equilibrium_volume.append(float(volumes[best]))
 
+    # TODO(V(T), post-processing): ``equilibrium_volume_angstrom3`` is the
+    # argmin over the sampled volumes, so V(T) is piecewise constant (a 7-point
+    # scan gives V(T) that jumps between grid points).  The continuous V(T) is
+    # a POST-PROCESSING responsibility of ht-vasp, not of this fit: it should
+    # come from a per-temperature EOS/polynomial fit of F(V,T), and it is not
+    # implemented yet.  Until it is, downstream must treat V(T) as sampled,
+    # not interpolated.  This does not require new VASP runs -- the per-volume
+    # F(V,T) needed for it is already in ``free_energies_eV``.
     inside = bool(volumes.min() < eos["V0_angstrom3"] < volumes.max())
     if not inside:
         problems.append(
@@ -365,6 +385,23 @@ def analyze_dfpt_qha(
             "rejected_volume_indices": thermal.get("rejected_volume_indices", []),
             "n_validated": thermal.get("n_validated"),
             "n_requested": thermal.get("n_requested"),
+            # what the product is, not just whether the fit converged
+            "qha_applicability": thermal.get(
+                "qha_applicability", "harmonic_QHA_applicable"
+            ),
+            "non_harmonic_volume_indices": thermal.get(
+                "non_harmonic_volume_indices", []
+            ),
+            "volume_stability": [
+                {
+                    "index": int(r["index"]),
+                    "status": r.get("stability_status"),
+                }
+                for r in per_volume
+            ],
+            "dynamically_unstable_conditional": bool(
+                thermal.get("non_harmonic_volume_indices")
+            ),
             # carried for the record; the mesh never decided anything
             "mesh_diagnostics": mesh_diagnostics,
             "units": {

@@ -45,6 +45,8 @@ class DfptQhaMaker(CommonQhaMaker):
     ignore_imaginary_modes: bool = False
     skip_analysis: bool = False
     run_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
+    #: element -> initial moment (muB); None uses the package table
+    magmom: dict[str, float] | None = None
     mesh: tuple[int, int, int] = DEFAULT_MESH
     temperatures: list[float] = field(default_factory=lambda: list(DEFAULT_TEMPERATURES))
     pressure_gpa: float = 0.0
@@ -58,6 +60,7 @@ class DfptQhaMaker(CommonQhaMaker):
                 recipe=self.recipe,
                 isif=3,
                 run_vasp_kwargs=dict(self.run_vasp_kwargs),
+                magmom=self.magmom,
             )
         if self.eos_relax_maker is None:
             # Fixed-volume ionic relaxation at each EOS volume.  The volume is
@@ -68,6 +71,7 @@ class DfptQhaMaker(CommonQhaMaker):
                 recipe=self.recipe,
                 isif=2,
                 run_vasp_kwargs=dict(self.run_vasp_kwargs),
+                magmom=self.magmom,
             )
 
     @property
@@ -100,6 +104,7 @@ class DfptQhaMaker(CommonQhaMaker):
             eos_job.output,
             recipe=recipe.model_dump(mode="json"),
             run_vasp_kwargs=dict(self.run_vasp_kwargs),
+            magmom=self.magmom,
             supercell_matrix=supercell_matrix,
             mesh=self.mesh,
             temperatures=list(self.temperatures),

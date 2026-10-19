@@ -128,7 +128,8 @@ def run_locally_custom(
         with cd(job_dir):
             response, stop_jobflow = _run_job(
                 job, parents, store, completed_uuids,
-                stopped_parents, errored, raise_immediately, responses, root_dir
+                stopped_parents, errored, raise_immediately, responses, root_dir,
+                resume=resume,
             )
 
         if response is not None:
@@ -155,6 +156,7 @@ def _run_job(
     raise_immediately: bool,
     responses: dict[str, dict[int, jobflow.Response]],
     root_dir: Path | None = None,
+    resume: bool = True,
 ) -> tuple[Response | None, bool]:
     """Run a single job with all checks and error handling.
 
@@ -168,6 +170,7 @@ def _run_job(
         raise_immediately: Whether to raise on error.
         responses: Response accumulator.
         root_dir: Root directory for recursive diversion sub-flows.
+        resume: Whether diversion sub-flows may reuse completed jobs.
 
     Returns:
         Tuple of (response, should_stop_jobflow).
@@ -226,6 +229,13 @@ def _run_job(
         if isinstance(diversion, (Flow, Job)):
             log.info(f"Handling {diversion_type} diversion for {job.name}")
 
+            # A dynamic sub-flow must be resumable too.  Forcing resume=False
+            # here re-ran every DFPT volume of an interrupted endpoint even
+            # though their TaskDocs were already in the store: the sub-flow is
+            # rebuilt from scratch on resume, so its job uuids are new, and
+            # only _prepare_resume can map them back by name.  The sub-flow's
+            # directory numbering restarts at 1 exactly as it did on the first
+            # run, so the restored dir_names point at the same directories.
             sub_responses = run_locally_custom(
                 diversion,
                 log_fmt=False,
@@ -234,7 +244,7 @@ def _run_job(
                 ensure_success=False,
                 allow_external_references=True,
                 raise_immediately=raise_immediately,
-                resume=False,
+                resume=resume,
             )
 
             # Merge sub-responses into parent responses

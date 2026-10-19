@@ -392,3 +392,31 @@ def test_worker_does_not_report_a_passed_gate_as_a_result():
     )
     worker.store = store
     assert worker.get_result() is None
+
+
+def test_the_magmom_table_reaches_the_child_generators():
+    """The 16-element guess must be the one the DFPT INCAR is built from.
+
+    A zero start on a Cr-containing cell converges to the non-magnetic
+    solution, which is 0.28 eV/atom above the magnetic ground state; the table
+    is only useful if it survives the Worker -> Maker -> generator chain.
+    """
+
+    from htvasp.dfpt_qha.maker import DfptQhaMaker
+    from htvasp.workflows.dfpt_qha import DfptQhaWorker
+
+    table = {"Al": 1.0, "Cr": 3.0}
+    maker = DfptQhaMaker(recipe=recipe(), magmom=table)
+    assert maker.initial_relax_maker.input_set_generator.magmom == table
+    assert maker.eos_relax_maker.input_set_generator.magmom == table
+
+    worker = DfptQhaWorker(recipe=recipe(), magmom=table)
+    assert worker.flow_maker.magmom == table
+
+
+def test_the_package_magmom_table_covers_all_sixteen_elements():
+    from htvasp.dfpt_qha.input_set import MAGMOM_BY_ELEMENT
+
+    assert len(MAGMOM_BY_ELEMENT) == 16
+    for element in ("Al", "Cr", "Hf", "Nb", "Ta", "Ti", "V", "Zr"):
+        assert element in MAGMOM_BY_ELEMENT
