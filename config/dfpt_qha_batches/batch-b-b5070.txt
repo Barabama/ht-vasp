@@ -1,0 +1,37 @@
+# DFPT-QHA batch B -- 33 endpoints (33 to run; none done on B5070)
+# cluster: B5070, 32 ranks, one Slurm job per endpoint
+# entries already completed on this cluster are skipped by the ledger
+
+BCC-Nb-Ta-2
+BCC-Nb-Ti-2
+BCC-Nb-Zr-2
+BCC-Ta-Ti-2
+BCC-Ta-Zr-2
+BCC-Ti-Ti-2
+BCC-Ti-Zr-2
+BCC-Zr-Zr-2
+SER-Hf-1
+SER-Nb-1
+SER-Ta-1
+SER-Ti-1
+SER-Zr-1
+FCC-Nb-Zr-4
+FCC-Ta-Al-4
+FCC-Ta-Hf-4
+FCC-Ta-Nb-4
+FCC-Ta-Ta-4
+FCC-Ta-Ti-4
+FCC-Ta-Zr-4
+FCC-Ti-Al-4
+FCC-Ti-Hf-4
+FCC-Ti-Nb-4
+FCC-Ti-Ta-4
+FCC-Ti-Ti-4
+FCC-Ti-Zr-4
+FCC-Zr-Al-4
+FCC-Zr-Hf-4
+FCC-Zr-Nb-4
+FCC-Zr-Ta-4
+FCC-Zr-Ti-4
+FCC-Zr-Zr-4
+SER-Al-1
