@@ -30,7 +30,7 @@ class DfptQhaWorker(Worker):
         vasp_args: dict[str, Any] | None = None,
         potcar_functional: str = "PBE",
         global_incar: dict[str, Any] | None = None,
-        magmom: dict[str, float] | None = None,
+        magmom: dict[str, float] | list[float] | None = None,
         linear_strain: tuple[float, float] = (-0.05, 0.05),
         number_of_frames: int = 6,
         supercell_matrix: Any | None = None,

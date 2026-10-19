@@ -111,8 +111,10 @@ class _RecipeGenerator(VaspInputGenerator):
 
     recipe: Recipe | None = None
     use_supercell_kpoints: bool = False
-    #: element -> initial moment; None uses MAGMOM_BY_ELEMENT
-    magmom: dict[str, float] | None = None
+    #: element -> initial moment, or a per-site list (for an antiferromagnetic
+    #: pattern that a per-element table cannot express); None uses
+    #: MAGMOM_BY_ELEMENT
+    magmom: dict[str, float] | list[float] | None = None
 
     def _recipe_defaults(self) -> dict[str, Any]:
         recipe = self.recipe
@@ -123,16 +125,26 @@ class _RecipeGenerator(VaspInputGenerator):
                 "magnetic_policy is 'unresolved': generating inputs would pick a "
                 "spin state nobody decided"
             )
-        return {
+        defaults = {
             **SHARED_INCAR,
             "ISMEAR": recipe.smearing.ISMEAR,
             "SIGMA": recipe.smearing.SIGMA,
             "ISPIN": 2,
         }
+        # A LIST of per-site moments goes in through the INCAR defaults, not
+        # through user_incar_settings: pymatgen expands a dict there by looking
+        # up ``MAGMOM[species]``, so a list raises AttributeError.  A list is
+        # only needed for an antiferromagnetic pattern, which a per-element
+        # table cannot express.
+        if isinstance(self.magmom, (list, tuple)):
+            defaults["MAGMOM"] = list(self.magmom)
+        return defaults
 
     def _apply_recipe_settings(self) -> None:
         """Install the recipe's MAGMOM so pymatgen expands it per site."""
 
+        if isinstance(self.magmom, (list, tuple)):
+            return  # handled in _recipe_defaults
         table = self.magmom if self.magmom is not None else MAGMOM_BY_ELEMENT
         self.user_incar_settings.setdefault("MAGMOM", dict(table))
 
@@ -156,7 +168,7 @@ class DfptRelaxSetGenerator(_RecipeGenerator):
     isif: Literal[2, 3] = 2
     use_supercell_kpoints: bool = False
     user_incar_settings: dict[str, Any] = field(default_factory=dict)
-    magmom: dict[str, float] | None = None
+    magmom: dict[str, float] | list[float] | None = None
     user_kpoints_settings: dict[str, Any] = field(default_factory=dict)
     user_potcar_settings: dict[str, str] = field(default_factory=dict)
     user_potcar_functional: str = "PBE"
@@ -186,7 +198,7 @@ class DfptInputSetGenerator(_RecipeGenerator):
     use_supercell_kpoints: bool = True
     user_incar_settings: dict[str, Any] = field(default_factory=dict)
     user_kpoints_settings: dict[str, Any] = field(default_factory=dict)
-    magmom: dict[str, float] | None = None
+    magmom: dict[str, float] | list[float] | None = None
     user_potcar_settings: dict[str, str] = field(default_factory=dict)
     user_potcar_functional: str = "PBE"
     auto_ispin: bool = False

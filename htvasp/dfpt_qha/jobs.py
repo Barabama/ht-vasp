@@ -275,7 +275,7 @@ class DfptRelaxMaker(BaseVaspMaker):
     recipe: Recipe | None = None
     isif: int = 2
     use_supercell_kpoints: bool = False
-    magmom: dict[str, float] | None = None
+    magmom: dict[str, float] | list[float] | None = None
     input_set_generator: Any = None
     run_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
     stop_children_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -306,7 +306,7 @@ class DfptVaspMaker(BaseVaspMaker):
     name: str = "DFPT job"
     recipe: Recipe | None = None
     use_supercell_kpoints: bool = True
-    magmom: dict[str, float] | None = None
+    magmom: dict[str, float] | list[float] | None = None
     input_set_generator: Any = None
     run_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
     stop_children_kwargs: dict[str, Any] = field(default_factory=dict)

@@ -46,7 +46,7 @@ class DfptQhaMaker(CommonQhaMaker):
     skip_analysis: bool = False
     run_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
     #: element -> initial moment (muB); None uses the package table
-    magmom: dict[str, float] | None = None
+    magmom: dict[str, float] | list[float] | None = None
     mesh: tuple[int, int, int] = DEFAULT_MESH
     temperatures: list[float] = field(default_factory=lambda: list(DEFAULT_TEMPERATURES))
     pressure_gpa: float = 0.0
