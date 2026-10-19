@@ -92,3 +92,31 @@ file are the ground truth, this table is the human-readable index.
 | SER-Zr-1 | SER_HCP | 2 | 16 | nonmagnetic | B (B5070) | queued B (B5070) |
 
 Totals: 84 endpoints = 33 batch A + 33 batch B + 18 blocked (Cr magnetic policy unresolved).
+
+## Submission log
+
+| date | batch | cluster | Slurm jobs | note |
+|---|---|---|---|---|
+| 2026-10-20 | A | 429pro | 56962–56994 (33) | 29 new + 4 rerun (see below) |
+| 2026-10-20 | B | B5070 | 2291–2323 (33) | 33 new |
+
+Why 4 endpoints appear as "done" but were submitted again: their result
+JSONs predate the exact-q and ASR fixes, and the artifact marker is tied
+to the ledger entry (rank count and schema changed), so the shortcut
+correctly refuses to reuse them.  Re-running regenerates them under the
+current schema.  BCC-Nb-Nb-2 in particular had failed under the old
+mesh gate and is expected to pass now.
+
+## Refreshing the status column
+
+Status is derived from `data/endpoints/<name>/dfpt-qhaflow/runs/*/<name>-dfpt-qha.json`.
+Regenerate the table with:
+
+```bash
+python - <<'PY'
+# see the generator used on 2026-10-20: pool_recipes.json + the result JSONs
+PY
+```
+
+The ledger (`slurm_submissions.json`) and that JSON are the ground truth;
+this table is the human-readable index.
