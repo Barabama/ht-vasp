@@ -245,6 +245,139 @@ def summarize_states(
     }
 
 
+def _stored_document(name: str, label: str) -> Any:
+    path = root_dir / "data" / "endpoints" / name / "spin-screenflow" / "store.json"
+    if not path.is_file():
+        raise FileNotFoundError(f"{name}: no screen store at {path}")
+    for document in json.loads(path.read_text()):
+        if document.get("name") == f"spin {label}":
+            return document.get("output")
+    raise KeyError(f"{name}: no stored state {label!r}")
+
+
+@job
+def summarize_constrained(
+    endpoint: str,
+    fm_energy_eV: float,
+    n_atoms: int,
+    documents: dict[str, Any],
+    *,
+    threshold_mev_per_atom: float,
+) -> dict[str, Any]:
+    """Compare nm and afm against fm AT THE FM GEOMETRY (ISIF=2)."""
+
+    fm_per_atom = fm_energy_eV / n_atoms
+    rows: dict[str, Any] = {
+        "fm": {"energy_eV_per_atom": fm_per_atom, "constrained": False}
+    }
+    for label, document in documents.items():
+        energy, atoms, moments, abc = _taskdoc_fields(document)
+        rows[label] = {
+            "energy_eV_per_atom": None if energy is None else energy / atoms,
+            "constrained": True,
+            "lattice_abc": abc,
+            "total_moment_muB": None if not moments else float(sum(moments)),
+            "max_site_moment_muB": None if not moments else float(
+                max(abs(value) for value in moments)
+            ),
+        }
+    deltas = {
+        label: 1e3 * (row["energy_eV_per_atom"] - fm_per_atom)
+        for label, row in rows.items()
+        if label != "fm" and row["energy_eV_per_atom"] is not None
+    }
+    best = min(rows, key=lambda label: rows[label]["energy_eV_per_atom"])
+    if best == "fm":
+        decision = "fm"
+    elif deltas.get(best, 0.0) <= -threshold_mev_per_atom:
+        decision = best
+    else:
+        decision = "fm"          # the margin is inside the noise
+    return {
+        "schema_version": "htvasp-spin-screen-constrained/v1",
+        "endpoint": endpoint,
+        "ok": True,
+        "geometry": "fm-relaxed cell, ISIF=2 for the constrained states",
+        "states": rows,
+        "delta_vs_fm_meV_per_atom": deltas,
+        "best_state": best,
+        "decision": decision,
+        "threshold_meV_per_atom": threshold_mev_per_atom,
+    }
+
+
+def run_constrained(names: list[str], dry_run: bool = False) -> None:
+    """AFM vs FM at the FM geometry, cell held fixed."""
+
+    for index, name in enumerate(names, 1):
+        log.info("[%d/%d] constrained AFM %s", index, len(names), name)
+        structure, recipe = load_endpoint(name)
+        if dry_run:
+            log.info("  would run nm + afm at the fm geometry (ISIF=2)")
+            continue
+        fm_document = _stored_document(name, "fm")
+        fm_energy, n_atoms, _, fm_abc = _taskdoc_fields(fm_document)
+        if fm_energy is None:
+            log.warning("  no fm energy stored; skipping")
+            continue
+        fm_structure = Structure.from_dict(
+            ((fm_document.get("output") or {}).get("structure"))
+            or fm_document.get("structure")
+        )
+        screen_recipe = Recipe.from_dict(
+            {**recipe.model_dump(mode="json"), "magnetic_policy": "confirmed_branch"}
+        )
+        states = spin_states(fm_structure)
+        if "afm" not in states:
+            log.info("  fewer than two Cr sites; nothing to constrain")
+            continue
+        jobs, references = [], {}
+        for label in ("nm", "afm"):
+            maker = DfptRelaxMaker(
+                name=f"constrained {label}",
+                recipe=screen_recipe,
+                isif=2,
+                magmom=states[label],
+                run_vasp_kwargs=with_handlers(run_vasp_kwargs=VASP_ARGS),
+            )
+            job = maker.make(fm_structure)
+            job.name = f"constrained {label}"
+            jobs.append(job)
+            references[label] = job.output
+        summary = summarize_constrained(
+            name, fm_energy, n_atoms, references,
+            threshold_mev_per_atom=DECISION_THRESHOLD_MEV_PER_ATOM,
+        )
+        summary.name = f"summarize constrained: {name}"
+        jobs.append(summary)
+        flow = Flow(jobs, output=summary.output, name=f"constrained {name}")
+
+        run_root = root_dir / "data" / "endpoints" / name / "spin-constrainedflow"
+        store = JobStore(
+            JSONStore(str(run_root / "store.json"), read_only=False),
+            additional_stores={"data": MemoryStore()},
+        )
+        try:
+            run_locally_custom(flow, store=store, root_dir=run_root, resume=True)
+            output = store.get_output(
+                uuid=flow.output.uuid, which=flow.output.index, load=True
+            )
+            if isinstance(output, list):
+                output = output[0] if len(output) == 1 else output
+        except Exception as exc:  # noqa: BLE001 - one endpoint must not stop the run
+            log.error("  %s: constrained check failed: %s", name, exc)
+            output = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        finally:
+            store.close()
+        target = root_dir / "data" / "endpoints" / name / "spin-screen-constrained.json"
+        target.write_text(json.dumps(output, indent=2, ensure_ascii=False, default=str))
+        log.info(
+            "  %-14s decision=%-4s deltas=%s",
+            name, output.get("decision"),
+            {k: round(v, 1) for k, v in (output.get("delta_vs_fm_meV_per_atom") or {}).items()},
+        )
+
+
 def build_flow(name: str, structure: Structure, recipe: Recipe) -> Flow:
     screen_recipe = Recipe.from_dict(
         {**recipe.model_dump(mode="json"), "magnetic_policy": "confirmed_branch"}
@@ -351,11 +484,14 @@ def reanalyse(names: list[str]) -> None:
         )
 
 
-def submit_screen(names: list[str], ntasks: int = DEFAULT_NTASKS, dry_run: bool = False) -> None:
+def submit_screen(
+    names: list[str], ntasks: int = DEFAULT_NTASKS, dry_run: bool = False,
+    constrained: bool = False,
+) -> None:
     manager = SlurmJobManager()
     config = manager.get_cpu_config(
-        job_name="spin-screen",
-        output_log="logs/spin-screen.log",
+        job_name="spin-constrained" if constrained else "spin-screen",
+        output_log="logs/spin-constrained.log" if constrained else "logs/spin-screen.log",
         ntasks=int(ntasks),
         memory="96G",
         time_limit="24:00:00",
@@ -366,6 +502,8 @@ def submit_screen(names: list[str], ntasks: int = DEFAULT_NTASKS, dry_run: bool 
         f"{conda_env / 'bin' / 'python'} {Path(__file__).resolve()} "
         f"--batch {' '.join(names)}"
     )
+    if constrained:
+        command += " --constrained-afm"
     if dry_run:
         print(json.dumps({"command": command, "names": names}, indent=2))
         return
@@ -384,6 +522,10 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--rerun", action="store_true")
     parser.add_argument(
+        "--constrained-afm", action="store_true",
+        help="run nm and afm at the fm-relaxed geometry with ISIF=2 (cell fixed)",
+    )
+    parser.add_argument(
         "--reanalyse", action="store_true",
         help="recompute the verdict from the stored relaxations (no VASP)",
     )
@@ -395,10 +537,15 @@ def main() -> None:
         log.info("no unresolved endpoints; nothing to do")
         return
     log.info("%d endpoint(s): %s", len(names), ", ".join(names))
-    if args.reanalyse:
+    if args.constrained_afm:
+        run_constrained(names, dry_run=args.dry_run)
+    elif args.reanalyse:
         reanalyse(names)
     elif args.slurm:
-        submit_screen(names, ntasks=args.ntasks, dry_run=args.dry_run)
+        submit_screen(
+            names, ntasks=args.ntasks, dry_run=args.dry_run,
+            constrained=args.constrained_afm,
+        )
     else:
         run_screen(names, rerun=args.rerun, dry_run=args.dry_run)
 

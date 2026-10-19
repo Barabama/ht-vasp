@@ -125,3 +125,27 @@ def test_a_structurally_collapsed_state_is_excluded():
     assert output["best_state"] == "fm"
     assert output["decision"] == "confirmed_branch"
     assert set(output["delta_vs_nm_meV_per_atom"]) == {"fm"}
+
+
+def _constrained(fm_energy, nm_energy, afm_energy, n_atoms=4):
+    documents = {
+        "nm": _FakeTaskDoc(nm_energy, [0.0] * n_atoms).as_dict(),
+        "afm": _FakeTaskDoc(afm_energy, [2.0, -2.0, 2.0, -2.0]).as_dict(),
+    }
+    return screen.summarize_constrained(
+        "X", fm_energy, n_atoms, documents, threshold_mev_per_atom=5.0
+    ).run(_store()).output
+
+
+def test_constrained_afm_wins_only_above_the_threshold():
+    # 4 atoms: 0.04 eV total = 10 meV/atom in favour of AFM
+    output = _constrained(fm_energy=-40.0, nm_energy=-40.0, afm_energy=-40.04)
+    assert output["best_state"] == "afm"
+    assert output["decision"] == "afm"
+    assert output["delta_vs_fm_meV_per_atom"]["afm"] == pytest.approx(-10.0, abs=0.01)
+
+
+def test_constrained_afm_inside_the_noise_keeps_fm():
+    output = _constrained(fm_energy=-40.0, nm_energy=-40.0, afm_energy=-40.008)
+    assert output["best_state"] == "afm"
+    assert output["decision"] == "fm"
