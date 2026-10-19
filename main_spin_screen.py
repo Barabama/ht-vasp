@@ -66,6 +66,10 @@ MAGMOM = {
 #: recipe (k-mesh density contributes up to ~6 meV/atom, Stage 0A).
 DECISION_THRESHOLD_MEV_PER_ATOM = 5.0
 
+#: A state whose relaxed lattice deviates from the non-magnetic one by more
+#: than this is a different structure, not a spin arrangement of the same one.
+STRUCTURE_TOLERANCE = 0.02
+
 # The screen uses the pipeline's own relax INCAR (IBRION=2, ISIF=3, NSW=80,
 # EDIFFG=-0.02).  NSW is a cap, not a cost: the relaxation stops at EDIFFG, and
 # reusing the production settings means a branch that wins here was measured
@@ -119,7 +123,7 @@ def spin_states(structure: Structure) -> dict[str, Any]:
 
 
 def _taskdoc_fields(document: Any) -> tuple[
-    float | None, int, list[float]
+    float | None, int, list[float], list[float]
 ]:
     """Energy, atom count and site moments from an atomate2 TaskDoc.
 
@@ -146,6 +150,7 @@ def _taskdoc_fields(document: Any) -> tuple[
     energy = output.get("energy", task_output.get("energy"))
     structure = output.get("structure") or doc.get("structure") or {}
     n_atoms = len(structure.get("sites") or []) or int(doc.get("nsites") or 1)
+    abc = list((structure.get("lattice") or {}).get("abc") or [])
     moments: list[float] = []
     # calcs_reversed sits at the TaskDoc level, not inside its output block
     calcs = doc.get("calcs_reversed") or task_output.get("calcs_reversed") or []
@@ -155,7 +160,7 @@ def _taskdoc_fields(document: Any) -> tuple[
             float(entry.get("tot", 0.0))
             for entry in outcar.get("magnetization") or []
         ]
-    return energy, n_atoms, moments
+    return energy, n_atoms, moments, abc
 
 
 @job
@@ -164,7 +169,7 @@ def summarize_states(
 ) -> dict[str, Any]:
     rows: dict[str, Any] = {}
     for label, document in documents.items():
-        energy, n_atoms, moments = _taskdoc_fields(document)
+        energy, n_atoms, moments, abc = _taskdoc_fields(document)
         rows[label] = {
             "energy_eV": energy,
             "energy_eV_per_atom": None if energy is None else energy / n_atoms,
@@ -172,22 +177,45 @@ def summarize_states(
             "max_site_moment_muB": None if not moments else float(
                 max(abs(value) for value in moments)
             ),
+            "lattice_abc": abc,
         }
-    if rows.get("nm", {}).get("energy_eV_per_atom") is None:
+
+    # A starter spin state can drive a structural collapse instead of a
+    # magnetic solution.  The staggered pattern in an L1_2 cell does exactly
+    # that: the cell goes cubic -> tetragonal by ~20%, the moments vanish, and
+    # the energy drops by hundreds of meV/atom.  That is a different phase, not
+    # a magnetic branch, so it must not win the comparison.
+    reference = rows.get("nm", {}).get("lattice_abc") or []
+    for row in rows.values():
+        abc = row.get("lattice_abc") or []
+        if reference and abc and len(abc) == len(reference):
+            deviation = max(
+                abs(value - base) / base
+                for value, base in zip(abc, reference) if base
+            )
+            row["lattice_deviation_vs_nm"] = float(deviation)
+            row["structure_changed"] = bool(deviation > STRUCTURE_TOLERANCE)
+        else:
+            row["lattice_deviation_vs_nm"] = None
+            row["structure_changed"] = False
+    admissible = {label: row for label, row in rows.items() if not row["structure_changed"]}
+    excluded = sorted(set(rows) - set(admissible))
+    if rows.get("nm", {}).get("energy_eV_per_atom") is None or "nm" in excluded:
         return {
             "schema_version": "htvasp-spin-screen/v1",
             "endpoint": endpoint,
             "ok": False,
-            "error": "the non-magnetic relaxation did not produce an energy",
+            "error": "the non-magnetic reference relaxation is missing or changed structure",
             "states": rows,
+            "excluded_states": excluded,
         }
     nm = rows["nm"]["energy_eV_per_atom"]
     deltas = {
         label: 1e3 * (row["energy_eV_per_atom"] - nm)
-        for label, row in rows.items()
+        for label, row in admissible.items()
         if label != "nm" and row["energy_eV_per_atom"] is not None
     }
-    best = min(rows, key=lambda label: rows[label]["energy_eV_per_atom"])
+    best = min(admissible, key=lambda label: admissible[label]["energy_eV_per_atom"])
     magnetic_gain = -min(deltas.values()) if deltas else 0.0
     decision = (
         "confirmed_branch"
@@ -201,6 +229,8 @@ def summarize_states(
         "states": rows,
         "delta_vs_nm_meV_per_atom": deltas,
         "best_state": best,
+        "excluded_states": excluded,
+        "structure_tolerance": STRUCTURE_TOLERANCE,
         "magnetic_gain_meV_per_atom": magnetic_gain,
         "threshold_meV_per_atom": threshold_mev_per_atom,
         "decision": decision,
@@ -285,6 +315,38 @@ def run_screen(names: list[str], rerun: bool = False, dry_run: bool = False) -> 
                  path.name, output.get("decision"), output.get("magnetic_gain_meV_per_atom", 0.0))
 
 
+def reanalyse(names: list[str]) -> None:
+    """Recompute the verdict from stored relaxations.  No VASP, no new jobs.
+
+    Used when the decision logic changes: the TaskDocs are already in the
+    stores, so a corrected rule costs seconds instead of a re-run.
+    """
+
+    store = JobStore(MemoryStore())
+    store.connect()
+    for name in names:
+        path = root_dir / "data" / "endpoints" / name / "spin-screenflow" / "store.json"
+        if not path.is_file():
+            log.warning("%s: no screen store at %s", name, path)
+            continue
+        documents: dict[str, Any] = {}
+        for document in json.loads(path.read_text()):
+            job_name = document.get("name") or ""
+            if job_name.startswith("spin "):
+                documents[job_name.split()[1]] = document.get("output")
+        output = summarize_states(
+            name, documents, threshold_mev_per_atom=DECISION_THRESHOLD_MEV_PER_ATOM
+        ).run(store).output
+        target = root_dir / "data" / "endpoints" / name / "spin-screen.json"
+        target.write_text(json.dumps(output, indent=2, ensure_ascii=False, default=str))
+        log.info(
+            "  %-14s %-17s gain=%6.1f meV/atom excluded=%s",
+            name, output.get("decision"),
+            output.get("magnetic_gain_meV_per_atom", 0.0),
+            output.get("excluded_states") or [],
+        )
+
+
 def submit_screen(names: list[str], ntasks: int = DEFAULT_NTASKS, dry_run: bool = False) -> None:
     manager = SlurmJobManager()
     config = manager.get_cpu_config(
@@ -317,6 +379,10 @@ def main() -> None:
     parser.add_argument("--slurm", action="store_true", help="submit the whole screen as one job")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--rerun", action="store_true")
+    parser.add_argument(
+        "--reanalyse", action="store_true",
+        help="recompute the verdict from the stored relaxations (no VASP)",
+    )
     parser.add_argument("--ntasks", type=int, default=DEFAULT_NTASKS)
     args = parser.parse_args()
 
@@ -325,7 +391,9 @@ def main() -> None:
         log.info("no unresolved endpoints; nothing to do")
         return
     log.info("%d endpoint(s): %s", len(names), ", ".join(names))
-    if args.slurm:
+    if args.reanalyse:
+        reanalyse(names)
+    elif args.slurm:
         submit_screen(names, ntasks=args.ntasks, dry_run=args.dry_run)
     else:
         run_screen(names, rerun=args.rerun, dry_run=args.dry_run)
