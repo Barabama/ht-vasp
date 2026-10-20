@@ -115,9 +115,14 @@ python main_dfpt_qha.py -n BCC-Ta-Ta-2 --check
 - 2×2×2 超胞只能精确表示有限个 q 点；通过判定**不证明**非公度 q 稳定。
   产物里 `supercell_convergence: not_checked` 明说了这一点。
 - 边缘软模只记录 `confirmation_required`，**不会**自动发起更大超胞的确认。
-- `equilibrium_volume_angstrom3` 是采样体积上的 argmin，**V(T) 是阶梯状**；
-  连续 V(T) 需要每个温度对 F(V,T) 做 EOS 插值，属于后处理，尚未实现
-  （见 `analyze_dfpt_qha` 中的 `TODO(V(T))`）。
+- `analyze_dfpt_qha` 输出的 `equilibrium_volume_angstrom3` 是采样体积上的
+  argmin，**阶梯状**。连续曲线由 `continuous_thermal_eos` 给出：每个温度对
+  F(V,T) 做 BM3 拟合，得到连续的 V(T)、G(T)、B(T)，不覆盖原 JSON。
+  入口：`python main_dfpt_qha.py -n <name> --refit-vt`（或 `--batch`）。
+  拟合残差是可用性的判据：本池里 `harmonic_QHA_applicable` 的端基残差
+  0.3–2.1 meV/atom，`finite_q_soft_mode` 的端基升到 5–21 meV/atom，
+  BCC-Ti-Ti-2 甚至出现负的体模量——两套独立的诊断（力常数判定与热力学
+  积分）指向同一批端基。
 - fcc A=A 端基的原胞是 1 原子、配方胞 4 原子，自由能换算靠
   `n_atoms_cell / n_atoms_primitive`；改这一项会让所有 fcc 端基差 4 倍。
 
