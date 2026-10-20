@@ -24,6 +24,7 @@ allocation.
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -31,8 +32,10 @@ import shlex
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
+import numpy as np
 from pymatgen.core import Structure
 
+from htvasp.dfpt_qha.qha import continuous_thermal_eos
 from htvasp.model.dfpt_qha_recipe import Recipe
 from htvasp.utils.vasp_psp import psp_dir_exports
 from htvasp.slurm import (
@@ -433,6 +436,98 @@ def _print_submission_plan(plan: dict, *, conflict: str | None = None) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
 
 
+def _latest_analysis_json(name: str) -> Path | None:
+    """The most recent analysis result for an endpoint, if any."""
+
+    base = root_dir / "data" / "endpoints" / name / "dfpt-qhaflow" / "runs"
+    files = sorted(
+        base.glob(f"*/{name}-dfpt-qha.json"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    return files[-1] if files else None
+
+
+def refit_vt(names: list[str]) -> list[dict]:
+    """Re-fit each endpoint's F(V,T) per temperature and write a derived artifact.
+
+    Pure post-processing: it reads the analysis JSON that already holds the
+    per-volume free energies, fits the Birch-Murnaghan form at every
+    temperature, and writes ``<name>-dfpt-qha-vt.json`` beside it.  The
+    analysis JSON is not modified -- runs are immutable -- and the derived file
+    records the source path and its SHA-256.
+    """
+
+    results: list[dict] = []
+    for name in names:
+        source = _latest_analysis_json(name)
+        if source is None:
+            log.warning("%s: no analysis JSON", name)
+            results.append({"endpoint": name, "ok": False, "error": "no analysis JSON"})
+            continue
+        document = json.loads(source.read_text())
+        if not document.get("ok") or "free_energies_eV" not in document:
+            log.warning("%s: analysis did not succeed; nothing to refit", name)
+            results.append(
+                {"endpoint": name, "ok": False, "error": "analysis did not succeed"}
+            )
+            continue
+        try:
+            output = continuous_thermal_eos(
+                document["volumes"],
+                document["static_energies_eV"],
+                document["free_energies_eV"],
+                document["temperatures"],
+                pressure_gpa=float(document.get("pressure_gpa", 0.0)),
+                n_atoms_cell=int(document.get("n_atoms_cell", 1)),
+            )
+        except Exception as exc:  # noqa: BLE001 - one endpoint must not stop a batch
+            log.error("%s: refit failed: %s", name, exc)
+            results.append(
+                {"endpoint": name, "ok": False, "error": f"{type(exc).__name__}: {exc}"}
+            )
+            continue
+        output.update(
+            {
+                "ok": True,
+                "endpoint": name,
+                "source_json": str(source),
+                "source_json_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                "qha_applicability": document.get("qha_applicability"),
+                "non_harmonic_volume_indices": document.get(
+                    "non_harmonic_volume_indices", []
+                ),
+            }
+        )
+        target = source.with_name(f"{name}-dfpt-qha-vt.json")
+        target.write_text(json.dumps(output, indent=2, ensure_ascii=False, default=str))
+        checks = output["checks"]
+        index = min(
+            range(len(output["temperatures"])),
+            key=lambda i: abs(output["temperatures"][i] - 300.0),
+        )
+        log.info(
+            "  %-14s res=%.1f meV/atom  V(%.0fK)=%.3f A^3  B=%.1f GPa  "
+            "mono=%s inside=%s B>0=%s",
+            name,
+            checks["max_residual_meV_per_atom"],
+            output["temperatures"][index],
+            output["equilibrium_volume_angstrom3"][index],
+            output["bulk_modulus_GPa"][index],
+            checks["volume_monotonic_in_temperature"],
+            checks["all_inside_sampled_window"],
+            checks["all_bulk_moduli_positive"],
+        )
+        if not checks["residual_within_tolerance"]:
+            log.warning(
+                "    F(V,T) is not EOS-shaped at some temperatures "
+                "(max residual %.1f meV/atom); V(T) and G(T) are then an "
+                "artefact of the fit, not of the data",
+                checks["max_residual_meV_per_atom"],
+            )
+        results.append(output)
+    return results
+
+
 def read_batch(path: Path) -> list[str]:
     """Endpoint names from a batch file: one per line, '#' comments."""
 
@@ -555,6 +650,11 @@ if __name__ == "__main__":
              "completed DFPT volumes are reused",
     )
     parser.add_argument("--check", "-c", action="store_true", help="Check the result JSON")
+    parser.add_argument(
+        "--refit-vt", action="store_true",
+        help="Re-fit F(V,T) per temperature and write <name>-dfpt-qha-vt.json "
+             "beside each analysis JSON; accepts -n or --batch, no VASP",
+    )
     parser.add_argument("--run-id", help="Operate on an explicit immutable run")
     parser.add_argument(
         "--ntasks", type=int, default=DEFAULT_NTASKS,
@@ -572,6 +672,21 @@ if __name__ == "__main__":
              f"change the VASP k-mesh, which comes from the recipe",
     )
     args = parser.parse_args()
+
+    if args.refit_vt:
+        if args.slurm:
+            parser.error(
+                "--refit-vt is local post-processing; do not combine it with --slurm"
+            )
+        if args.name and args.batch:
+            parser.error("--refit-vt takes either -n or --batch, not both")
+        if args.batch:
+            refit_vt(read_batch(Path(args.batch)))
+        elif args.name:
+            refit_vt([args.name])
+        else:
+            parser.error("--refit-vt needs -n/--name or --batch FILE")
+        raise SystemExit(0)
 
     if args.batch:
         if args.name:

@@ -470,3 +470,116 @@ def test_analysis_labels_a_conditional_product():
     assert result.output["non_harmonic_volume_indices"] == [2]
     assert result.output["dynamically_unstable_conditional"] is True
     assert len(result.output["volume_stability"]) == 5
+
+
+# --------------------------------------------------------------------------
+# continuous V(T): per-temperature EOS fit
+# --------------------------------------------------------------------------
+
+def _bm3_surface(v0=35.0, e0=-20.0, b0=1.0, bp=4.0, volumes=None):
+    from htvasp.dfpt_qha.qha import birch_murnaghan_3rd_energy
+
+    vol = np.linspace(32.0, 38.0, 7) if volumes is None else volumes
+    return vol, birch_murnaghan_3rd_energy(vol, e0, b0, bp, v0)
+
+
+def test_continuous_eos_recovers_a_synthetic_birch_murnaghan():
+    from htvasp.dfpt_qha.qha import continuous_thermal_eos
+
+    volumes, static = _bm3_surface(v0=35.0, b0=1.0)
+    free = np.zeros((volumes.size, 3))
+    output = continuous_thermal_eos(volumes, static, free, [0.0, 300.0, 600.0])
+    assert output["equilibrium_volume_angstrom3"] == pytest.approx([35.0] * 3, abs=1e-4)
+    # b0 = 1 eV/A^3 = 160.2 GPa
+    assert output["bulk_modulus_GPa"] == pytest.approx([160.2177] * 3, abs=0.05)
+    assert output["gibbs_eV"] == pytest.approx([-20.0] * 3, abs=1e-6)
+    assert output["checks"]["max_residual_meV_per_atom"] < 1e-6
+    assert output["checks"]["residual_within_tolerance"] is True
+
+
+def test_continuous_eos_needs_five_volumes():
+    """Four parameters on four points is an interpolation, not a fit."""
+
+    from htvasp.dfpt_qha.qha import continuous_thermal_eos
+
+    volumes, static = _bm3_surface(volumes=np.linspace(33.0, 37.0, 4))
+    with pytest.raises(ValueError, match="at least 5 volumes"):
+        continuous_thermal_eos(volumes, static, np.zeros((4, 2)), [0.0, 300.0])
+
+
+def test_continuous_eos_rejects_a_shape_mismatch():
+    from htvasp.dfpt_qha.qha import continuous_thermal_eos
+
+    volumes, static = _bm3_surface()
+    with pytest.raises(ValueError, match="free energies have shape"):
+        continuous_thermal_eos(volumes, static, np.zeros((3, 3)), [0.0, 300.0, 600.0])
+
+
+def test_continuous_eos_flags_a_curve_that_is_not_birch_murnaghan():
+    """A soft volume can develop a second dip; the fit must say so.
+
+    BCC-Hf-Ti-2 does exactly this at high temperature, and the residual is the
+    diagnostic that stops its V(T) from being read as data.
+    """
+
+    from htvasp.dfpt_qha.qha import continuous_thermal_eos
+
+    volumes, static = _bm3_surface()
+    free = np.zeros((volumes.size, 2))
+    # a dip at an INTERIOR volume: at the end of the window the EOS curvature
+    # can absorb it, in the middle it cannot
+    free[4, 1] = -0.060  # 60 meV on a 2-atom cell = 30 meV/atom
+    output = continuous_thermal_eos(volumes, static, free, [0.0, 1000.0], n_atoms_cell=2)
+    assert output["checks"]["max_residual_meV_per_atom"] > 10.0
+    assert output["checks"]["residual_within_tolerance"] is False
+
+
+def test_continuous_eos_flags_thermal_contraction():
+    from htvasp.dfpt_qha.qha import continuous_thermal_eos
+
+    volumes = np.linspace(32.0, 38.0, 7)
+    free = np.zeros((7, 2))
+    static = _bm3_surface(v0=35.0, volumes=volumes)[1]
+    # a second temperature whose minimum sits at a visibly smaller volume
+    static_2 = _bm3_surface(v0=34.6, volumes=volumes)[1]
+    free[:, 1] = static_2 - static
+    output = continuous_thermal_eos(volumes, static, free, [0.0, 300.0])
+    assert output["checks"]["volume_monotonic_in_temperature"] is False
+    assert output["checks"]["max_volume_decrease_angstrom3"] == pytest.approx(0.4, abs=0.05)
+
+
+def test_continuous_eos_pressure_shrinks_the_equilibrium_volume():
+    from htvasp.dfpt_qha.qha import continuous_thermal_eos
+
+    volumes, static = _bm3_surface(v0=35.0, b0=1.0)
+    free = np.zeros((volumes.size, 1))
+    at_zero = continuous_thermal_eos(volumes, static, free, [300.0])
+    at_one = continuous_thermal_eos(volumes, static, free, [300.0], pressure_gpa=1.0)
+    shrink = at_zero["equilibrium_volume_angstrom3"][0] - at_one["equilibrium_volume_angstrom3"][0]
+    # V0 * P / B = 35 * 0.00624 / 1.0 = 0.218 A^3
+    assert shrink == pytest.approx(0.218, abs=0.05)
+
+
+@pytest.mark.skipif(
+    not Path("data/endpoints/BCC-Ta-Ta-2").exists(),
+    reason="archived BCC-Ta-Ta-2 run not on this cluster",
+)
+def test_continuous_eos_on_the_archived_tantalum_run():
+    import glob
+
+    from htvasp.dfpt_qha.qha import continuous_thermal_eos
+
+    source = sorted(glob.glob(
+        "data/endpoints/BCC-Ta-Ta-2/dfpt-qhaflow/runs/*/BCC-Ta-Ta-2-dfpt-qha.json"
+    ))[0]
+    document = json.loads(Path(source).read_text())
+    output = continuous_thermal_eos(
+        document["volumes"], document["static_energies_eV"],
+        document["free_energies_eV"], document["temperatures"],
+        n_atoms_cell=document["n_atoms_cell"],
+    )
+    assert output["checks"]["max_residual_meV_per_atom"] < 5.0
+    assert output["checks"]["all_bulk_moduli_positive"] is True
+    # thermal expansion: V(300 K) above V(0 K)
+    assert output["equilibrium_volume_angstrom3"][3] > output["equilibrium_volume_angstrom3"][0]
+    assert output["bulk_modulus_GPa"][3] < output["bulk_modulus_GPa"][0]

@@ -137,17 +137,27 @@ def volume_free_energy(
     }
 
 
+def birch_murnaghan_3rd_energy(
+    volume: Any, e0: float, b0: float, bp: float, v0: float
+) -> Any:
+    """The BM3 energy surface, in eV with ``b0`` in eV/Angstrom^3.
+
+    Module level so a fit can be evaluated at the sampled volumes (residuals)
+    or between them (the pressurised minimum), instead of only at its own
+    parameters.
+    """
+
+    v = np.asarray(volume, dtype=float)
+    eta = (v0 / v) ** (2.0 / 3.0) - 1.0
+    return e0 + 9.0 * v0 * b0 / 16.0 * (eta ** 3 * bp + eta ** 2 * (6.0 - 4.0 * (v0 / v) ** (2.0 / 3.0)))
+
+
 def birch_murnaghan_3rd(volume: np.ndarray, energy: np.ndarray) -> dict[str, float]:
     """BM3 fit of E(V), returning the minimum and the bulk modulus."""
 
     from scipy.optimize import curve_fit
 
-    def bm3(v, e0, b0, bp, v0):
-        return e0 + 9.0 * v0 * b0 / 16.0 * (
-            ((v0 / v) ** (2.0 / 3.0) - 1.0) ** 3 * bp
-            + ((v0 / v) ** (2.0 / 3.0) - 1.0) ** 2
-            * (6.0 - 4.0 * (v0 / v) ** (2.0 / 3.0))
-        )
+    bm3 = birch_murnaghan_3rd_energy
 
     popt, _ = curve_fit(
         bm3, volume, energy,
@@ -160,6 +170,146 @@ def birch_murnaghan_3rd(volume: np.ndarray, energy: np.ndarray) -> dict[str, flo
         "V0_angstrom3": v0,
         "B0_GPa": b0 * EV_PER_ANGSTROM3_TO_GPA,
         "B0prime": bp,
+    }
+
+
+def continuous_thermal_eos(
+    volumes: Any,
+    static_energies_eV: Any,
+    free_energies_eV: Any,
+    temperatures: Any,
+    *,
+    pressure_gpa: float = 0.0,
+    n_atoms_cell: int = 1,
+    residual_tol_mev_per_atom: float = 10.0,
+) -> dict[str, Any]:
+    """Per-temperature EOS fit of F(V,T): continuous V(T), G(T) and B(T).
+
+    ``analyze_dfpt_qha`` reports V(T) as the argmin over the sampled volumes,
+    so the curve is piecewise constant and its temperature derivative does not
+    exist.  A TDB fitted to that curve inherits the jumps.  Here the
+    Birch-Murnaghan form is fitted at every temperature instead, which gives a
+    V(T) that can be differentiated.
+
+    Pure post-processing: the inputs are the arrays the analysis already
+    stores, so this needs no VASP run and does not rewrite the analysis JSON.
+
+    ``volumes`` is per recipe cell (Angstrom^3), ``static_energies_eV`` is the
+    DFT energy per cell, and ``free_energies_eV`` is ``[volume][temperature]``
+    per cell.  At each temperature the fitted total is
+    ``E_static(V) + F_vib(V,T)``; the Gibbs energy is its minimum (plus ``PV``
+    when a pressure is given).
+
+    The residual is the diagnostic that decides whether the curve is usable: a
+    healthy endpoint in this pool fits to 1-6 meV/atom, while a volume whose
+    F(V,T) is not EOS-shaped (a soft volume developing a second dip at large V)
+    grows to tens of meV/atom, and the fitted V(T) and G(T) are then an
+    artefact of the functional form rather than of the data.
+    """
+
+    volume = np.asarray(volumes, dtype=float)
+    static = np.asarray(static_energies_eV, dtype=float)
+    free = np.asarray(free_energies_eV, dtype=float)
+    t_grid = [float(x) for x in temperatures]
+
+    if volume.ndim != 1 or static.shape != volume.shape:
+        raise ValueError("volumes and static energies must be one-dimensional and equal in length")
+    if free.shape != (volume.size, len(t_grid)):
+        raise ValueError(
+            f"free energies have shape {free.shape}, expected "
+            f"{(volume.size, len(t_grid))}"
+        )
+    if volume.size < 5:
+        # four parameters on four points is an interpolation, not a fit: the
+        # residual below could not detect a bad EOS.
+        raise ValueError(
+            f"a per-temperature EOS fit needs at least 5 volumes, got {volume.size}"
+        )
+    if np.any(np.diff(volume) <= 0):
+        raise ValueError("volumes must be strictly increasing")
+    if not np.all(np.isfinite(free)):
+        raise ValueError("free energies contain non-finite values")
+
+    pressure = pressure_gpa / EV_PER_ANGSTROM3_TO_GPA
+    v_lo, v_hi = float(volume.min()), float(volume.max())
+    grid = np.linspace(v_lo, v_hi, 2001)
+
+    v_fit: list[float] = []
+    gibbs: list[float] = []
+    bulk: list[float] = []
+    params: list[dict[str, float]] = []
+    residuals: list[float] = []
+    argmin_v: list[float] = []
+    at_edge: list[bool] = []
+
+    for i, temperature in enumerate(t_grid):
+        total = static + free[:, i]
+        fit = birch_murnaghan_3rd(volume, total)
+        b0 = fit["B0_GPa"] / EV_PER_ANGSTROM3_TO_GPA
+        model = birch_murnaghan_3rd_energy(volume, fit["E0_eV"], b0, fit["B0prime"], fit["V0_angstrom3"])
+        residuals.append(float(np.abs(model - total).max() * 1e3 / max(n_atoms_cell, 1)))
+
+        if pressure == 0.0:
+            v0 = float(fit["V0_angstrom3"])
+        else:
+            curve = birch_murnaghan_3rd_energy(grid, fit["E0_eV"], b0, fit["B0prime"], fit["V0_angstrom3"]) + pressure * grid
+            v0 = float(grid[int(np.argmin(curve))])
+        at_edge.append(bool(v0 <= v_lo * 1.0005 or v0 >= v_hi * 0.9995))
+
+        h = 1e-3 * v0
+        e_plus = float(birch_murnaghan_3rd_energy(v0 + h, fit["E0_eV"], b0, fit["B0prime"], fit["V0_angstrom3"]))
+        e_minus = float(birch_murnaghan_3rd_energy(v0 - h, fit["E0_eV"], b0, fit["B0prime"], fit["V0_angstrom3"]))
+        second = (e_plus - 2.0 * float(birch_murnaghan_3rd_energy(v0, fit["E0_eV"], b0, fit["B0prime"], fit["V0_angstrom3"])) + e_minus) / h ** 2
+        bulk.append(float(v0 * second * EV_PER_ANGSTROM3_TO_GPA))
+
+        g = float(birch_murnaghan_3rd_energy(v0, fit["E0_eV"], b0, fit["B0prime"], fit["V0_angstrom3"])) + pressure * v0
+        v_fit.append(v0)
+        gibbs.append(g)
+        params.append({**fit, "temperature": temperature})
+
+        sampled = total + pressure * volume
+        argmin_v.append(float(volume[int(np.argmin(sampled))]))
+
+    v_array = np.asarray(v_fit, dtype=float)
+    b_array = np.asarray(bulk, dtype=float)
+    r_array = np.asarray(residuals, dtype=float)
+    checks = {
+        "n_volumes": int(volume.size),
+        "n_temperatures": len(t_grid),
+        "volumes_strictly_increasing": bool(np.all(np.diff(volume) > 0)),
+        "volume_monotonic_in_temperature": bool(np.all(np.diff(v_array) >= -1e-12)),
+        "all_inside_sampled_window": bool(not any(at_edge)),
+        "all_bulk_moduli_positive": bool(np.all(b_array > 0.0)),
+        "residual_within_tolerance": bool(np.all(r_array <= residual_tol_mev_per_atom)),
+        "max_residual_meV_per_atom": float(r_array.max()),
+        "residual_meV_per_atom": [float(x) for x in r_array],
+        "residual_tolerance_meV_per_atom": float(residual_tol_mev_per_atom),
+        "max_volume_decrease_angstrom3": float(
+            max(0.0, -float(np.diff(v_array).min())) if v_array.size > 1 else 0.0
+        ),
+        "equilibrium_at_window_edge_temperatures": [
+            t for t, edge in zip(t_grid, at_edge) if edge
+        ],
+    }
+    return {
+        "schema_version": "htvasp-dfpt-qha-vt/v1",
+        "pressure_gpa": float(pressure_gpa),
+        "volumes": volume.tolist(),
+        "temperatures": t_grid,
+        "equilibrium_volume_angstrom3": v_fit,
+        "gibbs_eV": gibbs,
+        "bulk_modulus_GPa": bulk,
+        "eos_parameters": params,
+        "argmin_volume_angstrom3": argmin_v,
+        "max_abs_volume_difference_angstrom3": float(
+            np.abs(v_array - np.asarray(argmin_v, dtype=float)).max()
+        ),
+        "checks": checks,
+        "units": {
+            "equilibrium_volume_angstrom3": "Angstrom^3 per cell",
+            "gibbs_eV": "eV per cell",
+            "bulk_modulus_GPa": "GPa",
+        },
     }
 
 
@@ -351,14 +501,12 @@ def analyze_dfpt_qha(
         gibbs.append(float(total[best]))
         equilibrium_volume.append(float(volumes[best]))
 
-    # TODO(V(T), post-processing): ``equilibrium_volume_angstrom3`` is the
-    # argmin over the sampled volumes, so V(T) is piecewise constant (a 7-point
-    # scan gives V(T) that jumps between grid points).  The continuous V(T) is
-    # a POST-PROCESSING responsibility of ht-vasp, not of this fit: it should
-    # come from a per-temperature EOS/polynomial fit of F(V,T), and it is not
-    # implemented yet.  Until it is, downstream must treat V(T) as sampled,
-    # not interpolated.  This does not require new VASP runs -- the per-volume
-    # F(V,T) needed for it is already in ``free_energies_eV``.
+    # ``equilibrium_volume_angstrom3`` is the argmin over the sampled volumes,
+    # so it is piecewise constant (a 7-point scan gives V(T) that jumps between
+    # grid points) and its temperature derivative does not exist.  The
+    # continuous curve comes from ``continuous_thermal_eos`` below, which fits
+    # the Birch-Murnaghan form at each temperature from the same per-volume
+    # F(V,T); that is post-processing and needs no new VASP run.
     inside = bool(volumes.min() < eos["V0_angstrom3"] < volumes.max())
     if not inside:
         problems.append(
@@ -420,6 +568,8 @@ __all__ = [
     "EV_PER_ANGSTROM3_TO_GPA",
     "EV_PER_ATOM_TO_KJ_PER_MOL",
     "analyze_dfpt_qha",
+    "birch_murnaghan_3rd_energy",
+    "continuous_thermal_eos",
     "birch_murnaghan_3rd",
     "dfpt_thermal_properties",
     "volume_free_energy",
