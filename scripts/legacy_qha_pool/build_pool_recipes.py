@@ -21,9 +21,10 @@ kpoints              mesh_for(V_cell, 16), even + shift 0.5; supercell mesh
 phonon_density       16 (report 4.11.10, "Stage 0 baseline" -- the validation
                      says it was only measured on three BCC/B2 representatives)
 smearing / displacement / potcar   frozen (reports 4.11.3, 4.11.5, 5.1)
-magnetic_policy      "confirmed_branch" ONLY where a measurement exists
-                     (BCC-Al-Cr, FCC-Al-Cr-4, FCC-Cr-Al-4); "unresolved" for
-                     other Cr-bearing endpoints; "nonmagnetic" elsewhere
+magnetic_policy      from a measurement (MEASURED_MAGNETIC): the three
+                     original Al-Cr results plus the 18-endpoint spin screen
+                     of 2026-10-20; "unresolved" if a Cr-bearing endpoint has
+                     none; "nonmagnetic" otherwise
 """
 from __future__ import annotations
 
@@ -53,6 +54,68 @@ MEASURED_MAGNETIC = {
     "FCC-Cr-Al-4": ("confirmed_branch",
                     "report 8.0a(j): Cr=3.0 branch 183.89 meV/atom below the "
                     "zero-moment one"),
+    # Spin screen 2026-10-20: free ISIF=3 relaxations from nm / fm / afm
+    # starts, 5 meV/atom threshold, AFM states excluded where the cell changed
+    # by more than 2%.  data/endpoints/<name>/spin-screen.json holds the
+    # energies, moments and per-state lattice.
+    "BCC-Cr-Cr-2": ("confirmed_branch",
+                    "spin screen 2026-10-20: afm 14.5 meV/atom below "
+                    "non-magnetic (|m|=1.13, cell preserved)"),
+    "SER-Cr-1": ("confirmed_branch",
+                 "spin screen 2026-10-20: same 2-atom bcc cell as "
+                 "BCC-Cr-Cr-2, afm 14.5 meV/atom below non-magnetic"),
+    "BCC-Cr-Hf-2": ("confirmed_branch",
+                    "spin screen 2026-10-20: fm 77.5 meV/atom below "
+                    "non-magnetic"),
+    "BCC-Cr-Ti-2": ("confirmed_branch",
+                    "spin screen 2026-10-20: fm 21.4 meV/atom below "
+                    "non-magnetic"),
+    "BCC-Cr-Zr-2": ("confirmed_branch",
+                    "spin screen 2026-10-20: fm 91.5 meV/atom below "
+                    "non-magnetic"),
+    "FCC-Cr-Hf-4": ("confirmed_branch",
+                    "spin screen 2026-10-20: fm 102.9 meV/atom below "
+                    "non-magnetic"),
+    "FCC-Cr-Nb-4": ("confirmed_branch",
+                    "spin screen 2026-10-20: fm 63.8 meV/atom below "
+                    "non-magnetic"),
+    "FCC-Cr-Zr-4": ("confirmed_branch",
+                    "spin screen 2026-10-20: fm 128.4 meV/atom below "
+                    "non-magnetic"),
+    "FCC-Hf-Cr-4": ("confirmed_branch",
+                    "spin screen 2026-10-20: fm 15.7 meV/atom below "
+                    "non-magnetic (free afm collapsed the cell)"),
+    "FCC-Nb-Cr-4": ("confirmed_branch",
+                    "spin screen 2026-10-20: fm 6.5 meV/atom below "
+                    "non-magnetic; constrained afm at the fm geometry is "
+                    "0.3 meV/atom above fm and the nm start itself converges "
+                    "magnetic"),
+    "FCC-Ta-Cr-4": ("confirmed_branch",
+                    "spin screen 2026-10-20: fm 5.8 meV/atom below "
+                    "non-magnetic; constrained afm at the fm geometry is "
+                    "1.0 meV/atom above fm and nm is 0.2 above fm"),
+    "FCC-Zr-Cr-4": ("confirmed_branch",
+                    "spin screen 2026-10-20: fm 41.1 meV/atom below "
+                    "non-magnetic (free afm collapsed the cell)"),
+    "BCC-Cr-Nb-2": ("nonmagnetic",
+                    "spin screen 2026-10-20: the fm start converges back to "
+                    "the non-magnetic state (gain 0.0 meV/atom)"),
+    "BCC-Cr-Ta-2": ("nonmagnetic",
+                    "spin screen 2026-10-20: fm is 7.0 meV/atom above "
+                    "non-magnetic"),
+    "FCC-Cr-Cr-4": ("nonmagnetic",
+                    "spin screen 2026-10-20: fm and afm both converge to zero "
+                    "moment (gain 0.0 meV/atom)"),
+    "FCC-Cr-Ta-4": ("nonmagnetic",
+                    "spin screen 2026-10-20: the fm start converges to zero "
+                    "moment (gain 0.0 meV/atom)"),
+    "FCC-Cr-Ti-4": ("nonmagnetic",
+                    "spin screen 2026-10-20: fm is 2.9 meV/atom below "
+                    "non-magnetic, inside the 5 meV/atom threshold"),
+    "FCC-Ti-Cr-4": ("nonmagnetic",
+                    "spin screen 2026-10-20: fm is 2.9 meV/atom below "
+                    "non-magnetic, inside the 5 meV/atom threshold (the free "
+                    "afm start collapsed the cell)"),
 }
 
 # Per-class validation.  `measured_on` names what was ACTUALLY run; anything the
