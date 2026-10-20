@@ -488,3 +488,15 @@ def test_phonopy_construction_accepts_the_symmetry_parameters():
         primitive_matrix=[[1, 0, 0], [0, 1, 0], [0, 0, 1]],
     )
     assert len(conventional.primitive) == len(cell)
+
+
+def test_a_missing_initial_moment_names_the_element():
+    """An element outside the table must fail where the table is, not inside
+    pymatgen's INCAR expansion (`KeyError: 0`)."""
+
+    from htvasp.dfpt_qha.input_set import DfptInputSetGenerator
+
+    generator = DfptInputSetGenerator(recipe=recipe(), magmom={"Ta": 3.0})
+    generator.structure = structure()
+    with pytest.raises(ValueError, match="no initial moment for \\['Al'\\]"):
+        _ = generator.incar

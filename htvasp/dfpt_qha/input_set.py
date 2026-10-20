@@ -143,6 +143,20 @@ class _RecipeGenerator(VaspInputGenerator):
         # table cannot express.
         if isinstance(self.magmom, (list, tuple)):
             defaults["MAGMOM"] = list(self.magmom)
+        else:
+            # Name the missing element here.  pymatgen expands the dict while
+            # building the INCAR and raises ``KeyError: 0`` for an element it
+            # cannot look up, which points at the expansion rather than at the
+            # table.
+            table = self.magmom if self.magmom is not None else MAGMOM_BY_ELEMENT
+            structure = getattr(self, "structure", None)
+            if structure is not None:
+                missing = sorted({str(site.specie) for site in structure} - set(table))
+                if missing:
+                    raise ValueError(
+                        f"no initial moment for {missing}; add it to the magmom "
+                        f"table passed to this generator"
+                    )
         return defaults
 
     def _apply_recipe_settings(self) -> None:
