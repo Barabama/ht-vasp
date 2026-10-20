@@ -54,6 +54,7 @@ from htvasp.dfpt_qha.qha import (
     analyze_dfpt_qha,
     dfpt_thermal_properties,
 )
+from htvasp.dfpt_qha import names
 from htvasp.model.dfpt_qha_recipe import Recipe
 
 
@@ -64,6 +65,7 @@ def spawn_dfpt_volume_jobs(
     recipe: dict[str, Any],
     run_vasp_kwargs: dict[str, Any] | None = None,
     magmom: dict[str, float] | None = None,
+    incar_overrides: dict[str, Any] | None = None,
     supercell_matrix: Any = None,
     mesh: tuple[int, int, int] = DEFAULT_MESH,
     temperatures: list[float] | None = None,
@@ -112,10 +114,11 @@ def spawn_dfpt_volume_jobs(
         # than checked for later.  See htvasp.dfpt_qha.phonons.
         cell = supercell_structure(structure, supercell_matrix)
         maker = DfptVaspMaker(
-            name=f"DFPT volume {index + 1}/{len(structures)}",
+            name=f"{names.DFPT} {index + 1}/{len(structures)}",
             recipe=parsed,
             run_vasp_kwargs=vasp_kwargs,
             magmom=dict(magmom) if magmom is not None else None,
+            incar_overrides=dict(incar_overrides or {}),
         )
         vasp_job = maker.make(cell, prev_dir=directory)
         collector = collect_dfpt_task_doc(
@@ -129,9 +132,9 @@ def spawn_dfpt_volume_jobs(
             # TaskDoc state check.
             expected_static_energy_per_atom=float(energies[index]) / len(structure),
         )
-        collector.name = f"collect DFPT volume {index + 1}/{len(structures)}"
+        collector.name = f"{names.COLLECT} {index + 1}/{len(structures)}"
         validation = validate_dfpt_task_doc(collector.output, recipe=recipe)
-        validation.name = f"validate DFPT volume {index + 1}/{len(structures)}"
+        validation.name = f"{names.VALIDATION} {index + 1}/{len(structures)}"
         jobs.extend([vasp_job, collector, validation])
         validations.append(validation.output)
         cells.append(
@@ -152,7 +155,7 @@ def spawn_dfpt_volume_jobs(
         supercell_matrix=supercell_matrix,
         mesh=tuple(int(x) for x in mesh),
     )
-    stability.name = "classify DFPT stability"
+    stability.name = names.STABILITY
     thermal = dfpt_thermal_properties(
         stability.output,
         supercell_matrix=supercell_matrix,
@@ -161,7 +164,7 @@ def spawn_dfpt_volume_jobs(
     )
     thermal.name = "DFPT thermal properties"
     analysis = analyze_dfpt_qha(thermal.output, pressure_gpa=pressure_gpa)
-    analysis.name = "analyze DFPT-QHA"
+    analysis.name = names.ANALYSIS
 
     jobs.extend([collected, stability, thermal, analysis])
     return Response(replace=Flow(jobs, output=analysis.output, name="DFPT volume jobs"))

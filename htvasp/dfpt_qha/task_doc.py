@@ -2,35 +2,46 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Literal
 
 from monty.json import jsanitize
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-def _as_json_mapping(value: Any) -> dict[str, Any]:
-    """Reduce whatever arrived to a JSON-safe mapping.
+def as_json_mapping(value: Any) -> dict[str, Any]:
+    """Reduce whatever a jobflow boundary handed us to a JSON-safe mapping.
 
-    A field typed ``dict[str, Any]`` is not enough on its own.  jobflow stores a
-    job's output as JSON and monty's decoder rebuilds the objects it recognises
-    from the ``@module``/``@class`` keys, so an emmet ``TaskDoc`` written as a
-    dict comes back as a ``TaskDoc`` -- and pydantic then rejects it with
-    "Input should be a valid dictionary".  Coercing here keeps the contract true
-    no matter how many times the document crosses a job boundary.
+    Three shapes arrive, and which one depends on the runner rather than on the
+    code:
 
-    ``strict=True`` on purpose: the non-strict fallback is ``str(obj)``, which
-    would turn the document into its repr and let the run continue on garbage
-    that still validates as a string.
+    * a plain ``dict`` -- a job that wrote one;
+    * a ``TaskDoc`` pydantic model -- ``BaseVaspMaker``'s output schema;
+    * a dict monty's decoder rebuilt from JSON, whose nested ``input.kpoints``,
+      ``structure`` and ``orig_inputs.incar`` are live pymatgen objects again.
+
+    The third is the one that bites: it survives until something serializes the
+    document a second time, and then raises ``Unable to serialize unknown type:
+    Kpoints`` -- three jobs downstream, inside the validation gate, where the
+    cause is hardest to read.  Sanitizing at this boundary makes "this document
+    is JSON" true for everything after it.
+
+    ``jsanitize`` is asked for ``strict=True`` because ``strict=False`` falls
+    back to ``str(obj)`` for anything it does not recognise, which silently
+    turns a pydantic model into its repr.  ``strict=True`` raises instead, and
+    the repr of a whole TaskDoc is exactly the kind of quiet corruption this
+    project keeps finding.
+
+    The final JSON round-trip renders the datetime objects jsanitize keeps and
+    guarantees the result survives the next job boundary.
     """
 
     if isinstance(value, BaseModel):
         value = value.model_dump(mode="json")
     payload = jsanitize(value, strict=True, allow_bson=True, recursive_msonable=True)
     if not isinstance(payload, dict):
-        raise ValueError(
-            f"expected a mapping, got {type(value).__name__}"
-        )
-    return payload
+        raise ValueError(f"expected a mapping, got {type(value).__name__}")
+    return json.loads(json.dumps(payload, default=str))
 
 
 class DfptForceConstantsProvenance(BaseModel):
@@ -81,7 +92,7 @@ class DfptTaskDoc(BaseModel):
     @field_validator("task_doc", "recipe", "provenance", mode="before")
     @classmethod
     def _coerce_to_mapping(cls, value: Any) -> dict[str, Any]:
-        return _as_json_mapping(value)
+        return as_json_mapping(value)
 
 
-__all__ = ["DfptForceConstantsProvenance", "DfptTaskDoc"]
+__all__ = ["DfptForceConstantsProvenance", "DfptTaskDoc", "as_json_mapping"]

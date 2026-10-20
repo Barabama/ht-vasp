@@ -119,8 +119,8 @@ def volume_free_energy(
         # Interpolated context, NOT a stability verdict.  The verdict is made
         # on exact supercell-commensurate q points by
         # ``classify_dfpt_stability``; a shallow negative minimum here can be a
-        # Fourier-interpolation artifact (BCC-Nb-Nb-2: -0.024 THz), and a real
-        # instability can sit at a q the supercell cannot represent.
+        # Fourier-interpolation artifact, and a real instability can sit at a q
+        # the supercell cannot represent.
         "mesh_diagnostic": {
             "mesh": list(mesh),
             "mesh_min_THz": float(mesh_frequencies.min()),
@@ -308,8 +308,8 @@ def analyze_dfpt_qha(
     # conventional cell.  The ratio is therefore explicit rather than assumed.
     # Multiplying by the atom count alone -- a bug this replaced -- inflates
     # every free energy by n_atoms_cell; the zero-point energy is the check
-    # that catches it (30 meV/atom here, against 32 meV/atom from the Debye
-    # temperatures of Al and Ta).
+    # that catches it (for the B2 fixture it lands near the Debye estimate of
+    # the two elements, and the fcc factor-4 case is pinned by a test).
     per_volume_scale = [
         r["n_atoms_cell"] / r["n_atoms_primitive"] for r in per_volume
     ]

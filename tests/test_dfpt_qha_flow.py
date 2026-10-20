@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from jobflow import Flow, JobStore
 from maggma.stores import MemoryStore
 from pymatgen.core import Lattice, Structure
@@ -420,3 +421,70 @@ def test_the_package_magmom_table_covers_all_sixteen_elements():
     assert len(MAGMOM_BY_ELEMENT) == 16
     for element in ("Al", "Cr", "Hf", "Nb", "Ta", "Ti", "V", "Zr"):
         assert element in MAGMOM_BY_ELEMENT
+
+
+def test_incar_overrides_win_over_the_module_defaults():
+    """A different project must not have to edit input_set.py to change ENCUT.
+
+    The module's tables are a baseline for this pool; ``incar_overrides`` is
+    applied last, after the frozen recipe and mode settings.
+    """
+
+    from htvasp.dfpt_qha.input_set import DfptInputSetGenerator
+
+    generator = DfptInputSetGenerator(
+        recipe=recipe(), incar_overrides={"ENCUT": 700, "NELM": 200}
+    )
+    generator.structure = structure()
+    incar = generator.incar
+    assert incar["ENCUT"] == pytest.approx(700.0)
+    assert incar["NELM"] == 200
+    # the mode defaults survive
+    assert incar["IBRION"] == 8
+    assert incar["NSW"] == 1
+
+
+def test_the_maker_forwards_incar_overrides_to_every_child():
+    from htvasp.dfpt_qha.maker import DfptQhaMaker
+
+    maker = DfptQhaMaker(recipe=recipe(), incar_overrides={"ENCUT": 700})
+    for child in (maker.initial_relax_maker, maker.eos_relax_maker):
+        assert child.input_set_generator.incar_overrides == {"ENCUT": 700}
+
+
+def test_job_names_come_from_one_place():
+    """The builder and the Worker must agree on what a job is called."""
+
+    from htvasp.dfpt_qha import names
+    from htvasp.workflows.dfpt_qha import DfptQhaWorker
+
+    flow = _spawned_flow()
+    flow_names = [job.name for job in flow.jobs]
+    assert names.STABILITY in flow_names
+    assert names.ANALYSIS in flow_names
+    assert any(name.startswith(names.VALIDATION) for name in flow_names)
+    assert any(name.startswith(names.COLLECT) for name in flow_names)
+    assert any(name.startswith(names.DFPT) for name in flow_names)
+
+    worker = DfptQhaWorker(recipe=recipe())
+    assert worker.get_result.__defaults__ == (names.ANALYSIS,)
+
+
+def test_phonopy_construction_accepts_the_symmetry_parameters():
+    """primitive_matrix decides the commensurate-q set; it must be adjustable."""
+
+    from htvasp.dfpt_qha.phonons import phonopy_for
+
+    cell = structure()
+    default = phonopy_for(cell, [[2, 0, 0], [0, 2, 0], [0, 0, 2]])
+    explicit = phonopy_for(
+        cell, [[2, 0, 0], [0, 2, 0], [0, 0, 2]],
+        primitive_matrix="auto", symprec=1e-5,
+    )
+    assert len(explicit.primitive) == len(default.primitive)
+    # an explicit primitive matrix that keeps the conventional cell
+    conventional = phonopy_for(
+        cell, [[2, 0, 0], [0, 2, 0], [0, 0, 2]],
+        primitive_matrix=[[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+    )
+    assert len(conventional.primitive) == len(cell)

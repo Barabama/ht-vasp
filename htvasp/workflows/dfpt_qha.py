@@ -14,6 +14,7 @@ from typing import Any
 from jobflow import Flow
 from pymatgen.core import Structure
 
+from htvasp.dfpt_qha import names
 from htvasp.dfpt_qha.maker import DfptQhaMaker
 from htvasp.model.dfpt_qha_recipe import Recipe
 from htvasp.utils.vasp_handlers import dfpt_handlers
@@ -31,6 +32,7 @@ class DfptQhaWorker(Worker):
         potcar_functional: str = "PBE",
         global_incar: dict[str, Any] | None = None,
         magmom: dict[str, float] | list[float] | None = None,
+        incar_overrides: dict[str, Any] | None = None,
         linear_strain: tuple[float, float] = (-0.05, 0.05),
         number_of_frames: int = 6,
         supercell_matrix: Any | None = None,
@@ -61,6 +63,7 @@ class DfptQhaWorker(Worker):
             number_of_frames=number_of_frames,
             run_vasp_kwargs=dict(self.run_vasp_kwargs),
             magmom=dict(magmom) if magmom is not None else None,
+            incar_overrides=dict(incar_overrides or {}),
             mesh=mesh,
             temperatures=temperatures,
             pressure_gpa=pressure_gpa,
@@ -76,7 +79,7 @@ class DfptQhaWorker(Worker):
         )
 
     def get_result(
-        self, output_job_name: str = "analyze DFPT-QHA"
+        self, output_job_name: str = names.ANALYSIS
     ) -> dict[str, Any] | None:
         """The analysis if it exists, otherwise the stability verdict behind it.
 
@@ -113,7 +116,7 @@ class DfptQhaWorker(Worker):
         try:
             self.store.connect()
             jobs = self.store.query(
-                criteria={"name": {"$regex": "validate DFPT volume"}},
+                criteria={"name": {"$regex": names.VALIDATION}},
                 properties=["uuid", "index", "name"],
                 sort={"index": 1},
             )
@@ -154,12 +157,12 @@ class DfptQhaWorker(Worker):
         try:
             self.store.connect()
             job = self.store.query_one(
-                criteria={"name": {"$regex": "classify DFPT stability"}},
+                criteria={"name": {"$regex": names.STABILITY}},
                 properties=["uuid", "index", "name"],
                 sort={"index": -1},
             )
             if not job:
-                log.error("No job matching 'classify DFPT stability' found")
+                log.error("No job matching %r found", names.STABILITY)
                 return None
             return self.store.get_output(uuid=job["uuid"], which="last", load=True)
         except Exception as exc:  # noqa: BLE001 - a missing store is reported

@@ -18,10 +18,14 @@ Stability is decided in three tiers, first match wins:
 5. otherwise                                  -> ``harmonic_QHA_applicable``
 
 A Monkhorst-Pack mesh is diagnostic context only.  Its minimum is an
-interpolated sample, so a shallow negative value there (BCC-Nb-Nb-2: -0.024 THz
-at q = (-1/24, 1/24, 1/24)) is a truncation artifact, while a deep one is a
-real instability living where the supercell cannot sample it (bcc omega[111] at
-q ~ 2/3).  Only tiers 1-4 can block QHA.
+interpolated sample: a shallow negative value there (order 1e-2 THz) is a
+truncation artifact, while a deep one (order 1 THz) is a real instability
+living where the supercell cannot sample it -- the bcc omega[111] branch at
+q ~ 2/3 is the textbook case.  Only tiers 1-4 can block QHA.
+
+Every threshold below was set against the 2026-10 batch; the individual
+measurements are in ``config/dfpt_qha_batches/MANIFEST.md`` and in the tests,
+not in this docstring.
 
 A 2x2x2 supercell represents q in {0, 1/2}^3 and nothing else, so passing this
 gate does not prove the crystal is stable at incommensurate q.  The report says
@@ -36,6 +40,7 @@ from typing import Any, Literal
 
 import numpy as np
 from phonopy.harmonic.dynmat_to_fc import DynmatToForceConstants
+from phonopy.physical_units import get_physical_units
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from htvasp.dfpt_qha.phonons import ordering_fingerprint
@@ -46,15 +51,30 @@ SOFT_FREQUENCY_TOL_THz = 1e-4
 GAMMA_ACOUSTIC_TOL_THz = 0.1
 #: A dense-mesh imaginary branch deeper than this, at a q the supercell cannot
 #: represent, is treated as a suspected incommensurate instability rather than
-#: an interpolation artifact.  The gap it sits in is wide: the archived
-#: BCC-Nb-Nb-2 mesh artifact is -0.024 THz, the BCC-Al-Ta-2 real N-point mode is
-#: -3.5 THz.
+#: an interpolation artifact.  The two populations are far apart: interpolated
+#: artifacts of order 1e-2 THz, real instabilities of order 1 THz.
 MESH_SOFT_SUSPECT_TOL_THz = 0.5
 #: Below this magnitude an exact-q soft mode is "borderline": a larger supercell
 #: is needed to tell a real instability from a supercell-truncation effect.
 BORDERLINE_CONFIRMATION_TOL_THz = 1.0
 EIGEN_RESIDUAL_TOL = 1e-6
 PERMUTATION_DIAGNOSTIC_TOL = 1e-2
+
+#: Acoustic-sum-rule tolerances, shared with the collector so the correction it
+#: applies and the verdict here cannot drift apart.
+#:
+#: Above ``ASR_CORRECTION_MAX_REL`` the raw matrix is not a force-constant
+#: matrix and must not be "repaired" into one.  VASP's own DFPT Hessian is not
+#: ASR-consistent: the archived Co-Ti runs sit at 8e-3 to 2e-2, one broken
+#: volume at 0.36 (Gamma acoustic -14 THz, optical 26.8 THz where the healthy
+#: runs are 5-7 THz).  Enforcing translational invariance changes the optical
+#: frequencies of the healthy runs by 0.1-0.2%; on the broken one it would hide
+#: a 22% error.
+ASR_CORRECTION_MAX_REL = 0.1
+#: Gate applied to the matrix AFTER the correction.
+ASR_TOL_REL = 1e-2
+#: Absolute floor below which a relative ASR residual is not worth reporting.
+ASR_ABS_FLOOR = 1e-2
 
 SCHEMA_VERSION = "htvasp-dfpt-stability/v1"
 
@@ -92,8 +112,10 @@ def force_constants_checks(force_constants: Any) -> dict[str, Any]:
         "max_force_constant": scale,
         "asr_abs": asr_abs,
         "asr_rel": asr_rel,
-        "asr_ok": asr_rel <= 1e-2,
-        "asr_report_threshold_ok": not (asr_rel > 0.10 and asr_abs > 0.01),
+        "asr_ok": asr_rel <= ASR_TOL_REL,
+        "asr_report_threshold_ok": not (
+            asr_rel > ASR_CORRECTION_MAX_REL and asr_abs > ASR_ABS_FLOOR
+        ),
         "permutation_abs": permutation_abs,
         "permutation_rel": permutation_rel,
         "permutation_ok": permutation_rel <= PERMUTATION_DIAGNOSTIC_TOL,
@@ -151,7 +173,9 @@ def qpoint_report(ph: Any, qpoint: tuple[float, float, float], tol_thz: float = 
     vectors = np.asarray(data["eigenvectors"])[0]
     ph.dynamical_matrix.run(np.asarray(qpoint, dtype=float))
     dynamical = np.asarray(ph.dynamical_matrix.dynamical_matrix)
-    factor = 15.633302
+    # VASP writes its dynamical matrix in (eV/Angstrom^2/amu); phonopy's factor
+    # is the one it used to produce the frequencies it just returned.
+    factor = get_physical_units().DefaultToTHz
     bands = []
     for band, frequency in enumerate(frequencies):
         vector = vectors[:, band]

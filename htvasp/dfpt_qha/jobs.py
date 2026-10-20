@@ -23,10 +23,10 @@ spent by then, so a per-volume fail-fast would buy nothing.
 
 What VASP actually writes
 -------------------------
-``IBRION=8`` writes **DYNMAT**, not ``FORCE_CONSTANTS``.  The verified reference
-directory has both only because ``FORCE_CONSTANTS`` was produced 90 minutes
-after the run by an offline conversion; assuming VASP writes it means the
-collector finds nothing after the allocation has already been spent.
+``IBRION=8`` writes **DYNMAT**, not ``FORCE_CONSTANTS``.  A ``FORCE_CONSTANTS``
+file in a job directory is an offline conversion someone ran later; assuming
+VASP writes it means the collector finds nothing after the allocation has
+already been spent.
 
 ``DYNMAT`` holds, for each perturbation ``(atom, direction)``, the force
 response on every atom, in eV/Angstrom^2 because the perturbation is a unit
@@ -61,28 +61,22 @@ from pymatgen.core import Structure
 
 from htvasp.dfpt_qha.input_audit import audit_vasp_inputs
 from htvasp.dfpt_qha.input_set import DfptInputSetGenerator, DfptRelaxSetGenerator
+from htvasp.dfpt_qha.stability import ASR_CORRECTION_MAX_REL, ASR_TOL_REL
 from htvasp.dfpt_qha.phonons import (
     assert_same_ordering,
     ordering_fingerprint,
     phonopy_for,
     supercell_structure,
 )
-from htvasp.dfpt_qha.task_doc import DfptForceConstantsProvenance, DfptTaskDoc
+from htvasp.dfpt_qha.task_doc import (
+    DfptForceConstantsProvenance,
+    DfptTaskDoc,
+    as_json_mapping,
+)
 from htvasp.model.dfpt_qha_recipe import Recipe
 
 #: 1 eV/Angstrom^2 expressed in GPa (for the bulk modulus, if needed).
 DYNMAT_UNIT = "eV/Angstrom^2"
-
-#: Above this relative acoustic-sum-rule residual the raw matrix is not a
-#: force-constant matrix and must not be "repaired" into one.  VASP's own DFPT
-#: Hessian is not ASR-consistent -- the archived Co-Ti runs sit at 8e-3 to
-#: 2e-2, and one broken volume at 0.36 (Gamma acoustic -14 THz, optical
-#: 26.8 THz where the healthy runs are 5-7 THz).  Enforcing translational
-#: invariance is standard practice and changes the optical frequencies of the
-#: healthy runs by 0.1-0.2%; on the broken one it would hide a 22% error.
-ASR_CORRECTION_MAX_REL = 0.1
-#: Gate applied to the matrix AFTER the correction.
-ASR_TOL_REL = 1e-2
 
 #: VASP's own Hessian.  This is the authoritative source: it is complete,
 #: exactly symmetric, and independent of phonopy's symmetry-reduced finite
@@ -175,8 +169,8 @@ def force_constants_from_vasprun(
     phonopy's parser handles the two conventions VASP writes (VASP 5 in
     eV/Angstrom^2 with the sqrt(m_i m_j) mass factor, VASP 6 in THz^2), and
     applies the same mass normalisation, so the result is directly comparable
-    with the ``DYNMAT`` replay: on the archived BCC-Al-Ta-2 run the two agree
-    to 2.4e-9 eV/Angstrom^2 after symmetrisation.
+    with the ``DYNMAT`` replay; the fixture-based test asserts they agree to
+    better than 1e-6 eV/Angstrom^2 after symmetrisation.
     """
 
     path = Path(path)
@@ -276,6 +270,7 @@ class DfptRelaxMaker(BaseVaspMaker):
     isif: int = 2
     use_supercell_kpoints: bool = False
     magmom: dict[str, float] | list[float] | None = None
+    incar_overrides: dict[str, Any] = field(default_factory=dict)
     input_set_generator: Any = None
     run_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
     stop_children_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -289,6 +284,7 @@ class DfptRelaxMaker(BaseVaspMaker):
                 isif=self.isif,
                 use_supercell_kpoints=self.use_supercell_kpoints,
                 magmom=self.magmom,
+                incar_overrides=dict(self.incar_overrides),
             )
         # BaseVaspMaker is a plain dataclass in this atomate2 release and
         # defines no post-init hook.
@@ -307,6 +303,7 @@ class DfptVaspMaker(BaseVaspMaker):
     recipe: Recipe | None = None
     use_supercell_kpoints: bool = True
     magmom: dict[str, float] | list[float] | None = None
+    incar_overrides: dict[str, Any] = field(default_factory=dict)
     input_set_generator: Any = None
     run_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
     stop_children_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -319,44 +316,14 @@ class DfptVaspMaker(BaseVaspMaker):
                 recipe=self.recipe,
                 use_supercell_kpoints=self.use_supercell_kpoints,
                 magmom=self.magmom,
+                incar_overrides=dict(self.incar_overrides),
             )
 
 
 def _task_payload(task_doc: Any) -> dict[str, Any]:
-    """Reduce whatever a jobflow boundary handed us to a JSON-safe mapping.
+    """The shared TaskDoc coercion, with this module's error wording."""
 
-    Three shapes arrive here, and which one depends on the runner rather than on
-    the code:
-
-    * a plain ``dict`` -- a job that wrote one;
-    * a ``TaskDoc`` pydantic model -- ``BaseVaspMaker``'s output schema;
-    * a dict monty's decoder rebuilt from JSON, whose nested ``input.kpoints``,
-      ``structure`` and ``orig_inputs.incar`` are live pymatgen objects again.
-
-    The third is the one that bites: it survives until something serializes the
-    document a second time, and then raises ``Unable to serialize unknown type:
-    Kpoints`` -- which happened three jobs downstream, inside the validation
-    gate, where the cause is hardest to read.  Sanitizing at this boundary makes
-    "this document is JSON" true for everything after it.
-
-    ``jsanitize`` is asked for ``strict=True`` because ``strict=False`` falls
-    back to ``str(obj)`` for anything it does not recognise, which silently
-    turns a pydantic model into its repr.  ``strict=True`` raises instead, and
-    the repr of a whole TaskDoc is exactly the kind of quiet corruption this
-    project keeps finding.
-    """
-
-    payload = jsanitize(
-        task_doc, strict=True, allow_bson=True, recursive_msonable=True
-    )
-    if not isinstance(payload, dict):
-        raise ValueError(
-            f"DFPT TaskDoc did not reduce to a mapping: {type(task_doc).__name__}"
-        )
-    # jsanitize keeps datetime objects, which the job store accepts but a plain
-    # JSON dump does not; the document is read as data downstream, so they are
-    # rendered as ISO strings.
-    return json.loads(json.dumps(payload, default=str))
+    return as_json_mapping(task_doc)
 
 
 #: A DFPT run recomputes the ground state on its own (larger) cell.  Its energy

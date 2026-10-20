@@ -111,6 +111,11 @@ class _RecipeGenerator(VaspInputGenerator):
 
     recipe: Recipe | None = None
     use_supercell_kpoints: bool = False
+    #: INCAR values applied LAST, after the frozen recipe and mode defaults.
+    #: The module's own tables are a baseline for this project's pool; a caller
+    #: with a different ENCUT, functional or convergence target sets it here
+    #: instead of editing this file.
+    incar_overrides: dict[str, Any] = field(default_factory=dict)
     #: element -> initial moment, or a per-site list (for an antiferromagnetic
     #: pattern that a per-element table cannot express); None uses
     #: MAGMOM_BY_ELEMENT
@@ -169,6 +174,7 @@ class DfptRelaxSetGenerator(_RecipeGenerator):
     use_supercell_kpoints: bool = False
     user_incar_settings: dict[str, Any] = field(default_factory=dict)
     magmom: dict[str, float] | list[float] | None = None
+    incar_overrides: dict[str, Any] = field(default_factory=dict)
     user_kpoints_settings: dict[str, Any] = field(default_factory=dict)
     user_potcar_settings: dict[str, str] = field(default_factory=dict)
     user_potcar_functional: str = "PBE"
@@ -183,6 +189,7 @@ class DfptRelaxSetGenerator(_RecipeGenerator):
             **RELAX_ELECTRONIC,
             **RELAX_MODE,
             "ISIF": self.isif,
+            **self.incar_overrides,
         }
 
     def __post_init__(self) -> None:
@@ -199,6 +206,7 @@ class DfptInputSetGenerator(_RecipeGenerator):
     user_incar_settings: dict[str, Any] = field(default_factory=dict)
     user_kpoints_settings: dict[str, Any] = field(default_factory=dict)
     magmom: dict[str, float] | list[float] | None = None
+    incar_overrides: dict[str, Any] = field(default_factory=dict)
     user_potcar_settings: dict[str, str] = field(default_factory=dict)
     user_potcar_functional: str = "PBE"
     auto_ispin: bool = False
@@ -207,7 +215,12 @@ class DfptInputSetGenerator(_RecipeGenerator):
 
     @property
     def incar_updates(self) -> dict[str, Any]:
-        return {**self._recipe_defaults(), **DFPT_ELECTRONIC, **DFPT_MODE}
+        return {
+            **self._recipe_defaults(),
+            **DFPT_ELECTRONIC,
+            **DFPT_MODE,
+            **self.incar_overrides,
+        }
 
     def __post_init__(self) -> None:
         self._apply_recipe_settings()

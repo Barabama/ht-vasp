@@ -49,11 +49,21 @@ def as_structure(value: Any) -> Structure:
     return Structure.from_dict(value)
 
 
-def phonopy_for(cell: Structure, supercell_matrix: Any) -> Phonopy:
+def phonopy_for(
+    cell: Structure,
+    supercell_matrix: Any,
+    *,
+    primitive_matrix: Any = "auto",
+    symprec: float = 1e-3,
+) -> Phonopy:
     """A phonopy object for the primitive cell, with no force constants set.
 
-    ``primitive_matrix="auto"`` and the default symmetry settings match what the
-    verified Stage 0B analysis used, so frequencies are comparable with it.
+    ``primitive_matrix`` decides what phonopy treats as the primitive cell, and
+    therefore the commensurate-q set and the per-primitive-cell normalisation of
+    the free energy.  ``"auto"`` is the default this project uses; a caller
+    that needs a different primitive cell (a supercell built from a different
+    unit cell, or a non-standard setting) supplies its own and must use the
+    same value for the supercell it runs VASP on and for the analysis.
     """
 
     atoms = PhonopyAtoms(
@@ -64,8 +74,8 @@ def phonopy_for(cell: Structure, supercell_matrix: Any) -> Phonopy:
     return Phonopy(
         atoms,
         supercell_matrix=np.array(supercell_matrix, dtype=float),
-        primitive_matrix="auto",
-        symprec=1e-3,
+        primitive_matrix=primitive_matrix,
+        symprec=symprec,
     )
 
 
