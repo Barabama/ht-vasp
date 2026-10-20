@@ -1,0 +1,6529 @@
+{
+  "schema": "legacy-qha-pool/pool-recipes/v1",
+  "n_endpoints": 84,
+  "n_problems": 0,
+  "problems": [],
+  "endpoints": {
+    "BCC-Al-Al-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Al",
+          "1b": "Al"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 132022.272
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09",
+          "\u8f6f\u6a21\u76f4\u63a5\u8bc1\u636e\uff1areport 4.2: mesh minimum -3.3983 THz"
+        ],
+        "qha_applicability": "finite_q_soft_mode_diagnostic",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": false
+    },
+    "BCC-Al-Cr-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Al",
+          "1b": "Cr"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 119605.24799999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "report 4.9.3: magnetic ground state 283.7 meV/atom below non-magnetic",
+      "vpa_is_proxy": false
+    },
+    "BCC-Al-Hf-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Al",
+          "1b": "Hf"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 156479.48799999995
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": false
+    },
+    "BCC-Al-Nb-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Al",
+          "1b": "Nb"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 140796.31359999994
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": false
+    },
+    "BCC-Al-Ta-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Al",
+          "1b": "Ta"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 140271.61599999992
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09",
+          "\u8f6f\u6a21\u76f4\u63a5\u8bc1\u636e\uff1areport 4.2: mesh minimum -3.6234 THz; report 4.13.13d: ISIF=2 relaxation leaves B2 (-130.4 meV/atom)"
+        ],
+        "qha_applicability": "finite_q_soft_mode_diagnostic",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": false
+    },
+    "BCC-Al-Ti-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Al",
+          "1b": "Ti"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 136951.39839999995
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09",
+          "\u8f6f\u6a21\u76f4\u63a5\u8bc1\u636e\uff1areport 4.2: mesh minimum -3.6543 THz"
+        ],
+        "qha_applicability": "finite_q_soft_mode_diagnostic",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "BCC-Al-Zr-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Al",
+          "1b": "Zr"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 162265.90719999996
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "BCC-Cr-Cr-2": {
+      "physical_state_id": "bcc-Cr",
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Cr",
+          "1b": "Cr"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            18,
+            18,
+            18
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            9,
+            9,
+            9
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 152617.608
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: afm 14.5 meV/atom below non-magnetic (|m|=1.13, cell preserved)",
+      "vpa_is_proxy": false
+    },
+    "BCC-Cr-Hf-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Cr",
+          "1b": "Hf"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 144062.46399999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm 77.5 meV/atom below non-magnetic",
+      "vpa_is_proxy": false
+    },
+    "BCC-Cr-Nb-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Cr",
+          "1b": "Nb"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 128379.28959999997
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: the fm start converges back to the non-magnetic state (gain 0.0 meV/atom)",
+      "vpa_is_proxy": false
+    },
+    "BCC-Cr-Ta-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Cr",
+          "1b": "Ta"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 127854.59199999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm is 7.0 meV/atom above non-magnetic",
+      "vpa_is_proxy": false
+    },
+    "BCC-Cr-Ti-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Cr",
+          "1b": "Ti"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 124534.37439999994
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm 21.4 meV/atom below non-magnetic",
+      "vpa_is_proxy": true
+    },
+    "BCC-Cr-Zr-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Cr",
+          "1b": "Zr"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 149848.8832
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm 91.5 meV/atom below non-magnetic",
+      "vpa_is_proxy": true
+    },
+    "BCC-Hf-Hf-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Hf",
+          "1b": "Hf"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 121213.456
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": false
+    },
+    "BCC-Hf-Nb-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Hf",
+          "1b": "Nb"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 165253.52959999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": false
+    },
+    "BCC-Hf-Ta-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Hf",
+          "1b": "Ta"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 164728.83199999994
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": false
+    },
+    "BCC-Hf-Ti-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Hf",
+          "1b": "Ti"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 161408.61439999996
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "BCC-Hf-Zr-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Hf",
+          "1b": "Zr"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 125089.9048
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "BCC-Nb-Nb-2": {
+      "physical_state_id": "bcc-Nb",
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Nb",
+          "1b": "Nb"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 149570.3552
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": false
+    },
+    "BCC-Nb-Ta-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Nb",
+          "1b": "Ta"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 149045.65759999995
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": false
+    },
+    "BCC-Nb-Ti-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Nb",
+          "1b": "Ti"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 145725.43999999994
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "BCC-Nb-Zr-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Nb",
+          "1b": "Zr"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 114583.40319999997
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "BCC-Ta-Ta-2": {
+      "physical_state_id": "bcc-Ta",
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Ta",
+          "1b": "Ta"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 148520.96
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": false
+    },
+    "BCC-Ta-Ti-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Ta",
+          "1b": "Ti"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 145200.7424
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09",
+          "\u8f6f\u6a21\u76f4\u63a5\u8bc1\u636e\uff1areport 4.2: mesh minimum -1.9407 THz"
+        ],
+        "qha_applicability": "finite_q_soft_mode_diagnostic",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "BCC-Ta-Zr-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Ta",
+          "1b": "Zr"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 114231.89679999997
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "BCC-Ti-Ti-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Ti",
+          "1b": "Ti"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 141880.52479999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09",
+          "\u8f6f\u6a21\u76f4\u63a5\u8bc1\u636e\uff1areport 4.2: mesh minimum -4.4343 THz"
+        ],
+        "qha_applicability": "finite_q_soft_mode_diagnostic",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "BCC-Ti-Zr-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Ti",
+          "1b": "Zr"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 112007.61039999999
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "BCC-Zr-Zr-2": {
+      "physical_state_id": null,
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "BCC_B2",
+        "site_occupancy": {
+          "1a": "Zr",
+          "1b": "Zr"
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 128966.35359999996
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "measured",
+        "measured_on": [
+          "BCC-Ta-Ta-2",
+          "BCC-Al-Ta-2",
+          "BCC-Al-Cr-2",
+          "BCC-Hf-V-2"
+        ],
+        "not_measured": [
+          "\u542b Cr \u7aef\u57fa\u7684\u81ea\u65cb\u7b5b\u9009\uff08\u53ea\u6709 BCC-Al-Cr-2 \u6d4b\u8fc7\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "phonon_recipe_robust",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Al-Al-4": {
+      "physical_state_id": "fcc-Al",
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Al",
+          "3c": [
+            "Al",
+            "Al",
+            "Al"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 113852.39039999999
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": false
+    },
+    "FCC-Al-Cr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Al",
+          "3c": [
+            "Cr",
+            "Cr",
+            "Cr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 152909.94879999995
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "report 8.0a(j): Cr=3.0 branch 22.96 meV/atom below the zero-moment one",
+      "vpa_is_proxy": true
+    },
+    "FCC-Al-Hf-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Al",
+          "3c": [
+            "Hf",
+            "Hf",
+            "Hf"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 143879.67359999995
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Al-Nb-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Al",
+          "3c": [
+            "Nb",
+            "Nb",
+            "Nb"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 123113.08799999996
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Al-Ta-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Al",
+          "3c": [
+            "Ta",
+            "Ta",
+            "Ta"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 122449.01759999995
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Al-Ti-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Al",
+          "3c": [
+            "Ti",
+            "Ti",
+            "Ti"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 118246.86720000001
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Al-Zr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Al",
+          "3c": [
+            "Zr",
+            "Zr",
+            "Zr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 150285.54239999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Cr-Al-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Cr",
+          "3c": [
+            "Al",
+            "Al",
+            "Al"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 171498.90239999993
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "report 8.0a(j): Cr=3.0 branch 183.89 meV/atom below the zero-moment one",
+      "vpa_is_proxy": true
+    },
+    "FCC-Cr-Cr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Cr",
+          "3c": [
+            "Cr",
+            "Cr",
+            "Cr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 143615.47199999995
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm and afm both converge to zero moment (gain 0.0 meV/atom)",
+      "vpa_is_proxy": true
+    },
+    "FCC-Cr-Hf-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Cr",
+          "3c": [
+            "Hf",
+            "Hf",
+            "Hf"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 138026.592
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm 102.9 meV/atom below non-magnetic",
+      "vpa_is_proxy": true
+    },
+    "FCC-Cr-Nb-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Cr",
+          "3c": [
+            "Nb",
+            "Nb",
+            "Nb"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 117260.00639999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm 63.8 meV/atom below non-magnetic",
+      "vpa_is_proxy": true
+    },
+    "FCC-Cr-Ta-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Cr",
+          "3c": [
+            "Ta",
+            "Ta",
+            "Ta"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 116595.93599999999
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: the fm start converges to zero moment (gain 0.0 meV/atom)",
+      "vpa_is_proxy": true
+    },
+    "FCC-Cr-Ti-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Cr",
+          "3c": [
+            "Ti",
+            "Ti",
+            "Ti"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 112393.78560000005
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm is 2.9 meV/atom below non-magnetic, inside the 5 meV/atom threshold",
+      "vpa_is_proxy": true
+    },
+    "FCC-Cr-Zr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Cr",
+          "3c": [
+            "Zr",
+            "Zr",
+            "Zr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 144432.46079999994
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm 128.4 meV/atom below non-magnetic",
+      "vpa_is_proxy": true
+    },
+    "FCC-Hf-Al-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Hf",
+          "3c": [
+            "Al",
+            "Al",
+            "Al"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 123861.48479999993
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Hf-Cr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Hf",
+          "3c": [
+            "Cr",
+            "Cr",
+            "Cr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 168804.01999999996
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm 15.7 meV/atom below non-magnetic (free afm collapsed the cell)",
+      "vpa_is_proxy": true
+    },
+    "FCC-Hf-Hf-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Hf",
+          "3c": [
+            "Hf",
+            "Hf",
+            "Hf"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 153888.76799999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Hf-Nb-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Hf",
+          "3c": [
+            "Nb",
+            "Nb",
+            "Nb"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 133122.18239999993
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Hf-Ta-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Hf",
+          "3c": [
+            "Ta",
+            "Ta",
+            "Ta"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 132458.11199999994
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Hf-Ti-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Hf",
+          "3c": [
+            "Ti",
+            "Ti",
+            "Ti"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 128255.9616
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Hf-Zr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Hf",
+          "3c": [
+            "Zr",
+            "Zr",
+            "Zr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 160294.63679999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Nb-Al-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Nb",
+          "3c": [
+            "Al",
+            "Al",
+            "Al"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 116939.28959999996
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Nb-Cr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Nb",
+          "3c": [
+            "Cr",
+            "Cr",
+            "Cr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 157811.83039999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm 6.5 meV/atom below non-magnetic; constrained afm at the fm geometry is 0.3 meV/atom above fm and the nm start itself converges magnetic",
+      "vpa_is_proxy": true
+    },
+    "FCC-Nb-Hf-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Nb",
+          "3c": [
+            "Hf",
+            "Hf",
+            "Hf"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 146966.57280000002
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Nb-Nb-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Nb",
+          "3c": [
+            "Nb",
+            "Nb",
+            "Nb"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 126199.98719999999
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Nb-Ta-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Nb",
+          "3c": [
+            "Ta",
+            "Ta",
+            "Ta"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 125535.9168
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Nb-Ti-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Nb",
+          "3c": [
+            "Ti",
+            "Ti",
+            "Ti"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 121333.76639999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Nb-Zr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Nb",
+          "3c": [
+            "Zr",
+            "Zr",
+            "Zr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 153372.44159999993
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ta-Al-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ta",
+          "3c": [
+            "Al",
+            "Al",
+            "Al"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 116717.93279999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ta-Cr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ta",
+          "3c": [
+            "Cr",
+            "Cr",
+            "Cr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 157460.32399999994
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm 5.8 meV/atom below non-magnetic; constrained afm at the fm geometry is 1.0 meV/atom above fm and nm is 0.2 above fm",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ta-Hf-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ta",
+          "3c": [
+            "Hf",
+            "Hf",
+            "Hf"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 146745.21599999993
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ta-Nb-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ta",
+          "3c": [
+            "Nb",
+            "Nb",
+            "Nb"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 125978.6303999999
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ta-Ta-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ta",
+          "3c": [
+            "Ta",
+            "Ta",
+            "Ta"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 125314.55999999994
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ta-Ti-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ta",
+          "3c": [
+            "Ti",
+            "Ti",
+            "Ti"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 121112.4096
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ta-Zr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ta",
+          "3c": [
+            "Zr",
+            "Zr",
+            "Zr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 153151.08479999992
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ti-Al-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ti",
+          "3c": [
+            "Al",
+            "Al",
+            "Al"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 115317.21599999997
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ti-Cr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ti",
+          "3c": [
+            "Cr",
+            "Cr",
+            "Cr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 155236.03759999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm is 2.9 meV/atom below non-magnetic, inside the 5 meV/atom threshold (the free afm start collapsed the cell)",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ti-Hf-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ti",
+          "3c": [
+            "Hf",
+            "Hf",
+            "Hf"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 145344.49919999996
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ti-Nb-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ti",
+          "3c": [
+            "Nb",
+            "Nb",
+            "Nb"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 124577.9136
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ti-Ta-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ti",
+          "3c": [
+            "Ta",
+            "Ta",
+            "Ta"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 123913.84319999997
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ti-Ti-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ti",
+          "3c": [
+            "Ti",
+            "Ti",
+            "Ti"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 119711.69280000002
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Ti-Zr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Ti",
+          "3c": [
+            "Zr",
+            "Zr",
+            "Zr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 151750.368
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Zr-Al-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Zr",
+          "3c": [
+            "Al",
+            "Al",
+            "Al"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 125996.7744
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Zr-Cr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Zr",
+          "3c": [
+            "Cr",
+            "Cr",
+            "Cr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 108437.52959999998
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: fm 41.1 meV/atom below non-magnetic (free afm collapsed the cell)",
+      "vpa_is_proxy": true
+    },
+    "FCC-Zr-Hf-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Zr",
+          "3c": [
+            "Hf",
+            "Hf",
+            "Hf"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 156024.0575999999
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Zr-Nb-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Zr",
+          "3c": [
+            "Nb",
+            "Nb",
+            "Nb"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 135257.472
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Zr-Ta-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Zr",
+          "3c": [
+            "Ta",
+            "Ta",
+            "Ta"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 134593.40159999995
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Zr-Ti-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Zr",
+          "3c": [
+            "Ti",
+            "Ti",
+            "Ti"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 130391.25119999997
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "FCC-Zr-Zr-4": {
+      "physical_state_id": null,
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "FCC_L12",
+        "site_occupancy": {
+          "1a": "Zr",
+          "3c": [
+            "Zr",
+            "Zr",
+            "Zr"
+          ]
+        },
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 162429.9264
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "FCC-Zr-Al-4",
+          "FCC-Al-Cr-4",
+          "FCC-Cr-Al-4"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42\uff08Stage 0C \u53ea\u8dd1\u4e86\u5355\u4f53\u79ef\u3001\u975e d=16\uff09",
+          "\u542b Cr \u4e4b\u5916\u5143\u7d20\u7ec4\u5408\u7684 E(V)",
+          "d=16 \u58f0\u5b50\u5bc6\u5ea6"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "\u65e0 Cr\uff1b\u8bb0\u5f55\u4e3a nonmagnetic \u4f46\u672a\u505a\u81ea\u65cb\u5bf9\u7167 \u2014\u2014 \u8fd9\u662f\u9ed8\u8ba4\u9884\u671f\uff0c\u4e0d\u662f\u9a8c\u8bc1\u8fc7\u7684\u7ed3\u8bba",
+      "vpa_is_proxy": true
+    },
+    "SER-Al-1": {
+      "physical_state_id": "fcc-Al",
+      "n_atoms": 4,
+      "recipe": {
+        "structure_class": "SER_FCC",
+        "site_occupancy": {},
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            12,
+            12,
+            12
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            6,
+            6,
+            6
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 4,
+          "folding_verified": true,
+          "n3V": 113852.51226489036
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "SER-Al-1"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42",
+          "conventional \u8def\u5f84\u7684\u58f0\u5b50\u8d85\u80de\uff08Stage 0C \u8d70 primitive\uff09"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": null,
+      "vpa_is_proxy": false
+    },
+    "SER-Cr-1": {
+      "physical_state_id": "bcc-Cr",
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "SER_BCC",
+        "site_occupancy": {},
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            18,
+            18,
+            18
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            9,
+            9,
+            9
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 152617.361639059
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "confirmed_branch"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "SER-Ta-1"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42",
+          "SER-Nb-1 \u5b8c\u5168\u6ca1\u8dd1",
+          "SER-Cr-1 \u7684\u81ea\u65cb\u6001"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": "spin screen 2026-10-20: same 2-atom bcc cell as BCC-Cr-Cr-2, afm 14.5 meV/atom below non-magnetic",
+      "vpa_is_proxy": false
+    },
+    "SER-Hf-1": {
+      "physical_state_id": "hcp-Hf",
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "SER_HCP",
+        "site_occupancy": {},
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 122182.75589078484
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "SER-Zr-1"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42",
+          "SER-Ti-1 / SER-Hf-1 \u5b8c\u5168\u6ca1\u8dd1",
+          "HCP \u7684\u5bf9\u79f0\u6027\u7ea6\u5316\uff08c/a \u4e0e\u5185\u5750\u6807\uff09\u4ece\u672a\u5ba1\u8ba1"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": null,
+      "vpa_is_proxy": false
+    },
+    "SER-Nb-1": {
+      "physical_state_id": "bcc-Nb",
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "SER_BCC",
+        "site_occupancy": {},
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 149570.0817159993
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "SER-Ta-1"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42",
+          "SER-Nb-1 \u5b8c\u5168\u6ca1\u8dd1",
+          "SER-Cr-1 \u7684\u81ea\u65cb\u6001"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": null,
+      "vpa_is_proxy": false
+    },
+    "SER-Ta-1": {
+      "physical_state_id": "bcc-Ta",
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "SER_BCC",
+        "site_occupancy": {},
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 148520.73667374274
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "SER-Ta-1"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42",
+          "SER-Nb-1 \u5b8c\u5168\u6ca1\u8dd1",
+          "SER-Cr-1 \u7684\u81ea\u65cb\u6001"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": null,
+      "vpa_is_proxy": false
+    },
+    "SER-Ti-1": {
+      "physical_state_id": "hcp-Ti",
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "SER_HCP",
+        "site_occupancy": {},
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            16,
+            16,
+            16
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            8,
+            8,
+            8
+          ],
+          "supercell_shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 141880.09723922473
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "SER-Zr-1"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42",
+          "SER-Ti-1 / SER-Hf-1 \u5b8c\u5168\u6ca1\u8dd1",
+          "HCP \u7684\u5bf9\u79f0\u6027\u7ea6\u5316\uff08c/a \u4e0e\u5185\u5750\u6807\uff09\u4ece\u672a\u5ba1\u8ba1"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": null,
+      "vpa_is_proxy": false
+    },
+    "SER-Zr-1": {
+      "physical_state_id": "hcp-Zr",
+      "n_atoms": 2,
+      "recipe": {
+        "structure_class": "SER_HCP",
+        "site_occupancy": {},
+        "representation": "conventional",
+        "sym_reduce": true,
+        "supercell": [
+          2,
+          2,
+          2
+        ],
+        "kpoints": {
+          "grid": [
+            14,
+            14,
+            14
+          ],
+          "shift": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "supercell_grid": [
+            7,
+            7,
+            7
+          ],
+          "supercell_shift": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "supercell_factor": 2,
+          "cell_atoms": 2,
+          "folding_verified": true,
+          "n3V": 128966.13329935241
+        },
+        "phonon_density": 16,
+        "smearing": {
+          "ISMEAR": 1,
+          "SIGMA": 0.2
+        },
+        "displacement_angstrom": 0.01,
+        "potcar": {
+          "functional": "PBE",
+          "variants": {
+            "Nb": "Nb_pv",
+            "default": "standard"
+          }
+        },
+        "magnetic_policy": "nonmagnetic"
+      },
+      "validation": {
+        "stage0_coverage": "partially_measured",
+        "measured_on": [
+          "SER-Zr-1"
+        ],
+        "not_measured": [
+          "\u58f0\u5b50\u5c42",
+          "SER-Ti-1 / SER-Hf-1 \u5b8c\u5168\u6ca1\u8dd1",
+          "HCP \u7684\u5bf9\u79f0\u6027\u7ea6\u5316\uff08c/a \u4e0e\u5185\u5750\u6807\uff09\u4ece\u672a\u5ba1\u8ba1"
+        ],
+        "qha_applicability": "not_yet_assessed",
+        "recipe_robustness": "recipe_untested",
+        "recorded_at": "2026-10-13"
+      },
+      "magnetic_note": null,
+      "vpa_is_proxy": false
+    }
+  }
+}
