@@ -70,7 +70,17 @@ def test_with_handlers_appends_rather_than_replaces():
     names = [type(handler).__name__ for handler in composed["handlers"]]
     assert "VaspErrorHandler" in names
     assert "DfptKpointSetChangeHandler" in names
-    assert composed["custodian_kwargs"]["max_errors_per_job"] == 3
+    # The budget must leave room for the NBANDS handshake (VASP adjusts, then
+    # custodian's +1 does not divide the band-group count, then VASP adjusts
+    # again); three attempts is not enough.  See htvasp.utils.vasp_handlers.
+    assert composed["custodian_kwargs"]["max_errors_per_job"] == 6
+    assert composed["custodian_kwargs"]["gzipped_output"] is False
+
+
+def test_a_caller_supplied_budget_is_not_overwritten():
+    composed = with_handlers(run_vasp_kwargs={
+        "custodian_kwargs": {"max_errors_per_job": 2}})
+    assert composed["custodian_kwargs"]["max_errors_per_job"] == 2
 
 
 def test_dfpt_extra_handler_is_a_detector():

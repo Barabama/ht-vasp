@@ -134,8 +134,17 @@ def with_handlers(
     kwargs = dict(run_vasp_kwargs or {})
     handlers = list(kwargs.pop("handlers", []))
     kwargs["handlers"] = base_handlers() + list(extra) + handlers
+    # ``max_errors_per_job`` is a retry budget, not a convergence criterion.
+    # Three is enough for the usual one-shot corrections, but not for the
+    # NBANDS handshake: when VASP's own auto-NBANDS is not divisible by the
+    # band-group count (ntasks/(KPAR*NCORE)), VASP adjusts it and says so,
+    # custodian's ``too_few_bands`` fix adds one band, VASP adjusts again, and
+    # the loop needs four attempts to settle.  BCC-Al-Al-2 (NELECT=6, two atoms)
+    # spent its whole budget that way and aborted although every attempt had
+    # converged physically -- the third already printed "reached required
+    # accuracy".  Six leaves room for the handshake plus a genuine correction.
     kwargs.setdefault(
-        "custodian_kwargs", {"max_errors_per_job": 3, "gzipped_output": False}
+        "custodian_kwargs", {"max_errors_per_job": 6, "gzipped_output": False}
     )
     return kwargs
 

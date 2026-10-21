@@ -153,6 +153,8 @@ def run_tick(
     run_id: str | None = None,
     number_of_frames: int | None = None,
     mesh: tuple[int, int, int] | None = None,
+    ncore: int | None = None,
+    kpar: int | None = None,
 ):
     """Run one endpoint's DFPT-QHA flow locally (or print the plan)."""
 
@@ -179,6 +181,8 @@ def run_tick(
             vasp_args=VASP_ARGS,
             potcar_functional=recipe.potcar.functional,
             magmom=MAGMOM,
+            ncore=ncore,
+            kpar=kpar,
             supercell_matrix=SUPERCELL_MATRIX,
             linear_strain=LINEAR_STRAIN,
             number_of_frames=frames,
@@ -207,6 +211,8 @@ def run_tick(
             vasp_args=VASP_ARGS,
             potcar_functional=recipe.potcar.functional,
             magmom=MAGMOM,
+            ncore=ncore,
+            kpar=kpar,
             supercell_matrix=SUPERCELL_MATRIX,
             linear_strain=LINEAR_STRAIN,
             number_of_frames=frames,
@@ -341,6 +347,8 @@ def _submission_plan(
     number_of_frames: int | None = None,
     mesh: tuple[int, int, int] | None = None,
     ntasks: int = DEFAULT_NTASKS,
+    ncore: int | None = None,
+    kpar: int | None = None,
 ) -> dict:
     structure, recipe = load_endpoint(name)
     frames = NUMBER_OF_FRAMES if number_of_frames is None else number_of_frames
@@ -361,6 +369,14 @@ def _submission_plan(
             "pressure_gpa": PRESSURE_GPA,
         },
     }
+    # Only recorded when the caller actually sets them.  Adding the keys
+    # unconditionally would change ``stable_run_id`` for all 84 endpoints and
+    # throw away every validated store; this way the default run ids stay put
+    # and an explicit parallelisation change still mints a new one.
+    if ncore is not None:
+        run_payload["settings"]["ncore"] = int(ncore)
+    if kpar is not None:
+        run_payload["settings"]["kpar"] = int(kpar)
     run_id = new_run_id("dfpt-qha") if rerun else stable_run_id("dfpt-qha", run_payload)
     run_root, result_path, ledger_path = _stage_paths(name, "dfpt-qha", run_id)
     command = (
@@ -372,6 +388,12 @@ def _submission_plan(
         command += f" --frames {int(frames)}"
     if mesh is not None:
         command += f" --mesh {int(dfpt_mesh[0])} {int(dfpt_mesh[1])} {int(dfpt_mesh[2])}"
+    # The job re-runs this script without --slurm, so the parallelisation has to
+    # travel in the command line or the child would regenerate the defaults.
+    if ncore is not None:
+        command += f" --ncore {int(ncore)}"
+    if kpar is not None:
+        command += f" --kpar {int(kpar)}"
     if rerun:
         command += " --rerun"
     # 16-atom supercell, ENCUT 520, recipe k-mesh.  ntasks is a throughput
@@ -550,6 +572,8 @@ def submit_batch(
     number_of_frames: int | None = None,
     mesh: tuple[int, int, int] | None = None,
     ntasks: int = DEFAULT_NTASKS,
+    ncore: int | None = None,
+    kpar: int | None = None,
 ) -> list[dict]:
     """Submit every endpoint in a batch file, one Slurm job each.
 
@@ -565,6 +589,7 @@ def submit_batch(
             job_id = submit_job(
                 name, manager, rerun=rerun, resume=resume, dry_run=dry_run,
                 number_of_frames=number_of_frames, mesh=mesh, ntasks=ntasks,
+                ncore=ncore, kpar=kpar,
             )
         except Exception as exc:  # noqa: BLE001 - one endpoint must not stop a batch
             log.error("  %s: submission failed: %s", name, exc)
@@ -594,10 +619,13 @@ def submit_job(
     number_of_frames: int | None = None,
     mesh: tuple[int, int, int] | None = None,
     ntasks: int = DEFAULT_NTASKS,
+    ncore: int | None = None,
+    kpar: int | None = None,
 ):
     plan = _submission_plan(
         name, manager, rerun=rerun,
         number_of_frames=number_of_frames, mesh=mesh, ntasks=ntasks,
+        ncore=ncore, kpar=kpar,
     )
     if dry_run:
         _print_submission_plan(plan)
@@ -671,6 +699,20 @@ if __name__ == "__main__":
         help=f"DFPT thermal-integration mesh (default {list(MESH)}); it does NOT "
              f"change the VASP k-mesh, which comes from the recipe",
     )
+    parser.add_argument(
+        "--ncore", type=int, default=None,
+        help="NCORE for the relaxation stages (default from RELAX_ELECTRONIC). "
+             "Parallelisation only; it does not change the physics.  It also "
+             "sets how many ranks share a band group, so NBANDS must be "
+             "divisible by ntasks/(1*NCORE) for VASP not to adjust it.",
+    )
+    parser.add_argument(
+        "--kpar", type=int, default=None,
+        help="KPAR for the DFPT stages (default from DFPT_ELECTRONIC).  "
+             "Parallelisation only.  NCORE and KPAR are mutually exclusive, so "
+             "the two knobs are applied to different stages and never both to "
+             "one INCAR.",
+    )
     args = parser.parse_args()
 
     if args.refit_vt:
@@ -700,7 +742,7 @@ if __name__ == "__main__":
             resume=args.resume, dry_run=args.dry_run,
             number_of_frames=args.frames,
             mesh=tuple(args.mesh) if args.mesh else None,
-            ntasks=args.ntasks,
+            ntasks=args.ntasks, ncore=args.ncore, kpar=args.kpar,
         )
     elif args.slurm:
         if not args.name:
@@ -712,12 +754,13 @@ if __name__ == "__main__":
             dry_run=args.dry_run,
             number_of_frames=args.frames,
             mesh=tuple(args.mesh) if args.mesh else None,
-            ntasks=args.ntasks,
+            ntasks=args.ntasks, ncore=args.ncore, kpar=args.kpar,
         )
     elif args.dry_run or args.flow_graph:
         run_tick(
             args.name or DEFAULT_ENDPOINT, dry_run=True, run_id=args.run_id,
             number_of_frames=args.frames, mesh=tuple(args.mesh) if args.mesh else None,
+            ncore=args.ncore, kpar=args.kpar,
         )
     elif args.check:
         check_jobs()
@@ -725,6 +768,7 @@ if __name__ == "__main__":
         run_tick(
             args.name, rerun=args.rerun, run_id=args.run_id,
             number_of_frames=args.frames, mesh=tuple(args.mesh) if args.mesh else None,
+            ncore=args.ncore, kpar=args.kpar,
         )
     else:
         parser.print_help()

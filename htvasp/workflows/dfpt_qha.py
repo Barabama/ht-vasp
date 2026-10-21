@@ -33,6 +33,8 @@ class DfptQhaWorker(Worker):
         global_incar: dict[str, Any] | None = None,
         magmom: dict[str, float] | list[float] | None = None,
         incar_overrides: dict[str, Any] | None = None,
+        ncore: int | None = None,
+        kpar: int | None = None,
         linear_strain: tuple[float, float] = (-0.05, 0.05),
         number_of_frames: int = 6,
         supercell_matrix: Any | None = None,
@@ -56,6 +58,21 @@ class DfptQhaWorker(Worker):
         self.run_vasp_kwargs["handlers"] = (
             list(self.run_vasp_kwargs["handlers"]) + dfpt_handlers()
         )
+        # NCORE and KPAR are mutually exclusive in VASP, and the two stages use
+        # different ones: the relaxation family carries NCORE and the DFPT
+        # family carries KPAR.  Taking them as separate arguments keeps a
+        # caller from putting both in one override dict and producing an INCAR
+        # VASP rejects.
+        relax_overrides: dict[str, Any] = {}
+        dfpt_overrides: dict[str, Any] = {}
+        if ncore is not None:
+            if int(ncore) < 1:
+                raise ValueError(f"ncore must be positive, got {ncore}")
+            relax_overrides["NCORE"] = int(ncore)
+        if kpar is not None:
+            if int(kpar) < 1:
+                raise ValueError(f"kpar must be positive, got {kpar}")
+            dfpt_overrides["KPAR"] = int(kpar)
         self.flow_maker = DfptQhaMaker(
             name=worker_name,
             recipe=recipe,
@@ -64,6 +81,8 @@ class DfptQhaWorker(Worker):
             run_vasp_kwargs=dict(self.run_vasp_kwargs),
             magmom=dict(magmom) if magmom is not None else None,
             incar_overrides=dict(incar_overrides or {}),
+            relax_incar_overrides=relax_overrides,
+            dfpt_incar_overrides=dfpt_overrides,
             mesh=mesh,
             temperatures=temperatures,
             pressure_gpa=pressure_gpa,

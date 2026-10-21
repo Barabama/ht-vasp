@@ -444,6 +444,59 @@ def test_incar_overrides_win_over_the_module_defaults():
     assert incar["NSW"] == 1
 
 
+def test_ncore_and_kpar_reach_their_own_stage_and_not_the_other():
+    """NCORE and KPAR are mutually exclusive, so they cannot share a dict.
+
+    The relaxation family carries NCORE and the DFPT family carries KPAR.  A
+    single ``incar_overrides`` applied to both would put KPAR next to NCORE in
+    one INCAR, which VASP rejects.
+    """
+
+    from htvasp.dfpt_qha.maker import DfptQhaMaker
+
+    maker = DfptQhaMaker(recipe=recipe(), relax_incar_overrides={"NCORE": 4},
+                         dfpt_incar_overrides={"KPAR": 4})
+    for child in (maker.initial_relax_maker, maker.eos_relax_maker):
+        generator = child.input_set_generator
+        assert generator.incar_overrides == {"NCORE": 4}
+        generator.structure = structure()
+        incar = generator.incar
+        assert incar["NCORE"] == 4
+        assert "KPAR" not in incar
+
+
+def test_the_worker_takes_ncore_and_kpar_as_separate_knobs():
+    from htvasp.workflows.dfpt_qha import DfptQhaWorker
+
+    worker = DfptQhaWorker(recipe=recipe(), ncore=4, kpar=4)
+    maker = worker.flow_maker
+    for child in (maker.initial_relax_maker, maker.eos_relax_maker):
+        assert child.input_set_generator.incar_overrides == {"NCORE": 4}
+    assert maker.dfpt_incar_overrides == {"KPAR": 4}
+    assert maker.relax_incar_overrides == {"NCORE": 4}
+
+    with pytest.raises(ValueError, match="ncore must be positive"):
+        DfptQhaWorker(recipe=recipe(), ncore=0)
+    with pytest.raises(ValueError, match="kpar must be positive"):
+        DfptQhaWorker(recipe=recipe(), kpar=-2)
+
+
+def test_the_default_incar_still_carries_exactly_one_of_the_two_keys():
+    """The defaults must not regress into an INCAR VASP would reject."""
+
+    from htvasp.dfpt_qha.input_set import DfptInputSetGenerator, DfptRelaxSetGenerator
+
+    relax = DfptRelaxSetGenerator(recipe=recipe(), isif=2)
+    relax.structure = structure()
+    assert relax.incar["NCORE"] == 8
+    assert "KPAR" not in relax.incar
+
+    dfpt = DfptInputSetGenerator(recipe=recipe())
+    dfpt.structure = structure()
+    assert dfpt.incar["KPAR"] == 2
+    assert "NCORE" not in dfpt.incar
+
+
 def test_the_maker_forwards_incar_overrides_to_every_child():
     from htvasp.dfpt_qha.maker import DfptQhaMaker
 

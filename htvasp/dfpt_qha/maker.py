@@ -49,6 +49,14 @@ class DfptQhaMaker(CommonQhaMaker):
     magmom: dict[str, float] | list[float] | None = None
     #: INCAR values applied after the module defaults, for every child job
     incar_overrides: dict[str, Any] = field(default_factory=dict)
+    #: Extra INCAR values for the relaxation stages only (initial relax and the
+    #: EOS volumes).  Separate from ``incar_overrides`` because the two stages
+    #: take mutually exclusive parallelisation keys: the relax family carries
+    #: ``NCORE`` and the DFPT family carries ``KPAR``, so a single shared dict
+    #: cannot set either without breaking the other stage.
+    relax_incar_overrides: dict[str, Any] = field(default_factory=dict)
+    #: Extra INCAR values for the DFPT stages only
+    dfpt_incar_overrides: dict[str, Any] = field(default_factory=dict)
     mesh: tuple[int, int, int] = DEFAULT_MESH
     temperatures: list[float] = field(default_factory=lambda: list(DEFAULT_TEMPERATURES))
     pressure_gpa: float = 0.0
@@ -63,7 +71,8 @@ class DfptQhaMaker(CommonQhaMaker):
                 isif=3,
                 run_vasp_kwargs=dict(self.run_vasp_kwargs),
                 magmom=self.magmom,
-                incar_overrides=dict(self.incar_overrides),
+                incar_overrides={**self.incar_overrides,
+                                 **self.relax_incar_overrides},
             )
         if self.eos_relax_maker is None:
             # Fixed-volume ionic relaxation at each EOS volume.  The volume is
@@ -75,7 +84,8 @@ class DfptQhaMaker(CommonQhaMaker):
                 isif=2,
                 run_vasp_kwargs=dict(self.run_vasp_kwargs),
                 magmom=self.magmom,
-                incar_overrides=dict(self.incar_overrides),
+                incar_overrides={**self.incar_overrides,
+                                 **self.relax_incar_overrides},
             )
 
     @property
@@ -109,7 +119,8 @@ class DfptQhaMaker(CommonQhaMaker):
             recipe=recipe.model_dump(mode="json"),
             run_vasp_kwargs=dict(self.run_vasp_kwargs),
             magmom=self.magmom,
-            incar_overrides=dict(self.incar_overrides),
+            incar_overrides={**self.incar_overrides,
+                             **self.dfpt_incar_overrides},
             supercell_matrix=supercell_matrix,
             mesh=self.mesh,
             temperatures=list(self.temperatures),
