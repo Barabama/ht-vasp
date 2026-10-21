@@ -356,6 +356,7 @@ def _submission_plan(
     ntasks: int = DEFAULT_NTASKS,
     ncore: int | None = None,
     kpar: int | None = None,
+    resume_from: Path | None = None,
 ) -> dict:
     structure, recipe = load_endpoint(name)
     frames = NUMBER_OF_FRAMES if number_of_frames is None else number_of_frames
@@ -401,6 +402,9 @@ def _submission_plan(
         command += f" --ncore {int(ncore)}"
     if kpar is not None:
         command += f" --kpar {int(kpar)}"
+    # The child re-runs this script, so a resume source has to travel with it.
+    if resume_from is not None:
+        command += f" --resume-from {shlex.quote(str(resume_from))}"
     if rerun:
         command += " --rerun"
     # 16-atom supercell, ENCUT 520, recipe k-mesh.  ntasks is a throughput
@@ -581,6 +585,7 @@ def submit_batch(
     ntasks: int = DEFAULT_NTASKS,
     ncore: int | None = None,
     kpar: int | None = None,
+    resume_from: Path | None = None,
 ) -> list[dict]:
     """Submit every endpoint in a batch file, one Slurm job each.
 
@@ -596,7 +601,7 @@ def submit_batch(
             job_id = submit_job(
                 name, manager, rerun=rerun, resume=resume, dry_run=dry_run,
                 number_of_frames=number_of_frames, mesh=mesh, ntasks=ntasks,
-                ncore=ncore, kpar=kpar,
+                ncore=ncore, kpar=kpar, resume_from=resume_from,
             )
         except Exception as exc:  # noqa: BLE001 - one endpoint must not stop a batch
             log.error("  %s: submission failed: %s", name, exc)
@@ -628,11 +633,12 @@ def submit_job(
     ntasks: int = DEFAULT_NTASKS,
     ncore: int | None = None,
     kpar: int | None = None,
+    resume_from: Path | None = None,
 ):
     plan = _submission_plan(
         name, manager, rerun=rerun,
         number_of_frames=number_of_frames, mesh=mesh, ntasks=ntasks,
-        ncore=ncore, kpar=kpar,
+        ncore=ncore, kpar=kpar, resume_from=resume_from,
     )
     if dry_run:
         _print_submission_plan(plan)
@@ -729,6 +735,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    if args.resume_from is not None and not args.resume:
+        parser.error("--resume-from only applies to --resume")
+
     if args.refit_vt:
         if args.slurm:
             parser.error(
@@ -757,6 +766,7 @@ if __name__ == "__main__":
             number_of_frames=args.frames,
             mesh=tuple(args.mesh) if args.mesh else None,
             ntasks=args.ntasks, ncore=args.ncore, kpar=args.kpar,
+            resume_from=args.resume_from,
         )
     elif args.slurm:
         if not args.name:
@@ -769,6 +779,7 @@ if __name__ == "__main__":
             number_of_frames=args.frames,
             mesh=tuple(args.mesh) if args.mesh else None,
             ntasks=args.ntasks, ncore=args.ncore, kpar=args.kpar,
+            resume_from=args.resume_from,
         )
     elif args.dry_run or args.flow_graph:
         run_tick(
