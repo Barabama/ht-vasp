@@ -155,6 +155,7 @@ def run_tick(
     mesh: tuple[int, int, int] | None = None,
     ncore: int | None = None,
     kpar: int | None = None,
+    resume_from: Path | None = None,
 ):
     """Run one endpoint's DFPT-QHA flow locally (or print the plan)."""
 
@@ -226,6 +227,12 @@ def run_tick(
             flow_dir=flow_dir,
             store_dir=store_dir,
             resume=not rerun,
+            # The run id is stable for a given endpoint+settings, so it names
+            # the scratch directory.  ``flow.uuid`` is regenerated on every
+            # invocation and would orphan the completed volumes of a job that
+            # was killed at its time limit.
+            flow_dir_name=run_id,
+            resume_from=resume_from,
         )
         output = worker.get_result() or {}
         if output:
@@ -405,7 +412,7 @@ def _submission_plan(
         output_log=f"logs/{name}-dfpt-qha.log",
         ntasks=int(ntasks),
         memory="96G",
-        time_limit="24:00:00",
+        time_limit="100:00:00",
         module_name="vasp-cpu",
         # the compute node's own pymatgen config may point at a POTCAR
         # directory that does not exist on it (B5071 does); pin the value the
@@ -685,6 +692,13 @@ if __name__ == "__main__":
     )
     parser.add_argument("--run-id", help="Operate on an explicit immutable run")
     parser.add_argument(
+        "--resume-from", type=Path, default=None, metavar="DIR",
+        help="Directory holding the store.json to resume from, for a run whose "
+             "scratch directory does not sit at the deterministic location "
+             "(e.g. one left by an older submission).  Only meaningful with "
+             "--resume.",
+    )
+    parser.add_argument(
         "--ntasks", type=int, default=DEFAULT_NTASKS,
         help=f"MPI ranks for the Slurm job (default {DEFAULT_NTASKS}); a "
              f"throughput choice, not a scientific one",
@@ -768,7 +782,7 @@ if __name__ == "__main__":
         run_tick(
             args.name, rerun=args.rerun, run_id=args.run_id,
             number_of_frames=args.frames, mesh=tuple(args.mesh) if args.mesh else None,
-            ncore=args.ncore, kpar=args.kpar,
+            ncore=args.ncore, kpar=args.kpar, resume_from=args.resume_from,
         )
     else:
         parser.print_help()

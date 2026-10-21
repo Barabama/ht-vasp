@@ -121,6 +121,8 @@ class Worker:
         ensure_success: bool = True,
         raise_immediately: bool = False,
         resume: bool = True,
+        flow_dir_name: str | None = None,
+        resume_from: Path | str | None = None,
     ):
         """
         Run the flow for the structure.
@@ -134,17 +136,45 @@ class Worker:
             ensure_success: Raise an error if the flow did not finish successfully
             raise_immediately: Raise an error immediately if a job fails
             resume: Resume from previous completed jobs
+            flow_dir_name: Directory name under ``flow_dir``.  The default
+                ``<name>-<flow.uuid[:8]>`` is different on every invocation,
+                because jobflow assigns ``Flow.uuid`` with ``suid()``.  A caller
+                that has a stable identifier for the run -- a run id, say --
+                should pass it here: the flow directory then survives a process
+                that dies without unwinding, which is exactly what a Slurm
+                ``SIGTERM`` at the time limit does.  Without this the completed
+                jobs sit in a directory nobody looks at again and the next
+                ``--resume`` silently restarts from the first job.
+            resume_from: An explicit directory to seed the flow from when the
+                deterministic location does not hold a store yet -- for example
+                a scratch directory left by an earlier submission that used the
+                old uuid-based naming.  Its ``store.json`` is what makes the
+                resume work, so it is required.
         """
         self.flow = self._make_flow(structure, prev_dir)
 
         # Generate flow directory
-        flow_dir = Path(flow_dir).resolve().joinpath(f"{name}-{self.flow.uuid[:8]}")
+        suffix = flow_dir_name or self.flow.uuid[:8]
+        flow_dir = Path(flow_dir).resolve().joinpath(f"{name}-{suffix}")
         store_dir = Path(store_dir).resolve()
 
-        # Resume: copy from store_dir to flow_dir
-        if resume and store_dir.exists():
+        # Resume.  A deterministic ``flow_dir_name`` makes the previous run's
+        # directory the resume anchor itself, so a job killed at its time limit
+        # -- SIGTERM, no finally, no store_dir -- is still recoverable.
+        if resume and flow_dir.joinpath("store.json").is_file():
+            log.info(f"Resuming in place from {flow_dir}")
+        elif resume and resume_from is not None:
+            source = Path(resume_from).resolve()
+            if not source.joinpath("store.json").is_file():
+                raise FileNotFoundError(
+                    f"resume_from={source} has no store.json; there is nothing "
+                    "to resume from"
+                )
+            log.info(f"Seeding {flow_dir} from {source}")
+            shutil.copytree(source, flow_dir, dirs_exist_ok=True)
+        elif resume and store_dir.exists():
             log.info(f"Resuming from {store_dir}, copying to {flow_dir}")
-            shutil.copytree(store_dir, flow_dir)
+            shutil.copytree(store_dir, flow_dir, dirs_exist_ok=True)
 
         # Initialize store
         self.store = JobStore(
