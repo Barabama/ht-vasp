@@ -1,0 +1,34 @@
+# Batch D -- the 18 Cr endpoints, submitted to B5070 on 2026-10-23
+#
+# All 18 carried magnetic_policy='unresolved' until the 2026-10-20 spin screen
+# resolved every one of them (free nm/fm/afm relaxations, 5 meV/atom threshold,
+# AFM states excluded where the cell collapsed by more than 2%).  The decision
+# per endpoint is in data/endpoints/<name>/spin-screen.json and is reproduced in
+# MANIFEST.md.
+#
+# Initial moments: the shared per-element table, Cr = 3.0 uB.  The two AFM
+# endpoints (BCC-Cr-Cr-2, SER-Cr-1) instead start from a staggered +3/-3 pattern
+# on the 2-atom cell, expanded to the 16-atom DFPT supercell -- see
+# main_dfpt_qha.AFM_ENDPOINTS.
+#
+# BCC (6)
+BCC-Cr-Cr-2
+BCC-Cr-Hf-2
+BCC-Cr-Nb-2
+BCC-Cr-Ta-2
+BCC-Cr-Ti-2
+BCC-Cr-Zr-2
+# SER (1)
+SER-Cr-1
+# FCC (11)
+FCC-Cr-Cr-4
+FCC-Cr-Hf-4
+FCC-Cr-Nb-4
+FCC-Cr-Ta-4
+FCC-Cr-Ti-4
+FCC-Cr-Zr-4
+FCC-Hf-Cr-4
+FCC-Nb-Cr-4
+FCC-Ta-Cr-4
+FCC-Ti-Cr-4
+FCC-Zr-Cr-4
