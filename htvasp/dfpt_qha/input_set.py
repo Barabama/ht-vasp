@@ -21,9 +21,11 @@ provenance rather than assume them.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
+import numpy as np
 from atomate2.vasp.sets.base import VaspInputGenerator
+from pymatgen.core import Structure
 from pymatgen.io.vasp import Kpoints
 
 from htvasp.model.dfpt_qha_recipe import Recipe
@@ -50,6 +52,39 @@ MAGMOM_BY_ELEMENT = {
     "W": 3.0,
     "Zr": 1.0,
 }
+
+def expand_site_moments(
+    structure: Structure,
+    reference_cell: Structure,
+    moments: Sequence[float],
+) -> list[float]:
+    """Give every atom of ``structure`` the moment of the cell site it sits on.
+
+    An antiferromagnetic pattern is defined on the *cell* -- two sites, two
+    signs -- but the DFPT stage runs on the 16-atom supercell and the
+    relaxation stages on the 2-atom cell.  A per-site list therefore cannot be
+    passed down unchanged; it has to be re-expanded for whichever structure is
+    being written.  Each atom is assigned the reference site whose periodic
+    image is nearest, which needs no knowledge of how the supercell was built.
+    """
+    if len(moments) != len(reference_cell):
+        raise ValueError(
+            f"{len(moments)} moments for a {len(reference_cell)}-site reference "
+            "cell"
+        )
+    reference_frac = np.array([site.frac_coords for site in reference_cell])
+    reference_matrix = reference_cell.lattice.matrix
+    expanded: list[float] = []
+    for site in structure:
+        # Fractional coordinates in the reference cell, then the nearest
+        # periodic image of each reference site.
+        frac = np.linalg.solve(reference_matrix.T, site.coords)
+        delta = reference_frac - frac
+        delta -= np.round(delta)
+        distance = np.linalg.norm(delta @ reference_matrix, axis=1)
+        expanded.append(float(moments[int(np.argmin(distance))]))
+    return expanded
+
 
 SHARED_INCAR: dict[str, Any] = {
     "ENCUT": 520,
@@ -120,6 +155,11 @@ class _RecipeGenerator(VaspInputGenerator):
     #: pattern that a per-element table cannot express); None uses
     #: MAGMOM_BY_ELEMENT
     magmom: dict[str, float] | list[float] | None = None
+    #: The cell a per-site ``magmom`` list was written for.  The DFPT stage runs
+    #: on a supercell and the relaxation stages on the cell, so a list has to be
+    #: re-expanded for whichever structure is being written.  None means the
+    #: list already matches the structure.
+    magmom_reference_cell: Structure | None = None
 
     def _recipe_defaults(self) -> dict[str, Any]:
         recipe = self.recipe
@@ -142,7 +182,13 @@ class _RecipeGenerator(VaspInputGenerator):
         # only needed for an antiferromagnetic pattern, which a per-element
         # table cannot express.
         if isinstance(self.magmom, (list, tuple)):
-            defaults["MAGMOM"] = list(self.magmom)
+            structure = getattr(self, "structure", None)
+            reference = self.magmom_reference_cell
+            if reference is None or structure is None:
+                defaults["MAGMOM"] = list(self.magmom)
+            else:
+                defaults["MAGMOM"] = expand_site_moments(
+                    structure, reference, self.magmom)
         else:
             # Name the missing element here.  pymatgen expands the dict while
             # building the INCAR and raises ``KeyError: 0`` for an element it
@@ -188,6 +234,7 @@ class DfptRelaxSetGenerator(_RecipeGenerator):
     use_supercell_kpoints: bool = False
     user_incar_settings: dict[str, Any] = field(default_factory=dict)
     magmom: dict[str, float] | list[float] | None = None
+    magmom_reference_cell: Structure | None = None
     incar_overrides: dict[str, Any] = field(default_factory=dict)
     user_kpoints_settings: dict[str, Any] = field(default_factory=dict)
     user_potcar_settings: dict[str, str] = field(default_factory=dict)
@@ -220,6 +267,7 @@ class DfptInputSetGenerator(_RecipeGenerator):
     user_incar_settings: dict[str, Any] = field(default_factory=dict)
     user_kpoints_settings: dict[str, Any] = field(default_factory=dict)
     magmom: dict[str, float] | list[float] | None = None
+    magmom_reference_cell: Structure | None = None
     incar_overrides: dict[str, Any] = field(default_factory=dict)
     user_potcar_settings: dict[str, str] = field(default_factory=dict)
     user_potcar_functional: str = "PBE"

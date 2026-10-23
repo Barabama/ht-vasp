@@ -95,6 +95,39 @@ MAGMOM = {
     "Zr": 1.0,
 }
 
+#: Endpoints whose spin screen chose the antiferromagnetic branch.  The screen
+#: ran free nm / fm / afm relaxations and compared energies; ``afm`` won for
+#: these two, and both are the same 2-atom bcc Cr cell, so the pattern is one
+#: sign per sublattice.  Kept as a table rather than derived from
+#: ``magnetic_policy``: that field says "a magnetic branch was confirmed", not
+#: *which* one, and a ferromagnetic start on these two converges back to the
+#: non-magnetic solution (the screen measured a 0.0 meV/atom gain for fm).
+AFM_ENDPOINTS = {"BCC-Cr-Cr-2", "SER-Cr-1"}
+
+
+def site_moments(name: str, structure: Structure) -> tuple[dict[str, float] | list[float], Structure | None]:
+    """Initial moments for an endpoint, and the cell a per-site list refers to.
+
+    Returns the per-element table for every ordinary endpoint.  For the two
+    antiferromagnetic ones it returns a per-site list -- ``+3`` on one
+    sublattice and ``-3`` on the other -- together with the cell that list was
+    written for, because the DFPT stage runs on a supercell and the pattern has
+    to be re-expanded there.
+    """
+    if name not in AFM_ENDPOINTS:
+        return MAGMOM, None
+    species = [str(site.specie) for site in structure]
+    if species.count("Cr") < 2:
+        raise ValueError(
+            f"{name} is listed as antiferromagnetic but its cell has "
+            f"{species.count('Cr')} Cr atoms; the staggered pattern needs two"
+        )
+    # Stagger by site order, the same convention the spin screen used, so the
+    # DFPT run starts from the state that was actually measured to be lowest.
+    moments = [3.0 if index % 2 == 0 else -3.0 for index in range(len(species))]
+    return moments, structure
+
+
 # EOS deformation window and supercell.  The DFPT k-mesh, POTCAR, smearing and
 # displacement come from the recipe; MAGMOM comes from the table above.
 LINEAR_STRAIN = (-0.05, 0.05)
@@ -177,11 +210,13 @@ def run_tick(
             recipe.magnetic_policy,
         )
         log.info("eos frames=%d strain=%s mesh=%s", frames, LINEAR_STRAIN, dfpt_mesh)
+        moments, moments_cell = site_moments(name, structure)
         worker = DfptQhaWorker(
             recipe=recipe,
             vasp_args=VASP_ARGS,
             potcar_functional=recipe.potcar.functional,
-            magmom=MAGMOM,
+            magmom=moments,
+            magmom_cell=moments_cell,
             ncore=ncore,
             kpar=kpar,
             supercell_matrix=SUPERCELL_MATRIX,
@@ -207,11 +242,13 @@ def run_tick(
 
     log.info("DFPT-QHA for %s started", name)
     try:
+        moments, moments_cell = site_moments(name, structure)
         worker = DfptQhaWorker(
             recipe=recipe,
             vasp_args=VASP_ARGS,
             potcar_functional=recipe.potcar.functional,
-            magmom=MAGMOM,
+            magmom=moments,
+            magmom_cell=moments_cell,
             ncore=ncore,
             kpar=kpar,
             supercell_matrix=SUPERCELL_MATRIX,
@@ -359,6 +396,7 @@ def _submission_plan(
     resume_from: Path | None = None,
 ) -> dict:
     structure, recipe = load_endpoint(name)
+    moments, _ = site_moments(name, structure)
     frames = NUMBER_OF_FRAMES if number_of_frames is None else number_of_frames
     dfpt_mesh = MESH if mesh is None else mesh
     run_payload = {
@@ -446,7 +484,15 @@ def _submission_plan(
             "system": name,
             "stage": "dfpt-qha",
             "recipe": DFPT_QHA_RECIPE_VERSION,
-            "magmom": MAGMOM,
+            # The *effective* initial moments, not the per-element table: the
+            # antiferromagnetic endpoints carry a per-site pattern, and a run
+            # started from +3/+3 is a different calculation from one started
+            # from +3/-3 even though both use the same element table.
+            "magmom": (
+                list(moments)
+                if isinstance(moments, (list, tuple))
+                else dict(MAGMOM)
+            ),
         }),
         "endpoint_recipe": recipe.model_dump(mode="json"),
     }

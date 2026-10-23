@@ -64,7 +64,8 @@ def spawn_dfpt_volume_jobs(
     *,
     recipe: dict[str, Any],
     run_vasp_kwargs: dict[str, Any] | None = None,
-    magmom: dict[str, float] | None = None,
+    magmom: dict[str, float] | list[float] | None = None,
+    magmom_reference_cell: Any = None,
     incar_overrides: dict[str, Any] | None = None,
     supercell_matrix: Any = None,
     mesh: tuple[int, int, int] = DEFAULT_MESH,
@@ -117,7 +118,10 @@ def spawn_dfpt_volume_jobs(
             name=f"{names.DFPT} {index + 1}/{len(structures)}",
             recipe=parsed,
             run_vasp_kwargs=vasp_kwargs,
-            magmom=dict(magmom) if magmom is not None else None,
+            # NOT dict(magmom): a per-site list is the only way to express an
+            # antiferromagnetic pattern, and dict() on a list raises.
+            magmom=magmom,
+            magmom_reference_cell=magmom_reference_cell,
             incar_overrides=dict(incar_overrides or {}),
         )
         vasp_job = maker.make(cell, prev_dir=directory)

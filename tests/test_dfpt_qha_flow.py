@@ -553,3 +553,97 @@ def test_a_missing_initial_moment_names_the_element():
     generator.structure = structure()
     with pytest.raises(ValueError, match="no initial moment for \\['Al'\\]"):
         _ = generator.incar
+
+
+# --------------------------------------------------------------------------
+# antiferromagnetic endpoints
+# --------------------------------------------------------------------------
+
+def _afm_cell():
+    from pymatgen.core import Lattice, Structure
+    return Structure(Lattice.cubic(2.85), ["Cr", "Cr"],
+                     [[0, 0, 0], [0.5, 0.5, 0.5]])
+
+
+def test_expand_site_moments_puts_opposite_signs_on_the_two_sublattices():
+    """The pattern is written on the 2-atom cell and used on the 16-atom supercell.
+
+    A per-site list cannot be passed down unchanged: every atom has to be given
+    the moment of the cell site it sits on.  If that expansion were wrong, the
+    "antiferromagnetic" run would be ferromagnetic with half the moments
+    flipped somewhere arbitrary -- and it would still converge.
+    """
+    import numpy as np
+
+    from htvasp.dfpt_qha.input_set import expand_site_moments
+    from htvasp.dfpt_qha.phonons import supercell_structure
+
+    cell = _afm_cell()
+    supercell = supercell_structure(cell, [[2, 0, 0], [0, 2, 0], [0, 0, 2]])
+    moments = expand_site_moments(supercell, cell, [3.0, -3.0])
+    assert len(moments) == 16
+    assert moments.count(3.0) == 8 and moments.count(-3.0) == 8
+
+    # Every corner atom's eight nearest neighbours must be body atoms, so the
+    # two signs must alternate across the bcc nearest-neighbour shell.
+    frac = np.array([site.frac_coords for site in supercell]) * 2.0
+    body = np.all(np.isclose(frac % 1.0, 0.5, atol=1e-3), axis=1)
+    values = np.array(moments)
+    assert set(values[~body]) == {3.0}
+    assert set(values[body]) == {-3.0}
+    distances = supercell.distance_matrix
+    for index in np.where(~body)[0]:
+        nearest = np.argsort(distances[index])[1:9]
+        assert all(body[nearest])
+
+
+def test_a_per_site_list_reaches_the_incar_at_every_stage():
+    from htvasp.dfpt_qha.input_set import DfptInputSetGenerator, DfptRelaxSetGenerator
+    from htvasp.dfpt_qha.phonons import supercell_structure
+
+    cell = _afm_cell()
+    generator = DfptRelaxSetGenerator(recipe=recipe(), isif=3, magmom=[3.0, -3.0],
+                                      magmom_reference_cell=cell)
+    generator.structure = cell
+    assert generator.incar["MAGMOM"] == [3.0, -3.0]
+
+    supercell = supercell_structure(cell, [[2, 0, 0], [0, 2, 0], [0, 0, 2]])
+    dfpt = DfptInputSetGenerator(recipe=recipe(), magmom=[3.0, -3.0],
+                                 magmom_reference_cell=cell)
+    dfpt.structure = supercell
+    moments = dfpt.incar["MAGMOM"]
+    assert len(moments) == 16
+    assert moments.count(3.0) == 8 and moments.count(-3.0) == 8
+
+
+def test_the_afm_maker_survives_jobflow_serialisation():
+    """jobflow serialises makers through monty; a non-field attribute is lost."""
+    from monty.json import MontyDecoder, jsanitize
+
+    from htvasp.dfpt_qha.maker import DfptQhaMaker
+
+    cell = _afm_cell()
+    maker = DfptQhaMaker(recipe=recipe(), magmom=[3.0, -3.0], magmom_cell=cell)
+    restored = MontyDecoder().process_decoded(
+        jsanitize(maker, strict=True, allow_bson=True))
+    assert restored.magmom == [3.0, -3.0]
+    assert restored.magmom_cell is not None
+    child = restored.initial_relax_maker.input_set_generator
+    assert child.magmom_reference_cell is not None
+
+
+def test_the_afm_endpoint_list_matches_the_spin_screen():
+    """Only the endpoints whose screen chose afm may start staggered."""
+    import main_dfpt_qha as portal
+
+    assert portal.AFM_ENDPOINTS == {"BCC-Cr-Cr-2", "SER-Cr-1"}
+    for name in portal.AFM_ENDPOINTS:
+        structure, _ = portal.load_endpoint(name)
+        moments, reference = portal.site_moments(name, structure)
+        assert isinstance(moments, list) and reference is not None
+        assert set(moments) == {3.0, -3.0}
+    # a ferromagnetic Cr endpoint keeps the per-element table
+    structure, _ = portal.load_endpoint("BCC-Cr-Hf-2")
+    moments, reference = portal.site_moments("BCC-Cr-Hf-2", structure)
+    assert isinstance(moments, dict) and reference is None
+    assert moments["Cr"] == 3.0

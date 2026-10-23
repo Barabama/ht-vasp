@@ -45,8 +45,12 @@ class DfptQhaMaker(CommonQhaMaker):
     ignore_imaginary_modes: bool = False
     skip_analysis: bool = False
     run_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
-    #: element -> initial moment (muB); None uses the package table
+    #: element -> initial moment (muB); None uses the package table.  A list is
+    #: a per-site pattern (antiferromagnetic), expressed on ``magmom_cell``.
     magmom: dict[str, float] | list[float] | None = None
+    #: The cell a per-site ``magmom`` list refers to.  Required for a list: the
+    #: DFPT stage runs on a supercell, so the pattern has to be re-expanded.
+    magmom_cell: Any = None
     #: INCAR values applied after the module defaults, for every child job
     incar_overrides: dict[str, Any] = field(default_factory=dict)
     #: Extra INCAR values for the relaxation stages only (initial relax and the
@@ -71,6 +75,7 @@ class DfptQhaMaker(CommonQhaMaker):
                 isif=3,
                 run_vasp_kwargs=dict(self.run_vasp_kwargs),
                 magmom=self.magmom,
+                magmom_reference_cell=self.magmom_cell,
                 incar_overrides={**self.incar_overrides,
                                  **self.relax_incar_overrides},
             )
@@ -84,6 +89,7 @@ class DfptQhaMaker(CommonQhaMaker):
                 isif=2,
                 run_vasp_kwargs=dict(self.run_vasp_kwargs),
                 magmom=self.magmom,
+                magmom_reference_cell=self.magmom_cell,
                 incar_overrides={**self.incar_overrides,
                                  **self.relax_incar_overrides},
             )
@@ -119,6 +125,7 @@ class DfptQhaMaker(CommonQhaMaker):
             recipe=recipe.model_dump(mode="json"),
             run_vasp_kwargs=dict(self.run_vasp_kwargs),
             magmom=self.magmom,
+            magmom_reference_cell=self.magmom_cell,
             incar_overrides={**self.incar_overrides,
                              **self.dfpt_incar_overrides},
             supercell_matrix=supercell_matrix,

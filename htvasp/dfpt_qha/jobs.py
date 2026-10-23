@@ -270,6 +270,7 @@ class DfptRelaxMaker(BaseVaspMaker):
     isif: int = 2
     use_supercell_kpoints: bool = False
     magmom: dict[str, float] | list[float] | None = None
+    magmom_reference_cell: Any = None
     incar_overrides: dict[str, Any] = field(default_factory=dict)
     input_set_generator: Any = None
     run_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -284,6 +285,7 @@ class DfptRelaxMaker(BaseVaspMaker):
                 isif=self.isif,
                 use_supercell_kpoints=self.use_supercell_kpoints,
                 magmom=self.magmom,
+                magmom_reference_cell=self.magmom_reference_cell,
                 incar_overrides=dict(self.incar_overrides),
             )
         # BaseVaspMaker is a plain dataclass in this atomate2 release and
@@ -303,6 +305,7 @@ class DfptVaspMaker(BaseVaspMaker):
     recipe: Recipe | None = None
     use_supercell_kpoints: bool = True
     magmom: dict[str, float] | list[float] | None = None
+    magmom_reference_cell: Any = None
     incar_overrides: dict[str, Any] = field(default_factory=dict)
     input_set_generator: Any = None
     run_vasp_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -316,6 +319,7 @@ class DfptVaspMaker(BaseVaspMaker):
                 recipe=self.recipe,
                 use_supercell_kpoints=self.use_supercell_kpoints,
                 magmom=self.magmom,
+                magmom_reference_cell=self.magmom_reference_cell,
                 incar_overrides=dict(self.incar_overrides),
             )
 
