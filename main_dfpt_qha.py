@@ -394,6 +394,7 @@ def _submission_plan(
     ncore: int | None = None,
     kpar: int | None = None,
     resume_from: Path | None = None,
+    nodelist: str | None = None,
 ) -> dict:
     structure, recipe = load_endpoint(name)
     moments, _ = site_moments(name, structure)
@@ -423,6 +424,11 @@ def _submission_plan(
         run_payload["settings"]["ncore"] = int(ncore)
     if kpar is not None:
         run_payload["settings"]["kpar"] = int(kpar)
+    # The node is a resource choice, not a scientific one, so it is recorded in
+    # the intent identity but not in ``settings`` -- putting it there would mint
+    # a new run id and discard the store every time a job moves between nodes.
+    if nodelist:
+        run_payload["nodelist"] = nodelist
     run_id = new_run_id("dfpt-qha") if rerun else stable_run_id("dfpt-qha", run_payload)
     run_root, result_path, ledger_path = _stage_paths(name, "dfpt-qha", run_id)
     command = (
@@ -461,6 +467,8 @@ def _submission_plan(
         # submitting node resolved.
         extra_commands=psp_dir_exports(),
     )
+    if nodelist:
+        config.nodelist = nodelist
     return {
         "name": name,
         "stage": "dfpt-qha",
@@ -632,6 +640,7 @@ def submit_batch(
     ncore: int | None = None,
     kpar: int | None = None,
     resume_from: Path | None = None,
+    nodelist: str | None = None,
 ) -> list[dict]:
     """Submit every endpoint in a batch file, one Slurm job each.
 
@@ -648,6 +657,7 @@ def submit_batch(
                 name, manager, rerun=rerun, resume=resume, dry_run=dry_run,
                 number_of_frames=number_of_frames, mesh=mesh, ntasks=ntasks,
                 ncore=ncore, kpar=kpar, resume_from=resume_from,
+                nodelist=nodelist,
             )
         except Exception as exc:  # noqa: BLE001 - one endpoint must not stop a batch
             log.error("  %s: submission failed: %s", name, exc)
@@ -680,11 +690,12 @@ def submit_job(
     ncore: int | None = None,
     kpar: int | None = None,
     resume_from: Path | None = None,
+    nodelist: str | None = None,
 ):
     plan = _submission_plan(
         name, manager, rerun=rerun,
         number_of_frames=number_of_frames, mesh=mesh, ntasks=ntasks,
-        ncore=ncore, kpar=kpar, resume_from=resume_from,
+        ncore=ncore, kpar=kpar, resume_from=resume_from, nodelist=nodelist,
     )
     if dry_run:
         _print_submission_plan(plan)
@@ -743,6 +754,13 @@ if __name__ == "__main__":
              "beside each analysis JSON; accepts -n or --batch, no VASP",
     )
     parser.add_argument("--run-id", help="Operate on an explicit immutable run")
+    parser.add_argument(
+        "--nodelist", default=None, metavar="NODES",
+        help="Pin the job to specific node(s), e.g. --nodelist 429e.  Resource "
+             "only: it does not change the run id.  Needed here because the two "
+             "compute nodes differ in memory (429pro 128 GB, 429e 192 GB) and a "
+             "heavy FCC cell is OOM-killed on the smaller one.",
+    )
     parser.add_argument(
         "--resume-from", type=Path, default=None, metavar="DIR",
         help="Directory holding the store.json to resume from, for a run whose "
@@ -812,7 +830,7 @@ if __name__ == "__main__":
             number_of_frames=args.frames,
             mesh=tuple(args.mesh) if args.mesh else None,
             ntasks=args.ntasks, ncore=args.ncore, kpar=args.kpar,
-            resume_from=args.resume_from,
+            resume_from=args.resume_from, nodelist=args.nodelist,
         )
     elif args.slurm:
         if not args.name:
@@ -825,7 +843,7 @@ if __name__ == "__main__":
             number_of_frames=args.frames,
             mesh=tuple(args.mesh) if args.mesh else None,
             ntasks=args.ntasks, ncore=args.ncore, kpar=args.kpar,
-            resume_from=args.resume_from,
+            resume_from=args.resume_from, nodelist=args.nodelist,
         )
     elif args.dry_run or args.flow_graph:
         run_tick(

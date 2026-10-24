@@ -7,11 +7,11 @@ $F(V,T)$，再做准谐分析得到 $G(T)$、$V(T)$ 和 EOS。
 
 与 `QhaWorker`（有限位移 + `PhononMaker`）的区别只有一个来源：
 
-| | QhaWorker | DfptQhaWorker |
-|---|---|---|
-| 力常数来源 | 有限位移（phonopy 生成位移，逐个静态计算） | VASP DFPT 的 Hessian（`vasprun.xml`） |
-| 超胞上的计算次数 | 3N 个位移（对称约化后） | 每个体积 1 次 |
-| 超胞 | atomate2 `PhononMaker` 生成 | **phonopy 自己的超胞**（顺序必须一致，见 §6） |
+|                  | QhaWorker                                  | DfptQhaWorker                                        |
+| ---------------- | ------------------------------------------ | ---------------------------------------------------- |
+| 力常数来源       | 有限位移（phonopy 生成位移，逐个静态计算） | VASP DFPT 的 Hessian（`vasprun.xml`）              |
+| 超胞上的计算次数 | 3N 个位移（对称约化后）                    | 每个体积 1 次                                        |
+| 超胞             | atomate2 `PhononMaker` 生成              | **phonopy 自己的超胞**（顺序必须一致，见 §6） |
 
 ## 2. 流程图
 
@@ -56,15 +56,15 @@ python main_dfpt_qha.py -n BCC-Ta-Ta-2 --check
 
 关键字段：
 
-| 字段 | 含义 |
-|---|---|
-| `eos` | BM3 拟合：`V0_angstrom3`、`B0_GPa`、`B0prime`、`E0_eV` |
-| `free_energies_eV` | 每个体积、每个温度的振动自由能（**每个配方胞**） |
-| `gibbs_eV` / `equilibrium_volume_angstrom3` | 每个温度的最小 Gibbs 与对应体积 |
-| `qha_applicability` | 端点级稳定性判定（见 §5） |
-| `non_harmonic_volume_indices` | 哪些体积不满足简谐适用条件 |
-| `dynamically_unstable_conditional` | 是否属于"条件产物" |
-| `mesh_diagnostics` | 稠密 mesh 的最低频（仅诊断，不参与判定） |
+| 字段                                            | 含义                                                           |
+| ----------------------------------------------- | -------------------------------------------------------------- |
+| `eos`                                         | BM3 拟合：`V0_angstrom3`、`B0_GPa`、`B0prime`、`E0_eV` |
+| `free_energies_eV`                            | 每个体积、每个温度的振动自由能（**每个配方胞**）         |
+| `gibbs_eV` / `equilibrium_volume_angstrom3` | 每个温度的最小 Gibbs 与对应体积                                |
+| `qha_applicability`                           | 端点级稳定性判定（见 §5）                                     |
+| `non_harmonic_volume_indices`                 | 哪些体积不满足简谐适用条件                                     |
+| `dynamically_unstable_conditional`            | 是否属于"条件产物"                                             |
+| `mesh_diagnostics`                            | 稠密 mesh 的最低频（仅诊断，不参与判定）                       |
 
 单位：自由能 eV/配方胞，体积 Å³/配方胞，B0 GPa。
 
