@@ -395,6 +395,7 @@ def _submission_plan(
     kpar: int | None = None,
     resume_from: Path | None = None,
     nodelist: str | None = None,
+    memory: str = "96G",
 ) -> dict:
     structure, recipe = load_endpoint(name)
     moments, _ = site_moments(name, structure)
@@ -459,7 +460,7 @@ def _submission_plan(
         job_name=f"{name}-dfpt-qha",
         output_log=f"logs/{name}-dfpt-qha.log",
         ntasks=int(ntasks),
-        memory="96G",
+        memory=memory,
         time_limit="100:00:00",
         module_name="vasp-cpu",
         # the compute node's own pymatgen config may point at a POTCAR
@@ -641,6 +642,7 @@ def submit_batch(
     kpar: int | None = None,
     resume_from: Path | None = None,
     nodelist: str | None = None,
+    memory: str = "96G",
 ) -> list[dict]:
     """Submit every endpoint in a batch file, one Slurm job each.
 
@@ -691,11 +693,13 @@ def submit_job(
     kpar: int | None = None,
     resume_from: Path | None = None,
     nodelist: str | None = None,
+    memory: str = "96G",
 ):
     plan = _submission_plan(
         name, manager, rerun=rerun,
         number_of_frames=number_of_frames, mesh=mesh, ntasks=ntasks,
         ncore=ncore, kpar=kpar, resume_from=resume_from, nodelist=nodelist,
+        memory=memory,
     )
     if dry_run:
         _print_submission_plan(plan)
@@ -754,6 +758,12 @@ if __name__ == "__main__":
              "beside each analysis JSON; accepts -n or --batch, no VASP",
     )
     parser.add_argument("--run-id", help="Operate on an explicit immutable run")
+    parser.add_argument(
+        "--memory", default="96G", metavar="SIZE",
+        help="Slurm --mem for the job (default 96G).  Not a scientific input; "
+             "it is recorded in the config but, unlike ntasks/ncore/kpar, it is "
+             "not part of the run id.",
+    )
     parser.add_argument(
         "--nodelist", default=None, metavar="NODES",
         help="Pin the job to specific node(s), e.g. --nodelist 429e.  Resource "
@@ -831,6 +841,7 @@ if __name__ == "__main__":
             mesh=tuple(args.mesh) if args.mesh else None,
             ntasks=args.ntasks, ncore=args.ncore, kpar=args.kpar,
             resume_from=args.resume_from, nodelist=args.nodelist,
+            memory=args.memory,
         )
     elif args.slurm:
         if not args.name:
@@ -844,6 +855,7 @@ if __name__ == "__main__":
             mesh=tuple(args.mesh) if args.mesh else None,
             ntasks=args.ntasks, ncore=args.ncore, kpar=args.kpar,
             resume_from=args.resume_from, nodelist=args.nodelist,
+            memory=args.memory,
         )
     elif args.dry_run or args.flow_graph:
         run_tick(
