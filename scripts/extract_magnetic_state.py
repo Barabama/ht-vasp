@@ -192,8 +192,12 @@ def main(argv: list[str] | None = None) -> int:
         if policy and policy != "nonmagnetic" and record["kind"] == "nonmagnetic":
             record["warning"] = (
                 "the recipe expects a magnetic branch but the run converged "
-                "nonmagnetic; check the initial MAGMOM reached a stable solution "
-                "rather than collapsing"
+                "nonmagnetic.  This does NOT establish that the run is wrong: the "
+                "SCF may have found a genuinely lower nonmagnetic state at this "
+                "volume.  What it does establish is that the endpoint's magnetic "
+                "state is unresolved, because the only evidence for the magnetic "
+                "branch came from a different cell or volume -- so a comparison "
+                "at THIS relaxed volume is needed before the curve is used."
             )
         target = ROOT / "data" / "endpoints" / name / "magnetic-state.json"
         log.info("%-14s %-17s net=%+6.3f mean|m|=%.3f %s",
