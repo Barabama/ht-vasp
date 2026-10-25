@@ -47,6 +47,17 @@ REMOTE_ROOTS = {
 ARTIFACT_PATTERNS = ("*-dfpt-qha.json", "*-dfpt-qha-vt.json")
 LEDGER_NAME = "slurm_submissions.json"
 
+#: Two more files, about 100 kB per run, that unlock something the analysis
+#: JSON cannot answer: the EOS relaxation's OUTCAR carries the converged
+#: per-site magnetic moments, and the DFPT-QHA artifact records no magnetic
+#: information at all.  Without these, a TDB consumer on this machine cannot
+#: read a BMAGN for any endpoint that ran on the other cluster, and the only
+#: alternative is a rerun.  The INCAR beside it says what MAGMOM the run
+#: started from, which is what distinguishes "converged nonmagnetic" from
+#: "collapsed out of a magnetic branch".
+MAGNETIC_STATE_FILES = ("1-EOS_equilibrium_relaxation/OUTCAR.gz",
+                        "1-EOS_equilibrium_relaxation/INCAR.gz")
+
 
 def load_env(path: Path = Path("/nfs_hdd/2025/gaominliang/.env")) -> dict[str, str]:
     values: dict[str, str] = {}
@@ -86,6 +97,14 @@ def list_remote(client, remote_root: str) -> list[str]:
     )
     _, stdout, _ = client.exec_command(command, timeout=900)
     paths = [line.strip() for line in stdout.read().decode().splitlines() if line.strip()]
+    # The EOS-relax inputs live deeper than the analysis files, so they get
+    # their own pass rather than a looser maxdepth for everything.
+    for name in MAGNETIC_STATE_FILES:
+        _, out, _ = client.exec_command(
+            f"cd {remote_root} && ls data/endpoints/*/dfpt-qhaflow/runs/*/{name} "
+            "2>/dev/null | sort", timeout=900)
+        paths += [line.strip() for line in out.read().decode().splitlines()
+                  if line.strip()]
     if not paths:
         raise RuntimeError(f"{cluster}:{remote_root} produced no artifact paths")
     return paths
