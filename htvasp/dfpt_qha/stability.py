@@ -70,7 +70,14 @@ PERMUTATION_DIAGNOSTIC_TOL = 1e-2
 #: runs are 5-7 THz).  Enforcing translational invariance changes the optical
 #: frequencies of the healthy runs by 0.1-0.2%; on the broken one it would hide
 #: a 22% error.
-ASR_CORRECTION_MAX_REL = 0.1
+#:
+#: Raised from 0.1 to 0.15 on 2026-10-26.  Over the 192 archived volumes the
+#: pre-correction residual has median 2.9e-3 and only ONE value in 0.10-0.12
+#: (FCC-Nb-Ta-4 volume 7, 0.1203); the next highest is 0.0942, and the
+#: correction takes that one to 6e-16.  So the correction works at that
+#: magnitude and 0.1 was cutting a good matrix; 0.36 -- the value the limit
+#: exists to exclude -- is still well outside.
+ASR_CORRECTION_MAX_REL = 0.15
 #: Gate applied to the matrix AFTER the correction.
 ASR_TOL_REL = 1e-2
 #: Absolute floor below which a relative ASR residual is not worth reporting.
