@@ -4,6 +4,11 @@
 > 目标仓库：`/nfs_hdd/2025/gaominliang/ht-vasp`。
 > 本文档最后一节「事实附录」是给**你**（派发人）核对用的，不要复制进去。
 
+> **关于本文档的路径**：这些提示词文件在 `feat-dfpt-qha` 分支的 `docs/prompts/` 下。
+> 如果你按提示切到了 `feat-tb2j`（或任何别的分支），那个目录可能不存在。
+> **你手上粘贴的正文就是权威版本**；如果正文里引用了某个 `docs/prompts/*.md` 而你找不到，
+> 停下来向派发人索取，不要猜内容。
+
 ---
 
 ## 提示词正文
@@ -35,7 +40,9 @@ git checkout feat-tb2j
 git merge master
 ```
 
-合并前确认：`git merge-base --is-ancestor feat-tb2j master` 为真（所以合并接近快进）；`git merge-tree` 报 0 冲突。**合并后 `htvasp/dfpt_qha/` 和 `main_spin_screen.py` 会消失**——这是分支拓扑（`feat-dfpt-qha` 领先 master 89 个提交，不在祖先链上），不是丢代码。**如果你的调查需要用到 DFPT-QHA 的代码或数据，从 `data/endpoints/` 读（数据在文件系统上，与分支无关），不要去 `feat-dfpt-qha` 搬代码。**
+合并前确认：`git merge-base --is-ancestor feat-tb2j master` 为真（所以合并接近快进）；`git merge-tree` 报 0 冲突。
+
+**切分支时你会看到 `htvasp/dfpt_qha/`、`main_dfpt_qha.py`、`main_spin_screen.py` 从工作区消失**——`feat-tb2j` 和 `master` 都没有这些文件，只有 `feat-dfpt-qha` 有（它领先 master 89 个提交，不在 master 的祖先链上）。**这是分支拓扑，不是丢代码。** `git checkout feat-dfpt-qha` 它们就回来了。**如果你的调查需要用到 DFPT-QHA 的代码或数据，从 `data/endpoints/` 读（数据在文件系统上，与分支无关），不要去 `feat-dfpt-qha` 搬代码。**
 
 ### 2. 发现链路（按时间顺序，每一步都有可复核的文件）
 

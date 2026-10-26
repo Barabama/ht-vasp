@@ -4,6 +4,11 @@
 > 目标仓库：`/nfs_hdd/2025/gaominliang/ht-vasp`，分支 `feat-tb2j`。
 > 本文档最后一节「事实附录」是给**你**（派发人）核对用的，不要复制进去。
 
+> **关于本文档的路径**：这些提示词文件在 `feat-dfpt-qha` 分支的 `docs/prompts/` 下。
+> 如果你按提示切到了 `feat-tb2j`（或任何别的分支），那个目录可能不存在。
+> **你手上粘贴的正文就是权威版本**；如果正文里引用了某个 `docs/prompts/*.md` 而你找不到，
+> 停下来向派发人索取，不要猜内容。
+
 ---
 
 ## 提示词正文
@@ -129,7 +134,7 @@ feat-dfpt-qha     ← 多了 context.py 与 magnetic_contract.py，以及整个 
 origin/master     ← 本地 master 领先 7 个（其中 3 个是 SQS 的 add+revert，净效果只剩 0108ef7）
 ```
 
-`feat-tb2j` 合并 `master` 是安全的（`git merge-tree` 报 0 冲突）。合并后 `htvasp/dfpt_qha/` 和 `main_spin_screen.py` 会**消失**——这是分支拓扑的事实，不是丢代码。
+`feat-tb2j` 合并 `master` 是安全的（`git merge-tree` 报 0 冲突）。**切到 `feat-tb2j` 时你会看到 `htvasp/dfpt_qha/`、`main_dfpt_qha.py`、`main_spin_screen.py` 从工作区消失**——只有 `feat-dfpt-qha` 有这些文件。这是分支拓扑的事实，不是丢代码；`git checkout feat-dfpt-qha` 就回来。
 
 ### 44/44 没收敛的证据
 
