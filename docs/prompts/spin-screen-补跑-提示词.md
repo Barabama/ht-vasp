@@ -54,7 +54,16 @@ B5070 是另一台机器、另一个用户、只有密码登录，**不能 `ssh 
 ./.conda/bin/python /tmp/b5070.py 'ls data/endpoints/*/spin-screen.json'
 ```
 
-取回到 `data/endpoints/<name>/spin-screen.json`（**不要覆盖任何已有文件**，本地那 18 个目录里现在只有 `magnetic-state.json` 和 `dfpt-qhaflow/`，没有 spin-screen.json）。同时检查 B5070 上有没有 `spin-screenflow/` 目录——有就一起取回 store（那是原始 TaskDoc，`--reanalyse` 要用）。
+取回到 `data/endpoints/<name>/spin-screen.json`（**不要覆盖任何已有文件**）。
+
+本地现状（实测）：18 个里**只有 9 个有 `data/endpoints/<name>/` 目录**（含 `magnetic-state.json` 和/或 `dfpt-qhaflow/`），另外 9 个连目录都没有：
+
+```
+缺目录的 9 个：FCC-Cr-Hf-4 FCC-Cr-Ta-4 FCC-Cr-Ti-4 FCC-Cr-Zr-4 FCC-Hf-Cr-4
+                FCC-Nb-Cr-4 FCC-Ta-Cr-4 FCC-Ti-Cr-4 FCC-Zr-Cr-4
+```
+
+取回时要 `mkdir -p`。同时检查 B5070 上有没有 `spin-screenflow/` 目录——有就一起取回（那是原始 TaskDoc 和 store，`--reanalyse` 要用；本地一个都没有）。
 
 **第二步：确认 66 个的名单。**
 
