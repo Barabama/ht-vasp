@@ -1,0 +1,161 @@
+{
+  "schema": "legacy-qha-dataset/v1",
+  "endpoint_label": "BCC-Nb-Ti-2",
+  "endpoint_label_is_a_nas_directory_name": true,
+  "label_provenance": {
+    "nas_share": "\\\\Mcmf-nas\\e\\nas-shared",
+    "nas_path": "E:\\nas-shared\\Endmembers\\16symbols-cxy-hmd\\BCC-Nb-Ti-2",
+    "note": "the label is recorded as a source identifier only; per em-tdb-v2 plan v2 §B.5.8 no physical meaning is inferred from it. The composition claim in particular is NOT proven by this endpoint's files."
+  },
+  "source": {
+    "mirror_root": "ht-vasp/data/legacy-dfpt-qha-pilot/BCC-Nb-Ti/legacy-as-received",
+    "manifest": "ht-vasp/data/legacy-dfpt-qha-pilot/BCC-Nb-Ti/source-manifest.json",
+    "manifest_schema": "legacy-nas-mirror/v1",
+    "file_count": 30,
+    "total_bytes": 5920757,
+    "endpoint_content_digest_sha256": "ca13b5166fcf484751464bf022709e855f9895d24c034e90b36d41cd733c98d9",
+    "mirrored_at_utc": "2026-10-08T12:37:38Z",
+    "transfer": "SFTP over SSH, size-verified after transfer, mtimes restored, read-only",
+    "contents": "13 *.dat, 9 *.pdf (renderings of the .dat), 8 thermal_properties-0N.yaml. Nothing else — no INCAR, no POSCAR, no POTCAR, no FORCE_CONSTANTS, no phonopy.yaml, no mesh.yaml, no vasprun.xml, no OUTCAR, no CHGCAR."
+  },
+  "audit": {
+    "status": "unverifiable",
+    "report": "audit/audit.json",
+    "tool": "ht-vasp/scripts/legacy_qha_audit.py",
+    "schema": "legacy-qha-audit/v1",
+    "n_failures": 0,
+    "n_warnings": 1,
+    "verdict": "没有任何 VASP 层可以检查。曲线与热力学量都能读出来，但\"它们是怎么算出来的\"在这个端基里无法验证，所以状态是 unverifiable 而不是 pass。不得把它当作已验证数据。详见 FINDINGS.md。",
+    "what_was_checked_anyway": [
+      "v-e.dat 的列数、点数、体积步长与能量范围（纯格式检查）",
+      "BM3 拟合及其残差",
+      "8 个 thermal_properties yaml 的自洽字段（num_modes vs num_integrated_modes、natom、unit 块、温度网格）",
+      "Gibbs 曲线的相邻跳变"
+    ]
+  },
+  "claims": {
+    "composition_reduced": {
+      "value": {"Ti": 1, "Nb": 1},
+      "status": "plausible_corroborated_not_proven",
+      "evidence": [
+        "phonons/thermal_properties-0N.yaml: natom: 2 (so the cell has two atoms, but the yaml does not name them)",
+        "the volume range 33.16-37.23 A^3 for a 2-atom cell is 16.6-18.6 A^3/atom, the range a bcc Ti-Nb alloy occupies",
+        "ht-vasp's independently relaxed BCC-Nb-Ti cell (structure/from-ht-vasp/POSCAR-unitcell, a = 3.266876449678747 A, V = 34.865689687333266 A^3) falls inside the legacy volume range, 0.127 % above the legacy discrete minimum volume 34.91 A^3"
+      ],
+      "not_proven_by": "no file in this endpoint names an element. The directory label is not evidence (§B.5.8). If the composition matters for a downstream step, it must come from a profile or an explicit user decision.",
+      "warning": "ht-vasp also carries an independent modern (atomate2) QHA calculation for the same nominal endpoint. It is NOT the same calculation: its Gibbs curve starts at -17.83702657957205 eV/f.u. against this endpoint's -17.679267504318961 eV/f.u., 0.158 eV/f.u. apart. Do not mix the two, and do not use one to fill in the other's missing metadata."
+    },
+    "structure_prototype": {
+      "value": null,
+      "status": "unresolved",
+      "evidence": [],
+      "note": "no structure file exists in this endpoint. Only natom: 2 is known from the thermal-property yaml."
+    },
+    "anchor_cell": {
+      "value": null,
+      "status": "unresolved",
+      "evidence": [],
+      "note": "the volume grid's anchor is not recoverable: see volume_grid below. An outside cell (e.g. the ht-vasp relaxed one) can be offered as a working hypothesis, but it would be an import, not a property of this endpoint."
+    },
+    "volume_grid": {
+      "value": {
+        "n_points": 8,
+        "volumes_angstrom3": [33.16, 33.74, 34.32, 34.91, 35.49, 36.07, 36.65, 37.23],
+        "spacing": "uniform in volume, 0.58143 A^3",
+        "law": "unknown"
+      },
+      "status": "partially_resolved",
+      "evidence": [
+        "the volumes themselves are read directly from curves/v-e.dat",
+        "uniformity in volume is exact (the seven spacings are 0.58/0.58/0.59/0.58/0.58/0.58/0.58 A^3); uniformity in lattice constant is not (a_i spacings drift from 0.01862 to 0.01743 A)"
+      ],
+      "unknown": "the generating law and its anchor volume cannot be recovered. If it were the same family as BCC-Co-Ti-2 (V/V0 = linspace(s0, s1, N)) then s0 ~ 0.950 and s1 ~ 1.0666 with V0 ~ 34.905 A^3, but 34.905 matches neither the BM3 equilibrium volume (34.779724 A^3) nor the ht-vasp relaxed volume (34.865690 A^3), so this reconstruction is not supported. The per-volume cells are simply absent."
+    },
+    "calculation_method": {
+      "value": null,
+      "status": "unresolved",
+      "evidence": [],
+      "note": "no OUTCAR, no INCAR, no FORCE_CONSTANTS, no mesh.yaml: nothing distinguishes DFPT from finite displacements here. Per em-tdb-v2 plan v2 §B.5.6 item 9 the method must stay unknown unless independent provenance evidence exists — a .dat file and a phonopy-style yaml are not that evidence."
+    },
+    "producer": {
+      "value": {"phonon": "unknown (the yaml format is phonopy's, but no phonopy.yaml or version string is present)"},
+      "status": "unresolved",
+      "evidence": [],
+      "note": "the thermal_properties yaml field set (natom, num_modes, num_integrated_modes, zero_point_energy, high_T_entropy, unit block) matches the format BCC-Co-Ti-2's phonopy 1.11.0 wrote, but format similarity is not a producer identity."
+    },
+    "units": {
+      "value": {
+        "curves/v-e.dat": {"column_1": "angstrom^3 (by analogy with BCC-Co-Ti-2; no unit block in the file)", "column_2": "eV (by analogy; no unit block in the file)", "normalization": "unknown, probably per 2-atom cell"},
+        "curves/gibbs-temperature.dat": {"column_1": "K", "column_2": "eV (by analogy)", "normalization": "unknown, probably per 2-atom cell"},
+        "phonons/thermal_properties-*.yaml": {"temperature": "K", "free_energy": "kJ/mol", "entropy": "J/K/mol", "heat_capacity": "J/K/mol", "normalization": "per unit cell (natom: 2)", "declared_in": "the file's own unit: block"}
+      },
+      "status": "partially_resolved",
+      "evidence": [
+        "phonons/thermal_properties-*.yaml each carry an explicit unit: block, so their units are resolved from the files themselves",
+        "curves/*.dat carry no unit block; their reading is inherited from the sibling endpoint and is therefore degraded evidence, not proof"
+      ]
+    },
+    "temperature_grid": {
+      "value": {
+        "curves/gibbs-temperature.dat": {"first_K": 0.0, "last_K": 2960.0, "step_K": 10.0, "n_points": 297},
+        "phonons/thermal_properties-*.yaml": {"first_K": 0.0, "last_K": 3000.0, "step_K": 10.0, "n_points": 301}
+      },
+      "status": "resolved_with_evidence",
+      "evidence": ["read from the files themselves; the Gibbs sweep stops at 2960 K while the thermal properties reach 3000 K"]
+    },
+    "reference_role": {
+      "value": null,
+      "status": "unresolved",
+      "evidence": [],
+      "note": "same as BCC-Co-Ti-2: no SER/ordered statement anywhere."
+    },
+    "energy_reference_state": {
+      "value": null,
+      "status": "unresolved",
+      "evidence": [],
+      "note": "absolute-looking eV values with no elemental reference."
+    },
+    "applicability": {
+      "value": "unverifiable",
+      "status": "resolved_with_evidence",
+      "evidence": ["audit/audit.json: status unverifiable, no VASP layer present"]
+    }
+  },
+  "observables": {
+    "eos_fit_bm3": {
+      "E0_eV_per_cell": -17.719028,
+      "V0_angstrom3": 34.779724,
+      "B0_GPa": 136.431788,
+      "Bp": 3.487411,
+      "r2": 1.0,
+      "max_abs_residual_meV": 0.024103,
+      "discrete_minimum": {"V_angstrom3": 34.91, "E_eV": -17.718797, "is_interior": true},
+      "fit_by": "ht-vasp/scripts/legacy_qha_audit.py, Birch-Murnaghan 3rd order, scipy.optimize.curve_fit",
+      "caution": "8 points and 4 free parameters: R^2 prints as 1.0 at double precision and the largest residual is 0.024 meV. The fit is not independent evidence of anything; it is a summary of 8 numbers."
+    },
+    "gibbs_curve": {
+      "G_at_0K_eV_per_cell": -17.679267504318961,
+      "G_at_2960K_eV_per_cell": -22.191854518045744,
+      "max_adjacent_jump_eV": 2.2886026611132273,
+      "max_adjacent_jump_at_K": [2650.0, 2660.0],
+      "n_jumps_over_0.2_eV": 2,
+      "reading": "one 2.29 eV/cell discontinuity at 2650->2660 K. That is ~13 % of the whole 0-2960 K drop happening in one 10 K step. Combined with the imaginary modes at 6/8 volumes the high-temperature part of this curve is not trustworthy."
+    },
+    "per_volume": [
+      {"tag": "01", "V_angstrom3": 33.16, "E_eV": -17.684538, "ZPE_kJ_per_mol": 4.8224033, "modes_dropped": 0},
+      {"tag": "02", "V_angstrom3": 33.74, "E_eV": -17.705195, "ZPE_kJ_per_mol": 4.6111932, "modes_dropped": 0},
+      {"tag": "03", "V_angstrom3": 34.32, "E_eV": -17.716397, "ZPE_kJ_per_mol": 3.9832409, "modes_dropped": 40},
+      {"tag": "04", "V_angstrom3": 34.91, "E_eV": -17.718797, "ZPE_kJ_per_mol": 3.7946376, "modes_dropped": 520},
+      {"tag": "05", "V_angstrom3": 35.49, "E_eV": -17.713032, "ZPE_kJ_per_mol": 3.6640315, "modes_dropped": 1288},
+      {"tag": "06", "V_angstrom3": 36.07, "E_eV": -17.699746, "ZPE_kJ_per_mol": 3.0559905, "modes_dropped": 8568},
+      {"tag": "07", "V_angstrom3": 36.65, "E_eV": -17.679449, "ZPE_kJ_per_mol": 4.0657029, "modes_dropped": 24},
+      {"tag": "08", "V_angstrom3": 37.23, "E_eV": -17.652676, "ZPE_kJ_per_mol": 2.8765646, "modes_dropped": 7992}
+    ]
+  },
+  "files": {
+    "inventory": "INVENTORY.json",
+    "raw_vasp_layer": "raw/RAW_INDEX.json (empty: there is no raw VASP layer)",
+    "external_structure": "structure/from-ht-vasp/ (imported, carries no legacy provenance)",
+    "layout_proposal": "../LAYOUT_PROPOSAL.md"
+  }
+}

@@ -4,12 +4,16 @@
 
 `ht-vasp` is a Python framework for building, running, and managing high-throughput first-principles calculations using VASP (Vienna Ab initio Simulation Package) with a focus on Multi-Principal Element Alloys (MPEAs) and CALPHAD thermodynamic modeling. It wraps atomate2/jobflow makers into reusable `Worker` classes that handle VASP job execution locally or via Slurm, with built-in resume support and result persistence.
 
-The framework supports five main workflow types:
+The framework supports these workflow types:
 - **Relax**: Two-step structural relaxation (R7 volume + R3 full)
 - **Static**: Relaxation followed by static self-consistent calculation
 - **NSCF**: Non-self-consistent DOS + band structure calculations
-- **QHA**: Quasi-Harmonic Approximation for thermodynamic properties
+- **QHA**: Quasi-Harmonic Approximation from finite-displacement phonons
+- **DFPT-QHA**: Quasi-Harmonic Approximation from VASP DFPT (IBRION=8), with an
+  exact-commensurate-q stability verdict carried into the artifact
 - **OJ** (OstravaJ): Magnetic exchange coupling J and Curie temperature calculations
+- **TB2J**: Magnetic exchange via TB2J
+- **SQS-mixing**: Special-quasirandom-structure mixing workflows
 
 It also includes post-processing scripts for CALPHAD thermodynamic fitting (Birch-Murnaghan EOS, SGTE polynomial Gibbs free energy fitting) and electronic structure visualization.
 
@@ -33,7 +37,21 @@ ht-vasp/                          # Project root
 │   │   ├── static.py             # StaticWorker — static calculation
 │   │   ├── nscf.py               # NscfWorker — DOS + band structure
 │   │   ├── qha.py                # QhaWorker — quasi-harmonic approximation
+│   │   ├── dfpt_qha.py           # DfptQhaWorker — DFPT phonons + QHA
+│   │   ├── tb2j.py               # Tb2jWorker — magnetic exchange via TB2J
+│   │   ├── sqs_mixing.py         # SqsMixingWorker — SQS mixing
 │   │   └── oj.py                 # OJWorker — magnetic exchange
+│   ├── dfpt_qha/                 # DFPT-QHA sub-package
+│   │   ├── __init__.py
+│   │   ├── input_set.py          # DfptInputSetGenerator / DfptRelaxSetGenerator
+│   │   ├── jobs.py               # collector, validator, makers
+│   │   ├── flow_jobs.py          # dynamic per-volume chain, stability gate
+│   │   ├── maker.py              # DfptQhaMaker
+│   │   ├── phonons.py            # ordering-safe phonopy construction
+│   │   ├── stability.py          # tier-A checks + tier-B soft-mode report
+│   │   ├── input_audit.py        # custodian original-vs-actual audit
+│   │   ├── qha.py                # F(V,T), EOS, G(T)
+│   │   └── task_doc.py           # DfptTaskDoc
 │   ├── utils/
 │   │   ├── __init__.py
 │   │   ├── local.py              # run_locally_custom — custom jobflow local runner with resume
@@ -62,12 +80,18 @@ ht-vasp/                          # Project root
 │   ├── jmixer/                   # J-mixer python package
 │   └── examples/NiO/             # Example input files
 │
-├── tests/                        # Test scripts (no test runner — use --unit flag)
+├── tests/                        # pytest suite (+ legacy --unit scripts)
 │   ├── test_relax.py
 │   ├── test_static.py
 │   ├── test_nscf.py
 │   ├── test_qha.py
-│   └── test_oj.py
+│   ├── test_oj.py
+│   ├── test_dfpt_qha_*.py        # recipe, pool, flow, collector, stability, analysis
+│   ├── test_input_audit.py
+│   ├── test_local_resume.py
+│   ├── test_spin_screen.py
+│   ├── test_vasp_handlers.py
+│   └── fixtures/                 # vendored real DFPT job directory (520 KB)
 │
 ├── data/                         # VASP calculation output data
 │   ├── poscars/                  # Input POSCAR files for structures
@@ -123,6 +147,8 @@ ht-vasp/                          # Project root
 └── Top-level scripts:
     ├── main_oj.py                # OJ workflow run script (main entry point for magnetic exchange)
     ├── main_qha.py               # QHA workflow run script (main entry point for thermodynamics)
+    ├── main_dfpt_qha.py          # DFPT-QHA portal (--batch, --slurm, --resume)
+    ├── main_spin_screen.py       # Cr spin screening (nm/fm/afm, --reanalyse)
     ├── conioh_nscf.py            # CoNiHO NSCF workflow run script
     ├── nscf_plot.py              # DOS + band structure plotting
     ├── temp_v_e_fit.py           # EOS fitting (Birch-Murnaghan 3rd order)
@@ -147,19 +173,18 @@ pip install -e ".[dev]"
 
 The Python version requirement is >= 3.10.
 
-### Running Unit Tests (no VASP needed)
+### Running Tests (no VASP needed)
 
-Each test script has `--unit`, `--local`, and `--slurm` flags:
+The suite is pytest; run it from the project root with the project environment:
 
 ```bash
-python tests/test_relax.py --unit
-python tests/test_static.py --unit
-python tests/test_nscf.py --unit
-python tests/test_qha.py --unit
-python tests/test_oj.py --unit
+.conda/bin/python -m pytest tests/ -q
 ```
 
-There is no formal test runner (pytest is an optional dev dependency). Tests use simple procedural functions with argparse.
+The legacy `tests/test_<workflow>.py` scripts still accept `--unit/--local/--slurm`,
+but pytest is the real runner.  `tests/fixtures/` vendors one real DFPT job
+directory so the collector, ordering and stability tests run without scratch
+space.
 
 ### Running Workflows Locally (requires VASP)
 
@@ -246,6 +271,7 @@ Results are stored in `JSONStore` files (named `store.json`) inside store direct
 | `htvasp/workflows/static.py` | `StaticWorker` | relax -> static |
 | `htvasp/workflows/nscf.py` | `NscfWorker` | Static -> NSCF-DOS (uniform) || NSCF-Band (line) |
 | `htvasp/workflows/qha.py` | `QhaWorker` | Relax -> EOS -> Phonon -> QHA |
+| `htvasp/workflows/dfpt_qha.py` | `DfptQhaWorker` | EOS -> per-volume DFPT -> classification -> thermal -> QHA |
 | `htvasp/workflows/oj.py` | `OJWorker` | Generate -> N flip jobs (parallel) -> Solve |
 
 ### OstravaJ Sub-package
@@ -271,6 +297,8 @@ Results are stored in `JSONStore` files (named `store.json`) inside store direct
 |------|---------|
 | `main_oj.py` | Entry point for OJ workflows — supports `--oj`, `--relax`, `--batch`, `--slurm`, `--dry-run` |
 | `main_qha.py` | Entry point for QHA/static workflows — supports `-n/-j`, `--slurm`, `--check` |
+| `main_dfpt_qha.py` | DFPT-QHA portal — `-n`, `--batch FILE`, `--slurm`, `--resume`, `--dry-run`, `--check` |
+| `main_spin_screen.py` | Cr spin screening — `--batch`, `--slurm`, `--constrained-afm`, `--reanalyse` |
 | `conioh_nscf.py` | NSCF runs for (Co,Ni)(OH)2 and S-doped variants with DFT+U |
 | `nscf_plot.py` | DOS + band structure plotting using pymatgen (`DosPlotter`, `BSPlotter`, `BSDOSPlotter`) |
 | `temp_v_e_fit.py` | Birch-Murnaghan 3rd-order EOS fitting (single/batch modes) |

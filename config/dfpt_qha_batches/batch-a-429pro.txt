@@ -1,0 +1,37 @@
+# DFPT-QHA batch A -- 33 endpoints (29 to run; 4 already done on 429pro)
+# cluster: 429pro, 32 ranks, one Slurm job per endpoint
+# entries already completed on this cluster are skipped by the ledger
+
+BCC-Al-Al-2
+BCC-Al-Cr-2
+BCC-Al-Hf-2
+BCC-Al-Nb-2
+BCC-Al-Ta-2
+BCC-Al-Ti-2
+BCC-Al-Zr-2
+BCC-Hf-Hf-2
+BCC-Hf-Nb-2
+BCC-Hf-Ta-2
+BCC-Hf-Ti-2
+BCC-Hf-Zr-2
+BCC-Nb-Nb-2
+BCC-Ta-Ta-2
+FCC-Al-Al-4
+FCC-Al-Cr-4
+FCC-Al-Hf-4
+FCC-Al-Nb-4
+FCC-Al-Ta-4
+FCC-Al-Ti-4
+FCC-Al-Zr-4
+FCC-Cr-Al-4
+FCC-Hf-Al-4
+FCC-Hf-Hf-4
+FCC-Hf-Nb-4
+FCC-Hf-Ta-4
+FCC-Hf-Ti-4
+FCC-Hf-Zr-4
+FCC-Nb-Al-4
+FCC-Nb-Hf-4
+FCC-Nb-Nb-4
+FCC-Nb-Ta-4
+FCC-Nb-Ti-4

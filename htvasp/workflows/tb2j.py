@@ -33,7 +33,9 @@ from custodian.vasp.handlers import VaspErrorHandler
 from atomate2.vasp.jobs.core import RelaxMaker
 from atomate2.vasp.sets.core import RelaxSetGenerator
 
+from htvasp.tb2j.context import canonicalize_with_context, normalize_magnetic_context
 from htvasp.tb2j.input_set import ORBITALS_PER_ATOM, Tb2jInputSetGenerator
+from htvasp.tb2j.jobs import canonicalize_tb2j_result
 from htvasp.tb2j.maker import Tb2jMaker
 from htvasp.workflows.base import Worker
 
@@ -94,6 +96,7 @@ class Tb2jWorker(Worker):
         kmesh: tuple = (9, 9, 9),
         kpoints: tuple = (8, 8, 8),
         ntasks: int = 32,
+        magnetic_context: dict[str, Any] | None = None,
         **kwargs,
     ):
         # Initialize base Worker
@@ -110,6 +113,7 @@ class Tb2jWorker(Worker):
         self.kpoints = tuple(kpoints)
         self.num_wann = num_wann
         self.ntasks = ntasks
+        self.magnetic_context = normalize_magnetic_context(magnetic_context)
 
         # R3 structural relaxation (single RelaxMaker: R3). A double relax
         # (R3 -> R3) is redundant for TB2J - the exchange parameters only need
@@ -181,9 +185,11 @@ class Tb2jWorker(Worker):
         }
         self.tb2j_maker = Tb2jMaker(
             run_vasp_kwargs=w90_run_vasp_kwargs,
+            copy_vasp_kwargs={"additional_vasp_files": ("CHGCAR",)},
             elements=self.elements or [],
             kmesh=self.kmesh,
             ntasks=self.ntasks,
+            magnetic_context=self.magnetic_context,
             input_set_generator=Tb2jInputSetGenerator(
                 elements=self.elements or [],
                 num_wann=self.num_wann,
@@ -201,7 +207,7 @@ class Tb2jWorker(Worker):
                     # fresh SCF, matching the verified submit_tb2j.sh INCAR_W90
                     # (a WAVECAR hot-start conflicts with NBANDS and custodian)
                     "ISTART": 0,
-                    "ICHARG": 2,
+                    "ICHARG": 1,
                     # verified tighter SCF convergence for the Wannier90 interface
                     "EDIFF": 1e-6,
                     # Wannier90-interface requirements. These must come after
@@ -249,6 +255,7 @@ class Tb2jWorker(Worker):
         elements = self.elements if self.elements is not None else self._structure_elements(structure)
         self.tb2j_maker.elements = elements
         self.tb2j_maker.input_set_generator.elements = elements
+        self.tb2j_maker.magnetic_context = normalize_magnetic_context(self.magnetic_context)
 
         # Tb2jMaker.make() derives NUM_WANN from the structure at flow-build
         # time, but the relaxed structure here is an OutputReference (resolved
@@ -272,6 +279,28 @@ class Tb2jWorker(Worker):
             output=tb2j_flow.output,
             name=f"{self.worker_name} flow",
         )
+
+    def write_result(
+        self,
+        data: dict | None,
+        json_path: Path | str,
+        **kwargs: Any,
+    ):
+        """Write a canonical production TB2J JSON artifact."""
+
+        if not data:
+            log.warning("No data to write")
+            return
+        destination = Path(json_path).resolve()
+        magnetic_context = kwargs.pop("magnetic_context", self.magnetic_context)
+        canonical = canonicalize_with_context(
+            canonicalize_tb2j_result,
+            data,
+            output_path=destination,
+            magnetic_context=magnetic_context,
+            **kwargs,
+        )
+        super().write_result(data=canonical, json_path=destination)
 
     def get_result(self, output_job_name: str = "tb2j solve") -> dict[str, Any] | None:
         return super().get_result(output_job_name)

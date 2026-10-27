@@ -4,6 +4,10 @@ HT-VASP - QHA workflow
 Quasi-Harmonic Approximation workflows for thermodynamic properties.
 """
 
+import copy
+import hashlib
+import json
+import math
 import re
 import logging
 import traceback
@@ -44,6 +48,201 @@ class QhaData(TypedDict):
     helmholtz_volume: list[list[float]]  # A(V,T)
 
 
+QHA_SCHEMA_VERSION = "qha-v1"
+QHA_PRODUCER_VERSION = "htvasp-qha-v1"
+QHA_TEMPERATURE_UNIT = "K"
+QHA_GIBBS_UNIT = "eV/reduced_formula_unit"
+
+
+def _qha_reference_role(structure_name: str) -> str:
+    """Map a configured endmember name to an explicit DFT-QHA role."""
+
+    name = structure_name.removesuffix("-qha")
+    tokens = name.split("-")
+    if len(tokens) == 2 and tokens[0].upper() == "SER" and tokens[1]:
+        return "DFT_QHA_SER"
+    if len(tokens) == 3 and tokens[0].upper() in {"BCC", "FCC"}:
+        phase = tokens[0].upper()
+        if tokens[1].upper() == tokens[2].upper():
+            return f"DFT_QHA_{phase}_PURE"
+        return "DFT_QHA_ORDERED"
+    raise ValueError(
+        f"cannot assign an explicit QHA reference role from structure name {structure_name!r}"
+    )
+
+
+def _finite_array(value: Any, field: str) -> list[float]:
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"QHA {field} must be a non-empty list")
+    result: list[float] = []
+    for index, item in enumerate(value):
+        try:
+            number = float(item)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"QHA {field}[{index}] must be numeric") from exc
+        if not math.isfinite(number):
+            raise ValueError(f"QHA {field}[{index}] must be finite")
+        result.append(number)
+    return result
+
+
+def canonicalize_qha_result(
+    data: dict[str, Any],
+    *,
+    structure_name: str,
+    output_path: Path | str | None = None,
+    phase_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Attach the production QHA contract before writing the result JSON.
+
+    Current atomate2/phonopy output has one trailing temperature more than the
+    derived Gibbs curve.  The production artifact deliberately stores only
+    equal-length arrays; the input/output counts and transformation are kept in
+    provenance, while the source calculation remains reproducible from the
+    job store and workflow metadata.
+    """
+
+    if not isinstance(data, dict):
+        raise ValueError("QHA result must be a dictionary")
+    result = copy.deepcopy(data)
+    temperatures = _finite_array(result.get("temperatures"), "temperatures")
+    gibbs = _finite_array(result.get("gibbs_temperature"), "gibbs_temperature")
+    if any(value < 0.0 for value in temperatures):
+        raise ValueError("QHA temperatures must be non-negative Kelvin values")
+    if any(right <= left for left, right in zip(temperatures, temperatures[1:])):
+        raise ValueError("QHA temperatures must be strictly increasing")
+    if len(temperatures) == len(gibbs) + 1:
+        input_temperature_count = len(temperatures)
+        temperatures = temperatures[: len(gibbs)]
+        alignment_operation = "trailing_temperature_dropped"
+    elif len(temperatures) == len(gibbs):
+        input_temperature_count = len(temperatures)
+        alignment_operation = "exact"
+    else:
+        raise ValueError(
+            "QHA temperatures and gibbs_temperature must have equal length "
+            "or exactly one additional trailing temperature"
+        )
+    if len(temperatures) != len(gibbs):  # defensive assertion for future edits
+        raise ValueError("QHA production arrays must have equal length")
+
+    role = _qha_reference_role(structure_name)
+    effective_phase_context = copy.deepcopy(
+        phase_context if phase_context is not None else result.get("phase_context")
+    )
+    if effective_phase_context is not None and not isinstance(effective_phase_context, dict):
+        raise ValueError("QHA phase_context must be a dictionary")
+    structure_context = dict(result.get("structure_context") or {})
+    structure_context.update(
+        {
+            "structure_name": structure_name.removesuffix("-qha"),
+            "workflow": "qha",
+        }
+    )
+    if effective_phase_context:
+        structure_context["phase_context"] = copy.deepcopy(effective_phase_context)
+    composition_reduced = result.get("composition_reduced")
+    structure = result.get("structure")
+    if not isinstance(composition_reduced, dict) and isinstance(structure, dict):
+        composition_obj = Structure.from_dict(structure).composition.reduced_composition
+        composition_reduced = {
+            str(element): float(amount)
+            for element, amount in composition_obj.as_dict().items()
+        }
+    if not isinstance(composition_reduced, dict) or not composition_reduced:
+        raise ValueError("QHA production result requires composition_reduced")
+    composition_reduced = {
+        str(element): float(amount)
+        for element, amount in composition_reduced.items()
+    }
+    formula_atom_count = sum(composition_reduced.values())
+    if not math.isfinite(formula_atom_count) or formula_atom_count <= 0:
+        raise ValueError("QHA composition_reduced must have a positive atom count")
+
+    result.update(
+        {
+            "schema_version": QHA_SCHEMA_VERSION,
+            "producer": "htvasp.QhaWorker",
+            "producer_version": QHA_PRODUCER_VERSION,
+            "structure_name": structure_name.removesuffix("-qha"),
+            "composition_reduced": composition_reduced,
+            "units": {
+                "temperature": QHA_TEMPERATURE_UNIT,
+                "gibbs_temperature": QHA_GIBBS_UNIT,
+            },
+            "temperature_alignment": "exact",
+            "temperatures": temperatures,
+            "gibbs_temperature": gibbs,
+            "structure_context": structure_context,
+            "reference_context": {
+                **dict(result.get("reference_context") or {}),
+                "role": role,
+                "role_status": "explicit",
+                "role_source": "htvasp_workflow_structure_name",
+            },
+            "@module": result.get("@module", "htvasp.workflows.qha"),
+            "@class": result.get("@class", "QhaData"),
+            "@version": result.get("@version", QHA_PRODUCER_VERSION),
+        }
+    )
+    if effective_phase_context:
+        result["phase_context"] = copy.deepcopy(effective_phase_context)
+    if result.get("formula_units") is None and result.get("nsites") is not None:
+        result["formula_units"] = float(result["nsites"]) / formula_atom_count
+
+    # This is a digest of the pre-canonical producer payload, not a digest of
+    # the final JSON bytes (which would be circular if embedded in the JSON).
+    # Inventory/discovery computes the final artifact hash independently.
+    producer_payload = copy.deepcopy(data)
+    producer_payload_sha256 = hashlib.sha256(
+        json.dumps(
+            producer_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+    provenance = dict(result.get("provenance") or {})
+    provenance.update(
+        {
+            "workflow": "qha",
+            "schema_version": QHA_SCHEMA_VERSION,
+            "source_sha256": producer_payload_sha256,
+            "reference_role": role,
+            "reference_role_status": "explicit",
+            "reference_role_source": "htvasp_workflow_structure_name",
+            "temperature_unit": QHA_TEMPERATURE_UNIT,
+            "gibbs_temperature_unit": QHA_GIBBS_UNIT,
+            "temperature_alignment": "exact",
+            "temperature_alignment_operation": alignment_operation,
+            "input_temperature_count": input_temperature_count,
+            "input_gibbs_count": len(gibbs),
+            "output_temperature_count": len(temperatures),
+            "output_gibbs_count": len(gibbs),
+            "producer_payload_sha256": producer_payload_sha256,
+        }
+    )
+    if effective_phase_context:
+        provenance["phase_context"] = copy.deepcopy(effective_phase_context)
+    if output_path is not None:
+        output = Path(output_path).resolve()
+        provenance["output_path"] = str(output)
+        provenance["source_path"] = str(output.parent / "qhaflow")
+        provenance["source_kind"] = "producer_payload"
+    result["provenance"] = provenance
+    result["artifact"] = {
+        **dict(result.get("artifact") or {}),
+        "artifact_id": f"{structure_name.removesuffix('-qha')}:qha",
+        "kind": "qha_json",
+        "uri": str(Path(output_path).resolve()) if output_path is not None else result.get("structure_name", structure_name),
+        "schema_version": QHA_SCHEMA_VERSION,
+        "producer": "htvasp.QhaWorker",
+        "producer_version": QHA_PRODUCER_VERSION,
+        "availability": "present",
+    }
+    return result
+
+
 # 原来的E-V.dat, 即DFT静态能量E0(V), 近似于 energy_kJ_mol_t[0]
 # 或从store取"phonon static eos deformation *" output["output"]["energy"]
 
@@ -66,6 +265,8 @@ class QhaWorker(Worker):
         supercell_matrix: tuple = ((2, 0, 0), (0, 2, 0), (0, 0, 2)),
         linear_strain: tuple = (-0.05, 0.05),
         number_of_frames: int = 8,
+        reference_name: str | None = None,
+        phase_context: dict[str, Any] | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -76,6 +277,8 @@ class QhaWorker(Worker):
         )
 
         self.supercell_matrix = supercell_matrix
+        self.reference_name = reference_name
+        self.phase_context = copy.deepcopy(phase_context) if phase_context is not None else None
         relax_incar = relax_incar or {}
         eos_incar = eos_incar or {}
         phonon_incar = phonon_incar or {}
@@ -192,6 +395,22 @@ class QhaWorker(Worker):
             result["total_magnetizations"] = list(mag) if mag else []
         self.close()
         return result
+
+    def write_result(self, data: dict | None, json_path: Path | str):
+        """Write a canonical, production-contract QHA JSON artifact."""
+
+        if not data:
+            log.warning("No data to write")
+            return
+        destination = Path(json_path).resolve()
+        structure_name = self.reference_name or destination.stem.removesuffix("-qha")
+        canonical = canonicalize_qha_result(
+            data,
+            structure_name=structure_name,
+            output_path=destination,
+            phase_context=self.phase_context,
+        )
+        super().write_result(data=canonical, json_path=destination)
 
     def _get_deformation_data(self) -> tuple[list[float], list[float]]:
         """

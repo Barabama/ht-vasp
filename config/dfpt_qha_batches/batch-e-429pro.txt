@@ -1,0 +1,24 @@
+# Batch E -- 4 heavy FCC endpoints moved off B5070 onto 429pro, 2026-10-24
+#
+# Placement rule (user decision, 2026-10-24): pin every job to ONE named node,
+# because Slurm here does not constrain RAM (ConstrainRAMSpace=no) and the two
+# nodes differ in size:
+#
+#   --nodelist 429e    --ntasks 32 --memory 64G    (48 cores / 192 GB)
+#   --nodelist 429pro  --ntasks 48 --memory 96G    (64 cores / 128 GB)
+#
+# Why pinning matters: the six FCC failures on 429pro were kernel OOM kills,
+# not numerical.  /var/log/kern.log records 21 kills of vasp_std, and at every
+# one of the ten distinct OOM timestamps there were TWO of our 32-rank jobs on
+# the node.  Pinning fixes the concurrency by construction -- 429e fits only
+# one 32-core job and 429pro only one 48-core job.
+#
+# Measured memory: 32 ranks of an NELECT-52 cell = 51.7 GB (1.6 GB/rank),
+# so 48 ranks is about 77 GB, inside 429pro's usable ~101 GB.
+#
+# Job ids: 57494 (429e), 57498 (429pro), 57499, 57500 (429e, queued)
+
+FCC-Nb-Nb-4
+FCC-Zr-Nb-4
+FCC-Zr-Zr-4
+FCC-Nb-Ta-4

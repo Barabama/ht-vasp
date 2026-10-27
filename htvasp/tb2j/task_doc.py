@@ -10,9 +10,22 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from htvasp.tb2j.magnetic_contract import (
+    MAGNETIC_CONTRACT_SCHEMA_VERSION,
+    empty_magnetic_contract,
+)
+
 # Keys required in every entry of ``j_pairs``.
 _J_PAIR_KEYS = ("i", "j", "R", "J_iso_meV", "vector", "distance")
 _ORBITALS_PER_ATOM = 9  # s + p + d, matches input_set.ORBITALS_PER_ATOM
+
+TB2J_SCHEMA_VERSION = "emtdb-magnetic-dataset/v1"
+TB2J_J_UNIT = "meV"
+TB2J_MOMENT_UNIT = "mu_B"
+TB2J_LENGTH_UNIT = "angstrom"
+TB2J_HAMILTONIAN = "H=-sum(J_ij S_i dot S_j)"
+TB2J_PAIR_COUNTING = "outgoing_per_site"
+TB2J_REVERSE_PAIR_POLICY = "allow_single_outgoing_validate_reverse_if_present"
 
 
 class Tb2jResult(BaseModel):
@@ -36,6 +49,10 @@ class Tb2jResult(BaseModel):
 
     elements: list[str] = Field(default_factory=list, description="Magnetic elements")
     num_atoms: int = Field(0, description="Number of atoms in the cell")
+    structure: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Pymatgen Structure.as_dict() from the W90 static POSCAR"
+    )
     efermi: float | None = Field(None, description="Fermi energy (eV)")
     num_wann: int = Field(0, description="Number of Wannier orbitals")
     kmesh: tuple[int, int, int] = Field((9, 9, 9), description="TB2J kmesh")
@@ -45,8 +62,75 @@ class Tb2jResult(BaseModel):
     j_tensors: list[list[list[float]]] = Field(
         default_factory=list, description="3x3 exchange tensors (meV), parallel to j_pairs"
     )
+    atom_moments: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Per-site Wannier moments, including w_magmom in mu_B",
+    )
     exchange_out_path: str = Field("", description="Path to the raw exchange.out")
     warnings: list[str] = Field(default_factory=list, description="Non-fatal warnings")
+    schema_version: str = Field(TB2J_SCHEMA_VERSION, description="Canonical magnetic dataset schema")
+    source: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Raw exchange.out source identity and SHA-256",
+    )
+    units: dict[str, str] = Field(
+        default_factory=lambda: {
+            "J": TB2J_J_UNIT,
+            "J_iso": TB2J_J_UNIT,
+            "distance": TB2J_LENGTH_UNIT,
+            "vector": TB2J_LENGTH_UNIT,
+            "w_magmom": TB2J_MOMENT_UNIT,
+        },
+        description="Units for numeric magnetic quantities",
+    )
+    exchange_convention: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "hamiltonian": TB2J_HAMILTONIAN,
+            "j_positive_is_ferromagnetic": True,
+            "pair_counting": TB2J_PAIR_COUNTING,
+            "spin_normalization": "unit",
+            "reverse_pair_policy": TB2J_REVERSE_PAIR_POLICY,
+        },
+        description="Explicit downstream magnetic convention",
+    )
+    provenance: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Traceability and producer contract metadata",
+    )
+    audit: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parser and production-contract audit status",
+    )
+    magnetic_contract: dict[str, Any] = Field(
+        default_factory=empty_magnetic_contract,
+        description="Versioned htvasp magnetic contract",
+    )
+    magnetic_observables: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Derived TC/TN/BMAGN and MFA exchange observables",
+    )
+
+    @field_validator("magnetic_contract")
+    @classmethod
+    def _check_magnetic_contract(cls, value: dict[str, Any]) -> dict[str, Any]:
+        if value and value.get("schema_version") != MAGNETIC_CONTRACT_SCHEMA_VERSION:
+            raise ValueError(
+                "magnetic_contract.schema_version must be "
+                f"{MAGNETIC_CONTRACT_SCHEMA_VERSION!r}"
+            )
+        return value
+
+    @field_validator("magnetic_observables")
+    @classmethod
+    def _check_magnetic_observables(cls, value: dict[str, Any]) -> dict[str, Any]:
+        if value:
+            status = value.get("status")
+            if status not in {"computed", "nonmagnetic", "not_applicable", "unsupported", "needs_input"}:
+                raise ValueError(f"unsupported magnetic_observables.status: {status!r}")
+            for key in ("TC", "TN", "BMAGN", "exchange_matrix", "eigenvalues", "conversion_trace"):
+                if key not in value:
+                    raise ValueError(f"magnetic_observables missing key: {key}")
+        return value
 
     @field_validator("j_pairs")
     @classmethod
@@ -72,13 +156,35 @@ class Tb2jResult(BaseModel):
         return cls(
             elements=list(data.get("elements") or []),
             num_atoms=num_atoms,
+            structure=dict(data.get("structure") or {}),
             efermi=data.get("efermi"),
             num_wann=num_wann,
             kmesh=tuple(data.get("kmesh") or (9, 9, 9)),
             j_pairs=list(data.get("j_pairs") or []),
             j_tensors=list(data.get("j_tensors") or []),
+            atom_moments=list(data.get("atom_moments") or []),
             exchange_out_path=data.get("exchange_out_path") or "",
             warnings=list(data.get("warnings") or []),
+            schema_version=data.get("schema_version", TB2J_SCHEMA_VERSION),
+            source=dict(data.get("source") or {}),
+            units=dict(data.get("units") or {
+                "J": TB2J_J_UNIT,
+                "J_iso": TB2J_J_UNIT,
+                "distance": TB2J_LENGTH_UNIT,
+                "vector": TB2J_LENGTH_UNIT,
+                "w_magmom": TB2J_MOMENT_UNIT,
+            }),
+            exchange_convention=dict(data.get("exchange_convention") or {
+                "hamiltonian": TB2J_HAMILTONIAN,
+                "j_positive_is_ferromagnetic": True,
+                "pair_counting": TB2J_PAIR_COUNTING,
+                "spin_normalization": "unit",
+                "reverse_pair_policy": TB2J_REVERSE_PAIR_POLICY,
+            }),
+            provenance=dict(data.get("provenance") or {}),
+            audit=dict(data.get("audit") or {}),
+            magnetic_contract=dict(data.get("magnetic_contract") or empty_magnetic_contract()),
+            magnetic_observables=dict(data.get("magnetic_observables") or {}),
         )
 
     @classmethod
@@ -125,6 +231,7 @@ class Tb2jResult(BaseModel):
             "num_shells": len(shells),
             "shells": shells[:10],
             "exchange_out_path": self.exchange_out_path,
+            "magnetic_observables": self.magnetic_observables,
         }
         if j_iso_values:
             max_abs_idx = max(range(len(j_iso_values)), key=lambda k: abs(j_iso_values[k]))

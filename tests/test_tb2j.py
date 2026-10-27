@@ -429,10 +429,12 @@ def test_tb2j_result_from_dict():
     print_header("Tb2jResult.from_dict (real data)")
 
     parsed = parse_reference("BCC-Co-Ni")
+    structure = get_test_structure(("Co", "Ni"))
     result = Tb2jResult.from_dict(
         {
             "elements": ["Co", "Ni"],
             "num_atoms": 2,
+            "structure": structure.as_dict(),
             "efermi": 5.02625994,
             "num_wann": 18,
             "kmesh": [9, 9, 9],
@@ -454,6 +456,10 @@ def test_tb2j_result_from_dict():
     if result.num_atoms != 2:
         print("✗ num_atoms should be 2")
         return False
+    if Structure.from_dict(result.structure) != structure:
+        print("✗ structure did not round-trip through Tb2jResult")
+        return False
+    print("✓ pymatgen Structure round-tripped")
     if result.num_wann != 18:
         print(f"✗ num_wann should be 18, got {result.num_wann}")
         return False
@@ -498,10 +504,12 @@ def test_to_summary():
 
     # SER-Co (HCP Co): 2 atoms, 2914 J pairs.
     parsed = parse_reference("SER-Co")
+    structure = get_test_structure(("Co", "Co"))
     result = Tb2jResult.from_dict(
         {
             "elements": ["Co"],
             "num_atoms": 2,
+            "structure": structure.as_dict(),
             "j_pairs": parsed["j_pairs"],
             "j_tensors": parsed["j_tensors"],
             "warnings": ["test warning"],

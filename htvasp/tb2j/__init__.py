@@ -15,7 +15,18 @@ in ``htvasp.workflows.tb2j``; this subpackage provides the reusable pieces.
 """
 
 from htvasp.tb2j.input_set import Tb2jInputSetGenerator, ORBITALS_PER_ATOM
-from htvasp.tb2j.jobs import tb2j_solve
+from htvasp.tb2j.jobs import canonicalize_tb2j_result, tb2j_solve
+from htvasp.tb2j.context import (
+    build_magnetic_context,
+    context_summary,
+    deserialize_magnetic_context,
+    normalize_magnetic_context,
+    serialize_magnetic_context,
+)
+from htvasp.tb2j.magnetic_contract import (
+    MAGNETIC_CONTRACT_SCHEMA_VERSION,
+    derive_magnetic_observables,
+)
 from htvasp.tb2j.maker import Tb2jMaker
 from htvasp.tb2j.task_doc import Tb2jResult
 
@@ -23,6 +34,14 @@ __all__ = [
     "Tb2jInputSetGenerator",
     "ORBITALS_PER_ATOM",
     "tb2j_solve",
+    "canonicalize_tb2j_result",
+    "build_magnetic_context",
+    "context_summary",
+    "serialize_magnetic_context",
+    "deserialize_magnetic_context",
+    "normalize_magnetic_context",
+    "MAGNETIC_CONTRACT_SCHEMA_VERSION",
+    "derive_magnetic_observables",
     "Tb2jMaker",
     "Tb2jResult",
 ]

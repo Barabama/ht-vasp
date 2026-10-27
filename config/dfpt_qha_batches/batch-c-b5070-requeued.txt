@@ -1,0 +1,19 @@
+# Batch C -- 7 endpoints moved off 429pro on 2026-10-21
+#
+# These were submitted to 429pro as jobs 56986-56992 and cancelled while still
+# pending, so that the two jobs belonging to other users (56993, 56995) could
+# reach the head of the queue.  Nothing had run: all seven were PD with zero
+# elapsed time, so no partial state exists and each starts from scratch.
+#
+# Original 429pro job -> endpoint:
+#   56986 FCC-Hf-Ti-4   56987 FCC-Hf-Zr-4   56988 FCC-Nb-Al-4
+#   56989 FCC-Nb-Hf-4   56990 FCC-Nb-Nb-4   56991 FCC-Nb-Ta-4
+#   56992 FCC-Nb-Ti-4
+
+FCC-Hf-Ti-4
+FCC-Hf-Zr-4
+FCC-Nb-Al-4
+FCC-Nb-Hf-4
+FCC-Nb-Nb-4
+FCC-Nb-Ta-4
+FCC-Nb-Ti-4

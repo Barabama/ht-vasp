@@ -1,0 +1,175 @@
+{
+  "schema": "legacy-qha-dataset/v1",
+  "endpoint_label": "BCC-Co-Ti-2",
+  "endpoint_label_is_a_nas_directory_name": true,
+  "label_provenance": {
+    "nas_share": "\\\\Mcmf-nas\\e\\nas-shared",
+    "nas_path": "E:\\nas-shared\\Endmembers\\16symbols-cxy-hmd\\BCC-Co-Ti-2",
+    "note": "the label is recorded as a source identifier only; per em-tdb-v2 plan v2 §B.5.8 no physical meaning is inferred from it. Every physical claim below carries its own evidence."
+  },
+  "source": {
+    "mirror_root": "ht-vasp/data/legacy-dfpt-qha-pilot/BCC-Co-Ti/legacy-as-received",
+    "manifest": "ht-vasp/data/legacy-dfpt-qha-pilot/BCC-Co-Ti/source-manifest.json",
+    "manifest_schema": "legacy-nas-mirror/v1",
+    "file_count": 487,
+    "total_bytes": 32521023,
+    "endpoint_content_digest_sha256": "f284934c4fde0a0e040d69e553b715b87de0aa302f6c2f4e4d327674aec71603",
+    "mirrored_at_utc": "2026-10-08T12:37:23Z",
+    "transfer": "SFTP over SSH, size-verified after transfer, mtimes restored, read-only"
+  },
+  "audit": {
+    "status": "fail",
+    "report": "audit/audit.json",
+    "tool": "ht-vasp/scripts/legacy_qha_audit.py",
+    "schema": "legacy-qha-audit/v1",
+    "n_failures": 37,
+    "n_warnings": 1,
+    "verdict": "不可直接作为生产观测使用。E(V) 与声子层都能从本目录内的文件重建，但重建出来的东西本身带有确定性缺陷：全部 10 个体积点的静态与 DFPT 都在 ICHARG=1 且无 CHGCAR 的条件下退回原子叠加初猜；QHA-08 的 DFPT 基态 SCF 发散。详见 FINDINGS.md。",
+    "independently_reproduced": {
+      "force_constants_parse_to_thermal_properties": "10/10 volumes; recomputed zero_point_energy matches the shipped thermal_properties yaml to <1e-6 kJ/mol",
+      "v_e_dat_row_vs_r3f_outcar": "10/10 volumes; every row of v-e.dat equals that volume's R3f/OUTCAR energy(sigma->0) to <1e-3 meV"
+    }
+  },
+  "claims": {
+    "composition_reduced": {
+      "value": {"Ti": 1, "Co": 1},
+      "status": "resolved_with_evidence",
+      "evidence": [
+        "dfpt/QHA-01/POSCAR-unitcell: 2 sites, (0,0,0) and (0.5,0.5,0.5)",
+        "POTCAR block order is Ti then Co (POTCAR = POTCAR-Ti + POTCAR-Co; the third block, W, is never read because POSCAR declares 2 species)",
+        "dfpt/QHA-01/phonopy.yaml: unit_cell 2 atoms, masses 47.867 and 58.933, symbols Ti and Co",
+        "phonons/thermal_properties-from-dfpt-01.yaml: natom: 2"
+      ]
+    },
+    "structure_prototype": {
+      "value": "2-atom cubic cell, species alternating on (0,0,0) and (0.5,0.5,0.5) — the CsCl (B2) prototype, i.e. an ordered bcc derivative, not disordered A2",
+      "status": "resolved_with_evidence",
+      "evidence": [
+        "the two site coordinates above, in a cubic cell",
+        "template titles in the legacy inputs are inconsistent and must not be used: dfpt/QHA-01/POSCAR-unitcell and R3/CONTCAR both carry the title 'Cl Cs' (which happens to name the correct prototype), while R3/CONTCAR's first line says 'BCC-A2' and dfpt/QHA-01/INCAR says SYSTEM=laves-C14 and R3/INCAR says SYSTEM=FeAl-bcc"
+      ]
+    },
+    "anchor_cell": {
+      "value": {"a_angstrom": 2.9712807178297407, "volume_angstrom3": 26.231978868335762},
+      "status": "resolved_with_evidence",
+      "evidence": [
+        "R3/CONTCAR, reached with 'reached required accuracy' in R3/OUTCAR (ISIF=3, IBRION=2, NSW=50, EDIFF=1e-5)",
+        "the mirror root POSCAR equals R3/CONTCAR",
+        "the volume grid below is exactly this cell scaled"
+      ],
+      "caveat": "the R3 relaxation was restarted at least twice and its restarts read charge densities of foreign provenance: R3/R31 logged 'chargedensity file is incomplete', R3/R32 logged 'charge-density read from file: FeAl-bcc', R3/R48 logged 'dimensions on CHGCAR file are different'. The relaxed geometry is a converged VASP result; the path to it was not clean."
+    },
+    "volume_grid": {
+      "value": {
+        "n_points": 10,
+        "law": "a_i = a0 * (V/V0)^(1/3) with V/V0 = linspace(0.95, 1.10, 10) and a0 = 2.9712807178297407 A",
+        "verified_to": "(a_i/a0)^3 reproduces linspace(0.95, 1.10, 10) to 9 decimal places for all 10 points",
+        "v_e_dat_records": "a_i^3 rounded to 2 decimals, hence the 24.92 ... 28.86 A^3 column"
+      },
+      "status": "resolved_with_evidence",
+      "evidence": [
+        "structure/volumes/POSCAR-unitcell-QHA-01 .. -10, one per volume, copied verbatim",
+        "the per-volume cells and the volume column of curves/v-e.dat agree to 2 decimals"
+      ]
+    },
+    "calculation_method": {
+      "value": "DFPT (density functional perturbation theory), VASP IBRION=8, on a 2x2x2 supercell of the 2-atom cell (16 atoms)",
+      "status": "resolved_with_evidence",
+      "evidence": [
+        "recipe/INCAR-Phonopy and dfpt/QHA-*/INCAR: IBRION=8, NSW=1",
+        "dfpt/QHA-*/OUTCAR: 'Linear response parameters', 'Linear response progress:', 'Degree of freedom: 1/2' and '2/2', and 2 symmetry-reduced perturbations for atoms 1 and 9 along x",
+        "dfpt/QHA-*/log-DFPT: 'Linear response reoptimize wavefunctions to high precision'",
+        "dfpt/QHA-*/FORCE_CONSTANTS is present and is a full 16x16x3x3 matrix"
+      ],
+      "not_claimed": "the thermal properties were produced by phonopy from those force constants, not by finite displacements — but the yaml alone cannot prove which phonopy route wrote it, so the finite-displacement alternative is not excluded by the yaml"
+    },
+    "producer": {
+      "value": {
+        "electronic_structure": "VASP 5.4.4.18Apr17-6-g9f103f2a35 (complex)",
+        "phonon": "phonopy 1.11.0 (from dfpt/QHA-*/phonopy.yaml: version: 1.11.0)",
+        "recomputation_here": "phonopy 2.48.0"
+      },
+      "status": "resolved_with_evidence",
+      "evidence": [
+        "dfpt/QHA-*/OUTCAR and vasprun.xml version strings",
+        "dfpt/QHA-*/phonopy.yaml",
+        "recipe/mesh.conf: ATOM_NAME=Nb, DIM = 2 2 2, MP = 24 24 24, FORCE_CONSTANTS = READ",
+        "recipe/POTCAR_IDENTITY.txt: PAW_PBE Ti 08Apr2002 (ZVAL 4) and PAW_PBE Co 06Sep2000 (ZVAL 9), plus an unread PAW_PBE W 08Apr2002 block"
+      ]
+    },
+    "units": {
+      "value": {
+        "curves/v-e.dat": {"column_1": "angstrom^3", "column_2": "eV", "normalization": "per 2-atom cell (= per TiCo formula unit)"},
+        "curves/gibbs-temperature.dat": {"column_1": "K", "column_2": "eV", "normalization": "per 2-atom cell"},
+        "phonons/thermal_properties-*.yaml": {"temperature": "K", "free_energy": "kJ/mol", "entropy": "J/K/mol", "heat_capacity": "J/K/mol", "normalization": "per unit cell (natom: 2)", "declared_in": "the file's own unit: block"}
+      },
+      "status": "resolved_with_evidence",
+      "evidence": [
+        "phonons/thermal_properties-*.yaml carry an explicit unit: block",
+        "curves/v-e.dat has no unit block; its eV/angstrom^3 reading is established by matching each row against R3f/OUTCAR energy(sigma->0) (identical values) and by the 2-atom cell being the only cell in the dataset"
+      ]
+    },
+    "temperature_grid": {
+      "value": {
+        "curves/gibbs-temperature.dat": {"first_K": 0.0, "last_K": 2000.0, "step_K": 10.0, "n_points": 201},
+        "phonons/thermal_properties-*.yaml": {"first_K": 0.0, "last_K": 3000.0, "step_K": 10.0, "n_points": 301}
+      },
+      "status": "resolved_with_evidence",
+      "evidence": ["read from the files themselves; the two grids differ in ceiling, 2000 K vs 3000 K"]
+    },
+    "reference_role": {
+      "value": null,
+      "status": "unresolved",
+      "evidence": [],
+      "note": "nothing in the endpoint states whether these energies are meant as SER, as an ordered-compound reference, or as plain DFT totals. The energies are absolute DFT total energies of the 2-atom cell; no reference state is written anywhere."
+    },
+    "energy_reference_state": {
+      "value": null,
+      "status": "unresolved",
+      "evidence": [],
+      "note": "no SER/GHSER relation and no elemental reference is present, so eV/cell cannot be converted to a formation quantity from this endpoint alone."
+    },
+    "applicability": {
+      "value": "degraded_defective",
+      "status": "resolved_with_evidence",
+      "evidence": ["audit/audit.json: 37 fail-closed failures, listed in FINDINGS.md"]
+    }
+  },
+  "observables": {
+    "eos_fit_bm3": {
+      "E0_eV_per_cell": -15.64418578257216,
+      "V0_angstrom3": 26.360635451960594,
+      "B0_GPa": 173.38209276162925,
+      "Bp": 4.373706610150665,
+      "r2": 0.9999916989824861,
+      "max_abs_residual_meV": 0.17373220787320065,
+      "discrete_minimum": {"V_angstrom3": 26.23, "E_eV": -15.643797, "is_interior": true},
+      "fit_by": "ht-vasp/scripts/legacy_qha_audit.py, Birch-Murnaghan 3rd order, scipy.optimize.curve_fit"
+    },
+    "gibbs_curve": {
+      "G_at_0K_eV_per_cell": -15.581044110269033,
+      "G_at_last_K_eV_per_cell": -17.575494929906267,
+      "max_adjacent_jump_eV": 0.515431788536624,
+      "max_adjacent_jump_at_K": [1920.0, 1930.0],
+      "n_jumps_over_0.2_eV": 15,
+      "reading": "the reported curve is not smooth; a 0.515 eV/cell discontinuity and 15 further steps over 0.2 eV/cell. Treat it as a diagnostic target, not as a deliverable curve."
+    },
+    "per_volume": [
+      {"tag": "QHA-01", "V_angstrom3": 24.92, "E_eV": -15.597162, "ZPE_kJ_per_mol": 6.8517281870546665, "imaginary_modes_weighted": 0, "min_frequency_THz": 0.4418587735419968, "flags": ["no_chgcar_atomic_superposition", "dfpt_ground_state_scf_hit_nelm"]},
+      {"tag": "QHA-02", "V_angstrom3": 25.36, "E_eV": -15.621985, "ZPE_kJ_per_mol": 6.181233466611788, "imaginary_modes_weighted": 0, "min_frequency_THz": 0.4061174104524359, "flags": ["no_chgcar_atomic_superposition"]},
+      {"tag": "QHA-03", "V_angstrom3": 25.79, "E_eV": -15.637287, "ZPE_kJ_per_mol": 6.385039763568894, "imaginary_modes_weighted": 0, "min_frequency_THz": 0.43105179296669766, "flags": ["no_chgcar_atomic_superposition", "dfpt_ground_state_scf_hit_nelm"]},
+      {"tag": "QHA-04", "V_angstrom3": 26.23, "E_eV": -15.643797, "ZPE_kJ_per_mol": 6.163464021849558, "imaginary_modes_weighted": 0, "min_frequency_THz": 0.42934991250864263, "flags": ["no_chgcar_atomic_superposition", "dfpt_ground_state_scf_hit_nelm"]},
+      {"tag": "QHA-05", "V_angstrom3": 26.67, "E_eV": -15.642317, "ZPE_kJ_per_mol": 6.678909630594948, "imaginary_modes_weighted": 0, "min_frequency_THz": 0.4826470972159635, "flags": ["no_chgcar_atomic_superposition"]},
+      {"tag": "QHA-06", "V_angstrom3": 27.11, "E_eV": -15.633394, "ZPE_kJ_per_mol": 6.521280907468976, "imaginary_modes_weighted": 0, "min_frequency_THz": 0.4819756907582611, "flags": ["no_chgcar_atomic_superposition"]},
+      {"tag": "QHA-07", "V_angstrom3": 27.54, "E_eV": -15.617682, "ZPE_kJ_per_mol": 6.33590480844495, "imaginary_modes_weighted": 0, "min_frequency_THz": 0.4790422491190305, "flags": ["no_chgcar_atomic_superposition"]},
+      {"tag": "QHA-08", "V_angstrom3": 27.98, "E_eV": -15.595737, "ZPE_kJ_per_mol": 18.420172232477483, "imaginary_modes_weighted": 41472, "imaginary_fraction": 0.5, "min_frequency_THz": -18.5361970337211, "flags": ["no_chgcar_atomic_superposition", "dfpt_ground_state_scf_hit_nelm", "dfpt_ground_state_diverged", "force_constants_not_physical", "acoustic_sum_rule_violated", "half_the_modes_imaginary"], "note": "the E(V) point itself is fine (its R3f static converged normally); only this volume's phonon layer is destroyed"},
+      {"tag": "QHA-09", "V_angstrom3": 28.42, "E_eV": -15.568088, "ZPE_kJ_per_mol": 5.024991737270224, "imaginary_modes_weighted": 0, "min_frequency_THz": 0.4066466413953728, "flags": ["no_chgcar_atomic_superposition"]},
+      {"tag": "QHA-10", "V_angstrom3": 28.86, "E_eV": -15.535233, "ZPE_kJ_per_mol": 5.8883113590626275, "imaginary_modes_weighted": 0, "min_frequency_THz": 0.4668890483149243, "flags": ["no_chgcar_atomic_superposition"]}
+    ]
+  },
+  "files": {
+    "inventory": "INVENTORY.json",
+    "raw_vasp_layer": "raw/RAW_INDEX.json",
+    "layout_proposal": "../LAYOUT_PROPOSAL.md"
+  }
+}
