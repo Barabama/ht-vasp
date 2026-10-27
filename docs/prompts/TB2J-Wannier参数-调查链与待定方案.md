@@ -42,7 +42,7 @@ git merge master
 
 合并前确认：`git merge-base --is-ancestor feat-tb2j master` 为真（所以合并接近快进）；`git merge-tree` 报 0 冲突。
 
-**切分支时你会看到 `htvasp/dfpt_qha/`、`main_dfpt_qha.py`、`main_spin_screen.py` 从工作区消失**——`feat-tb2j` 和 `master` 都没有这些文件，只有 `feat-dfpt-qha` 有（它领先 master 89 个提交，不在 master 的祖先链上）。**这是分支拓扑，不是丢代码。** `git checkout feat-dfpt-qha` 它们就回来了。**如果你的调查需要用到 DFPT-QHA 的代码或数据，从 `data/endpoints/` 读（数据在文件系统上，与分支无关），不要去 `feat-dfpt-qha` 搬代码。**
+**切分支时你会看到 `htvasp/dfpt_qha/`、`main_dfpt_qha.py`、`main_spin_screen.py` 从工作区消失**——`feat-tb2j` 和 `master` 都没有这些文件，只有 `feat-dfpt-qha` 有（它领先 master 93 个提交，不在 master 的祖先链上）。**这是分支拓扑，不是丢代码。** `git checkout feat-dfpt-qha` 它们就回来了。**如果你的调查需要用到 DFPT-QHA 的代码或数据，从 `data/endpoints/` 读（数据在文件系统上，与分支无关），不要去 `feat-dfpt-qha` 搬代码。**
 
 ### 2. 发现链路（按时间顺序，每一步都有可复核的文件）
 
@@ -117,7 +117,7 @@ grep -l "Disentanglement convergence criteria not satisfied" \
 
 **44/44 个 up 通道 + 44/44 个 down 通道，全部撞了 200 次迭代上限。**
 
-（`wannier90.wout`——不带编号的那个——是 VASP 的 setup pass，15421 字节，没有 DIS 迭代，不要拿它判。）
+（`wannier90.wout`——不带编号的那个——是 VASP 的 setup pass，**没有 DIS 迭代表，不要拿它判**。它的大小不是常量：44 个 run 里实测 15421 / 15581 / 15741 / 16061 字节四种。按 `<-- DIS` 行识别，不要按字节数。）
 
 #### 2.6 为什么是 200 次上限：窗口放错了位置
 
@@ -174,12 +174,14 @@ Fe bcc 的 **E_F ≈ 1.17 eV**，所以那个窗口对它恰好跨过 E_F（`dis
 |---|---|---:|---|
 | `fe_bcc_wannier` | 9/16 | 3 | 收敛（空态只有 7 个，解纠缠几乎无自由度） |
 | `fe_bcc_wannier_4x4x4` | 9/16 | 71 | **收敛** |
-| `fe_bcc_wannier_8x8x8` | 9/16 | 200 | **撞上限** |
+| `fe_bcc_wannier_8x8x8` | 9/16 | 200 / **181** | **up 撞上限；down 第 181 步收敛** |
 | `SER-Co/W90` | 18/64 | 200 | **撞上限** |
 | `BCC-Co-Ni/W90` | 18/64 | 200 | **撞上限** |
 | `FCC-Fe-Mn/W90` | 36/64 | 200 | **撞上限** |
 
-**同一个 Fe bcc，k 网格从 4×4×4 换到 8×8×8 就从收敛翻成不收敛。** 而 `num_wann/num_bands` 从 9/16 变成 18/64（空态从 7 个变成 46 个）之后，三个体系全部不收敛。
+**同一个 Fe bcc，k 网格从 4×4×4 换到 8×8×8，up 通道就从收敛翻成不收敛（down 通道仍然收敛）。** 而 `num_wann/num_bands` 从 9/16 变成 18/64（空态从 7 个变成 46 个）之后，三个体系全部不收敛。
+
+（`fe_bcc_wannier` 的"3 步收敛"要打折：那个 run 的空态只有 7 个，解纠缠几乎没有自由度，所以它不是"窗口对了"的证据。）
 
 #### 2.9 为什么流程没拦住：门查错了对象
 
@@ -194,7 +196,7 @@ exit(0 if ok else 1)
 
 Wannier90 是以**库模式**跑在 VASP 里的，所以 VASP 的 SCF 收敛了，这道门就过了。真正的判据在 `wannier90.{1,2}.wout` 里，而 `htvasp/tb2j/` 全包 grep `wout` / `disentangle` / `Omega` 是 **0 命中**。
 
-而且 VASP 自己也不报：`W90.log` 只有 113 行，只说 `Running wannier90 in library mode for spin up (check wannier90.wout)` —— **明确告诉你去查 wout，而流程没查**。
+而且 VASP 自己也不报。**注意这条的出处**：`W90.log`（113 行、第 91 行 `Running wannier90 in library mode for spin up   (check wannier90.wout)`，注意括号前是三个空格）只存在于 `tb2j_test/SER-Co/W90/`，**44 个归档 run 里一个 `W90.log` 都没有**（`find data -name 'W90.log*'` → 0）。所以"日志明确告诉你去查 wout"这句话对归档 run 不成立——归档 run 连这个提示都没有，只有 `.wout` 本身。
 
 #### 2.10 文档知道要查，但没人实现
 
@@ -213,6 +215,8 @@ Wannier90 是以**库模式**跑在 VASP 里的，所以 VASP 的 SCF 收敛了�
 | E_F < 10（窗口跨过 E_F） | **41** | **0.65** |
 | E_F > 10（窗口整个在 E_F 之下） | **3** | 0.15 |
 
+（分组数 41/3 已独立复核：从 44 个 `2-w90_static/OUTCAR.gz` 的 `E-fermi` 取最后一个值，> 10 eV 的**恰好**是 `BCC-Al-Nb 10.20`、`BCC-Nb-Nb 11.48`、`SER-Nb 11.25`，全部 E_F 范围 4.53–11.48 eV。**但"冻结 band 数/k 中位 0.65 / 0.15"这两个数没复现**，见下。）
+
 **41 个体系的窗口位置是"对"的，它们照样全部不收敛。** 所以窗口错位不是唯一原因，甚至可能不是主因。
 
 我另外做了两个相关性检验，都不支持"窗口位置决定难度"：
@@ -220,15 +224,19 @@ Wannier90 是以**库模式**跑在 VASP 里的，所以 VASP 的 SCF 收敛了�
 - `correlation(冻结 band 数/k, log|ΔΩ@200|)` = **+0.056**（几乎无关）
 - `correlation(E_F − dis_froz_max, log|ΔΩ@200|)` = **+0.312**（弱正相关，方向甚至与"窗口越偏越难"相反）
 
+（这两个相关系数是派发人自己算的，**2026-10-26 的独立复核没有复现**——复核 agent 拿不到同样的"冻结 band 数"定义。你要么自己重新定义并重算，要么**不要引用这两个数**。结论本身（窗口位置不是主因）由 §2.11 的 k 点对照支撑，不依赖这两个相关系数。）
+
 **真正强的证据是另一个变量：W90 SCF 的 k 点数。**
 
-`tb2j_test` 里有一组**单变量对照**——同一个 Fe bcc（`POSCAR` 的 a 都是 2.87）、同一个窗口、同样 `num_wann/num_bands = 9/16`、`ENCUT`/`NBANDS`/`ISPIN`/`EDIFF`/`ISMEAR`/`SIGMA` 全部相同，**只改 KPOINTS**：
+`tb2j_test` 里有一组**接近单变量的对照**——同一个 Fe bcc（`POSCAR` 的 a 都是 2.87）、同一个窗口、同样 `num_wann/num_bands = 9/16`、`ENCUT`/`NBANDS`/`ISPIN`/`EDIFF`/`ISMEAR`/`SIGMA` 全部相同，**KPOINTS 从 4×4×4 改成 8×8×8**。两个目录的 `POSCAR`、`INCAR`、`wannier90.win`、`wannier90.1.win`、`wannier90.2.win` 都逐字节相同（2026-10-26 复核）：
+
+> **但严格说不是"只改了一个变量"**：`submit.sh` 里 `--ntasks` 也不同（4×4×4 用 4，8×8×8 用 16）。而且 **8×8×8 的 down 通道其实是收敛的**（spin 2 在第 181 步满足判据，只有 spin 1 撞了 200 上限）。所以"k 点多→难收敛"这条证据**比文档原先写的更强也更窄**：它只在 up 通道成立，且并行度也变了。做判别实验时必须把 `ntasks` 一起钉死。
 
 | 目录 | k 点 | 收敛 |
 |---|---:|---|
 | `fe_bcc_wannier_4x4x4` | 64 | **是** |
-| `fe_bcc_wannier_8x8x8` | 512 | **否** |
-| `fe_bcc_wannier`（默认 8×8×8，但**这个 run 没跑完**——wout 只有 166 行，停在 DIS 表头，没有 hr.dat） | — | 不可判 |
+| `fe_bcc_wannier_8x8x8` | 512 | **up 否（200）** / down 是（181） |
+| `fe_bcc_wannier`（默认 8×8×8，但**这个 run 没跑完**——`wannier90.1.wout` 只有 166 行停在 DIS 表头，**连 `wannier90.2.wout` 都没有**，无 `*.hr.dat`、CHG/CHGCAR 为 0 字节、没有 TB2J 交接） | — | 不可判 |
 
 而 44 个归档 run **全部是 512 个 k 点**。
 
@@ -242,7 +250,9 @@ Wannier90 是以**库模式**跑在 VASP 里的，所以 VASP 的 SCF 收敛了�
 
 **所以你至少有三个候选原因，而派发人最初只强调了窗口。** 你的复核任务里，这一条优先级最高：**先判断 k 点数、空态数、窗口位置三者哪个是主因**，再谈改什么。这也直接决定了方案 A/D/E 值不值得做。
 
-（`num_bands = ceil((num_wann+20)/ntasks)*ntasks`，`ntasks` 变了 `num_bands` 就变——SER 的 `num_wann=9` 配 `num_bands=32`、BCC 的 18 配 64、FCC 的 36 配 64，就是同一个公式在不同 `ntasks` 下的结果。所以"空态数"其实是 `ntasks` 的副作用，不是独立设计的。）
+（`num_bands = ceil((num_wann+20)/ntasks)*ntasks`，见 `input_set.py:144-146`，`num_bands_extra` 默认 20、`ntasks` 默认 32。
+**修正一处**：`num_wann` 本身**不是** `ntasks` 的副作用——它是 `len(structure) × 9`（`input_set.py:102-122`，`ORBITALS_PER_ATOM=9`），由胞的原子数决定；只有 `num_bands` 依赖 `ntasks`。
+而且单一默认 `ntasks=32` 就能同时给出 9→32、18→64、36→64 这三组，**不需要三个不同的 `ntasks`**。所以"空态数"= `num_bands − num_wann` 是 `num_wann`（胞大小）和 `ntasks` 的联合结果。）
 
 ### 3. 六个候选方案，以及各自的证据强度
 
@@ -266,8 +276,8 @@ dis_froz_min = E_F - 10    dis_froz_max = E_F
 dis_num_iter = 1000   （或 2000）
 ```
 
-- **支持**：从 190→200 步的局部衰减率外推，**35/44 会在 296–12263 次迭代内收敛**（中位 1001）。
-- **反对**：**9/44 已经平台化**（衰减率 ≥ 1，`BCC-Al-Al`、`BCC-Co-Mn`、`BCC-Fe-Mn`、`BCC-Mn-Ni`、`BCC-Nb-Ti`、`FCC-Mn-Co`、`FCC-Mn-Fe`、`SER-Co`、`SER-V`），再给迭代也不会收敛。提高上限对它们无效。
+- **支持**：从 190→200 步的局部衰减率外推，**35/44 会在 307–12263 次迭代内收敛**（中位 1001）。这是 **spin-1 单通道**的外推，且『收敛』是乐观上界——down 通道差很多（SER-Mn 682→1923、BCC-Mn-Mn 894→7159）。
+- **反对**：**9/44 看起来已平台化**（衰减率 ≥ 1，`BCC-Al-Al`、`BCC-Co-Mn`、`BCC-Fe-Mn`、`BCC-Mn-Ni`、`BCC-Nb-Ti`、`FCC-Mn-Co`、`FCC-Mn-Fe`、`SER-Co`、`SER-V`）。**这个判定的强度要说清**：它们的 q 只比 1 高 0.1–3%，换窗口（180→190 / 195→200）后只有 **7 个**在两个自旋上都稳，`BCC-Mn-Ni` 与 `BCC-Nb-Ti` 会掉出去。所以『提高迭代也救不了』对 7 个成立、对 2 个是刀锋判定。
 - **反对**：`BCC-Al-Nb` 需要 12263 次——成本不可接受。
 - **反对**：迭代多不等于结果对。窗口错位时，它收敛到的是"这个错误窗口下的最优子空间"。
 
@@ -277,24 +287,47 @@ dis_num_iter = 1000   （或 2000）
 `src/disentangle.F90:1988` 里 `delta_womegai = womegai1/womegai - 1.0_dp` 是**相对变化**，
 `.wout` 表头也写 `Delta (frac.)`。手册与代码不一致，以代码为准——所以 1e-10 是**相对**判据。
 
-- **支持**：这个默认值不是为金属 d 带调的。
+- **支持**：这个默认值不是为金属 d 带调的。**而且实测差距很小**：88 个通道到 200 步时 `|Delta|` 中位 **5.67e-6**、最小 1.16e-8、最大 1.32e-3——放宽到 1e-6 只能救 18/88，放宽到 1e-5 能救 56/88，放宽到 1e-3 才几乎全过。也就是说 **1e-5 ~ 1e-4 这一档是"能过门"和"还算收敛"的分界**，1e-6 基本救不了任何东西。
 - **反对**：**这是最危险的方案**——它让"没收敛"变成"收敛"，而判据本身没有任何物理含义。如果最后选它，必须同时证明 Ω_I 在 1e-8 和 1e-10 之间对 J 的影响小于某个阈值。
 
 #### 方案 D：用 VASP 原生的 `LWANNIER90_AUTO_WINDOW`（**可能是最干净的**）
 
-VASP 6.4.3 有一个本仓库从未用过的 INCAR 标签（grep 全仓 0 命中）：
+VASP 6.4.3 有一个本仓库代码里从未用过的 INCAR 标签（`*.py`/`*.sh` grep 0 命中；只有这份文档提到它）：
 
 ```
 LWANNIER90_AUTO_WINDOW = .TRUE.
 ```
 
-源码 `/nfs_ssd/softwares/vasp/vasp.6.4.3/src/mlwf.F`：
+源码 `/nfs_ssd/softwares/vasp/vasp.6.4.3/src/mlwf.F`（**2026-10-26 逐行复核，行号已校正**）：
 
-- `:297` 读这个标签；
-- `:569` 在算完本征值之后调用 `ESTIMATE_AUTO_WINDOW`；
-- `:884-909` 的实现是：`dis_froz_max = min over k,spin of E(band = NUM_WANN) − 1e-5`；
-- `:1818-1822` 把它写进 `wannier90.win`；
-- `:3325-3328` 的 `FILTER_WIN_FILE` 会**丢掉用户 win 文件里同名的行**，即 VASP 算出的值优先。
+- `:297` `CALL PROCESS_INCAR(..., 'LWANNIER90_AUTO_WINDOW', ...)`，`:132` 声明默认 `.FALSE.`；
+- `:569` `IF (LWANNIER90_AUTO_WINDOW) CALL ESTIMATE_AUTO_WINDOW(MLWF,W)`，在 `:560` 写完本征值之后；
+- `:884-909` 的 `ESTIMATE_AUTO_WINDOW`：`:894` 先赋 `CUTOFF_DES%MU(1)`（**下一行就被覆盖，是残留代码**），`:902-903` 对 k/spin/band 取 min/max，`:907` 才是生效的 `dis_froz_max = ELIM(1,NUM_WANN) - 1e-5`；
+- `:1821-1823` 把 `dis_froz_max` 写进 `<seed>.win`（**不是** `:1818-1822`，那是 `dis_froz_min` 分支；四个窗口分别写在 `:1812-1814` / `:1815-1817` / `:1818-1820` / `:1821-1823`）；
+- `:3325-3328` 的 `FILTER_WIN_FILE` 确实会丢掉同名的 `dis_froz_max` 行——**但它过滤的不是磁盘上的 `wannier90.win`，而是 INCAR 里 `WANNIER90_WIN` 那个字符串**（调用点 `:1787` `CALL FILTER_WIN_FILE(MLWF, WANNIER90_WIN, WANNIER90_WIN_FILTERED)`）。所以"VASP 算出的值优先"只对 `WANNIER90_WIN` 这条路径成立。
+
+> ### ⚠ 方案 D 现在**直接加这个标签是空操作**——这是本方案最大的坑，必须先解决
+>
+> `mlwf.F:300-311`：
+> ```fortran
+> WANNIER90_WIN = ""
+> CALL PROCESS_INCAR(LOPEN, IU5, IU5, 'WANNIER90_WIN', WANNIER90_WIN, ...)   ! :300-301
+> IF (WANNIER90().AND.IERR/=0) THEN                                          ! :308
+>    INQUIRE(FILE=DIR_APP(1:DIR_LEN)//'wannier90.win',EXIST=LWIN_FOUND,SIZE=IWIN_SIZE)
+>    IF (LWIN_FOUND.AND.IWIN_SIZE>0) THEN
+>       WANNIER90_WIN_LEGACY_MODE = .TRUE.                                    ! :311
+> ```
+> 而写 win 的两个调用点都被这个开关挡住：
+> ```fortran
+> :596   IF (IO%IU6>=0.AND..NOT.WANNIER90_WIN_LEGACY_MODE) CALL MLWF_WANNIER90_WIN(P_MLWF)
+> :1046  IF (IO%IU6>=0.AND..NOT.WANNIER90_WIN_LEGACY_MODE) CALL MLWF_WANNIER90_WIN(MLWF,LSETUP=.TRUE.)
+> ```
+> `ht-vasp` 现在正好踩中：`input_set.py:330` **预写** `wannier90.win`，INCAR 里**没有** `WANNIER90_WIN`
+> （`W90_INCAR_DEFAULTS` 只有 `LWANNIER90 / LWANNIER90_RUN / LWRITE_MMN_AMN / KPAR / LREAL / NSW / IBRION / NELM / LORBIT`；
+> 归档的 `2-w90_static/INCAR.gz` 里 `grep -i wannier` 只出 `LWANNIER90` 和 `LWANNIER90_RUN`）。
+> → **legacy mode 打开 → VASP 根本不写 win → `LWANNIER90_AUTO_WINDOW` 算完就丢掉了。**
+>
+> 要让方案 D 生效，必须**同时**改掉写入方式：要么不再预写 `wannier90.win`、改把整份 win 内容塞进 INCAR 的 `WANNIER90_WIN` 字符串；要么接受 legacy 模式并另找路径。**这一条会显著抬高方案 D 的成本，评估时不能只算"加一行 INCAR"。**
 
 **但先说清楚它解决的是什么问题。** 窗口错位只对 **E_F > `dis_froz_max` = 10 eV** 的体系成立，44 个里只有 **3 个**：
 
@@ -312,14 +345,18 @@ SER-Nb      E_F = 11.25
 
 | 端基 | num_wann | auto `dis_froz_max` (eV) | 现在硬编码 |
 |---|---:|---:|---:|
-| SER-Mn | 18 | 6.70 | 10 |
+| SER-Mn | **9**（不是 18） | 6.70 | 10 |
 | BCC-Ti-Ti | 18 | 7.96 | 10 |
 | BCC-Nb-Nb | 18 | **14.03** | 10 |
 | BCC-Co-Fe | 18 | **15.85** | 10 |
 | SER-Al | 9 | **25.70** | 10 |
 | BCC-Al-Al | 18 | **25.92** | 10 |
 
-**44 个里 36 个会得到比 10 eV 更高的冻结上限**，8 个更低。也就是说现在这个硬编码值对绝大多数体系是**偏低**的——冻住的态比应该冻的少。
+**44 个里 36 个会得到比 10 eV 更高的冻结上限**，8 个更低（2026-10-26 独立复算一致）。低于 10 eV 的 8 个：
+`SER-Mn 6.70`、`SER-Ti 7.23`、`SER-V 7.30`、`BCC-V-V 7.71`、`BCC-Ti-Ti 7.96`、`BCC-Mn-Mn 8.03`、`FCC-Mn-Mn 8.26`、`BCC-Ti-V 8.43`。
+也就是说现在这个硬编码值对绝大多数体系是**偏低**的——冻住的态比应该冻的少。
+
+（表里 `SER-Mn` 的 `num_wann` 是 **9**，不是 18；`min E(band=18)` 是 42.94 eV。6.70 来自 band 9。其余五行核对无误。）
 
 - **支持**：VASP 原生、无需两次 SCF、按体系自适应、有源码可读。
 - **未知/反对**：
@@ -395,10 +432,10 @@ SER-Nb      E_F = 11.25
 
 | 内容 | 路径 |
 |---|---|
-| `.win` 生成器 | `htvasp/tb2j/input_set.py:240-285`（`get_wannier90_win_string`），`263-268` 是窗口 |
+| `.win` 生成器 | `htvasp/tb2j/input_set.py:240-280`（`get_wannier90_win_string`），**`265-268`** 是四行窗口（`263-264` 是 `num_wann`/`num_bands`） |
 | VASP 自动窗口实现 | `/nfs_ssd/softwares/vasp/vasp.6.4.3/src/mlwf.F:884-909`（`ESTIMATE_AUTO_WINDOW`）、`:3325-3328`（`FILTER_WIN_FILE`） |
-| win 落盘 | `htvasp/tb2j/input_set.py:327-329`（`Path("wannier90.win").write_text(...)`） |
-| TB2J 调用 | `htvasp/tb2j/jobs.py:111-158`（`run_wann2j`）、`263-340`（`tb2j_solve`） |
+| win 落盘 | `htvasp/tb2j/input_set.py:330`（`Path("wannier90.win").write_text(...)`） |
+| TB2J 调用 | **分支相关**：`feat-tb2j`/`master` 上 `run_wann2j` 在 `jobs.py:111`、`tb2j_solve` 在 `:263`（文件 328/330 行）；`feat-dfpt-qha` 上是 `:251` 和 `:486`（文件 558 行）。**按函数名 grep，不要按行号跳。** |
 | 收敛判据（wannier90 源码） | `/nfs_ssd/softwares/wannier90/wannier90-3.1.0/src/disentangle.F90:2298` |
 | 失败打印 | 同上 `:2041-2044` |
 | 参数文档 | `/nfs_ssd/softwares/wannier90/wannier90-3.1.0/doc/user_guide/parameters.tex:832-899` |
@@ -417,4 +454,4 @@ SER-Nb      E_F = 11.25
 ### 与本次调查无关但相关的两个已知缺陷（不要顺手改）
 
 1. `htvasp/tb2j/context.py:_bcc_context` 给纯元素 B2 胞（`BCC-Nb-Nb`）也建了两个子晶格 `{Nb1:1, Nb2:0}`、`sublattice_ratios [0.5,0.5]`。物理上纯元素只有一个子晶格。
-2. 44 个 TB2J JSON 里 42 个的 `structure` 块是未弛豫模板（`BCC-Nb-Nb`: `structure.lattice.a = 2.8597` vs `cell[0][0] = 3.3031`），而 em-tdb-v2 的 `read_tb2j_json` 读的正是 `structure`。
+2. 44 个 TB2J JSON 里 42 个的 `structure` 块是未弛豫模板（`BCC-Nb-Nb`: `structure.lattice.a = 2.8597` vs `cell[0][0] = 3.3031`，a 差 13.4%、体积差约 24%），而 em-tdb-v2 的 `read_tb2j_json`（`em-tdb-v2/src/emtdb_v2/magnetic/readers.py:611`，required 元组在 `:624`）**只读 `structure`，全库 grep `cell` 0 命中**。两个例外（`BCC-Fe-Ni`、`SER-Al`）只是模板恰好等于弛豫值，不是元数据正确。

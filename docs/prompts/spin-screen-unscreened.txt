@@ -1,7 +1,7 @@
 # 66 个尚未 spin-screen 的端基
 # 格式: endpoint  class  magnetic_policy  n_Cr  states_to_run
 # 生成于 2026-10-26，来源 pool_recipes.json / pool_structures.json
-# 已筛过的 18 个（不在此表）见 docs/prompts/spin-screen-README.md
+# 已筛过的 18 个（不在此表）见 docs/prompts/README.md 与 /tmp/spin_results.txt
 BCC-Al-Al-2      BCC_B2    nonmagnetic       0  nm,fm
 BCC-Al-Cr-2      BCC_B2    confirmed_branch  1  nm,fm
 BCC-Al-Hf-2      BCC_B2    nonmagnetic       0  nm,fm

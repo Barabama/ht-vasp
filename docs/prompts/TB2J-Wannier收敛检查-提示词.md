@@ -39,7 +39,7 @@ git merge master          # 见下方"合并前必须确认"
 **合并前必须确认的事**（不要跳过）：
 
 - `feat-tb2j` 是 `master` 的**祖先**（`git merge-base --is-ancestor feat-tb2j master` 为真），所以 `master` 领先它 16 个提交，合并是快进或接近快进。
-- 但 `feat-dfpt-qha`（你刚离开的分支）**不在** `master` 的祖先链上，它有 89 个提交是 master 没有的，其中包括 `htvasp/dfpt_qha/`、`main_dfpt_qha.py`、`main_spin_screen.py`、`htvasp/tb2j/magnetic_contract.py`、`htvasp/tb2j/context.py`。
+- 但 `feat-dfpt-qha`（你刚离开的分支）**不在** `master` 的祖先链上，它有 93 个提交是 master 没有的，其中包括 `htvasp/dfpt_qha/`、`main_dfpt_qha.py`、`main_spin_screen.py`、`htvasp/tb2j/magnetic_contract.py`、`htvasp/tb2j/context.py`。
 - 也就是说：**`feat-tb2j` 合并 `master` 之后，仓库里不会有 DFPT-QHA 和 spin screen 的代码。** 这是预期状态——你的任务不需要它们。但如果你发现某个改动需要 `htvasp/dfpt_qha/`，**停下来报告**，不要自己跨分支搬文件。
 - 合并后跑一次 `./.conda/bin/python -m pytest tests/ -q`，记下基线（哪些通过、哪些本来就失败）。`tests/test_nscf.py::test_flow_makers` 已知失败，与本任务无关。
 
@@ -63,12 +63,18 @@ dis_froz_max = 10
 **后果已经实测**（44 个归档 run，`data/endmembers/*/tb2jflow/2-w90_static/wannier90.{1,2}.wout`）：
 
 - **44/44 个 up 通道 + 44/44 个 down 通道全部撞了 200 次迭代上限**，`Disentanglement convergence criteria not satisfied`。
-- 迭代到 200 时 `Delta` 仍有 1e-8 ~ 1e-3，而判据是 **1e-10**（`dis_conv_tol` 默认值）。
+- 迭代到 200 时 `|Delta|` 仍在 **1.16e-8 ~ 1.32e-3**（88 个文件实测：中位 5.67e-6），而判据是 **1e-10**（`dis_conv_tol` 默认值）。
+  **`Delta` 是带符号的**：88 个文件里 **55 个最后一步是负值**（Ω 在这一步上升）。所以算衰减率/外推时**必须取绝对值**，否则 `log` 会炸或符号翻错。
   **注意单位**：wannier90 的用户手册写 `dis_conv_tol` "Units are Å²"，但源码里实际比较的是
   `delta_womegai = womegai1/womegai - 1.0_dp`（`src/disentangle.F90:1988`），即**相对变化**，
   `.wout` 的表头也写着 `Delta (frac.)`。**手册与代码不一致，以代码为准**——这条本身就是个陷阱，
   写解析器时不要按 Å² 去换算。
-- 按 190→200 步的局部衰减率外推：**35/44 会收敛（中位 1001 次迭代，最多 12263 次）**，**9/44 已经平台化（衰减率 ≥ 1，再给迭代也不会收敛）**。
+- 按 190→200 步的局部衰减率外推：**35/44 会收敛（中位 1001 次迭代，最多 12263 次）**，**9/44 看起来已平台化（衰减率 ≥ 1）**。
+  **但这个外推只是 spin-1（`wannier90.1.wout`）的，而且"平台化"这个词要打折**（2026-10-26 复核）：
+  - 表里全部数字来自 up 通道。down 通道差别很大：`SER-Mn` 682→1923、`BCC-Mn-Mn` 894→7159、`BCC-Ti-Ti` 5247→637、`FCC-Mn-Ni` 3303→9189。**报数时要给一对（up/down）或 min/max，不要给单个数字。**
+  - 9 个"平台化"的衰减率只有 1.001–1.03（比 1 高 0.1–3%），换 180→190 / 195→200 窗口后**只有 7 个**在两个自旋上都稳（`BCC-Mn-Ni`、`BCC-Nb-Ti` 会掉出去）。
+  - 下限是 **307**（`SER-Al`），不是 296。
+  - 结论：**"35 会收敛 / 9 平台化"是乐观上界，不是实测**。真正要判的是 `wannier_converged` 字段本身。
 
 **而流程里没有任何一处读这个结果。** `htvasp/tb2j/` 全包 grep `wout` / `disentangle` / `Omega` 是 0 命中；`tb2j_test/submit_tb2j.sh` 的"W90 收敛检查"只查 `Vasprun.converged`（那是 VASP 的 SCF），每次都能过。
 
@@ -96,11 +102,15 @@ dis_froz_max = 10
 
 3. **把判定写进产物**。`Tb2jResult`（`htvasp/tb2j/task_doc.py`）加字段，`*-tb2j.json` 里能读到 `wannier_converged` 和 `wannier_disentanglement`。**已有的 `emtdb-magnetic-dataset/v1` 顶层字段一个都不要改**（下游 em-tdb-v2 的 `read_tb2j_json` 在读），只加新字段。
 
-4. **测试**（`tests/test_tb2j.py` 是 pytest 可收集的，12 个用例全过，照它的风格写）：
+4. **测试**（`tests/test_tb2j.py` 是 pytest 可收集的，但**它的"12 个全过"是假绿，不要照它的风格写**）：
    - 解析器对"收敛"样例返回 True —— **仓库里有现成的真样例**：`/nfs_hdd/2025/gaominliang/tb2j_test/fe_bcc_wannier_4x4x4/wannier90.1.wout`（71 步收敛，`Delta < 1.000E-10 over 3 iterations`）。
    - 解析器对"没收敛"样例返回 False —— `data/endmembers/BCC-Nb-Nb/tb2jflow/2-w90_static/wannier90.1.wout`（200 步撞上限）。
    - 缺文件、空文件、格式不认识时**不猜**：返回 `None` 或 raise，不要默认 True。
    - 两个通道分别检查：只 up 收敛、down 没收敛，必须判为不收敛。
+
+   **关于那个"假绿"**：`tests/test_tb2j.py` 里 `assert` 出现 **0 次**。12 个函数全是 `def test_x(): ...; return True/False`，pytest 只报 `PytestReturnNotNoneWarning` 并**忽略返回值**，所以返回 `False` 的用例也算 passed。实证：`test_structure_names` 期望 30 个名字、`main_w90.STRUCTURE_NAMES` 实际 **44** 个，它返回 `False`，pytest 照样算过。
+
+   你新加的用例必须用 `assert`（真断言）。现有的 12 个用例**不要顺手改成 assert**——那会把 `test_structure_names` 变成红的，属于另一个决策，写进报告就行。
 
 5. **写一份短报告** `docs/TB2J-Wannier收敛门-<日期>.md`：加了什么、门在哪、对已有 44 个 run 的影响（它们现在都会被判失败）、以及**你没做的事**（没改窗口、没重跑）。
 
@@ -130,7 +140,7 @@ dis_froz_max = 10
 
 ```
 master            ← feat-tb2j 是它的祖先（落后 16 个提交）
-                  ← feat-dfpt-qha 不是它的祖先（feat-dfpt-qha 领先 89 个）
+                  ← feat-dfpt-qha 不是它的祖先（feat-dfpt-qha 领先 93 个）
 feat-tb2j         ← 只有 5 个 tb2j 文件：__init__/input_set/jobs/maker/task_doc
 feat-dfpt-qha     ← 多了 context.py 与 magnetic_contract.py，以及整个 dfpt_qha/
 origin/master     ← 本地 master 领先 7 个（其中 3 个是 SQS 的 add+revert，净效果只剩 0108ef7）
@@ -149,16 +159,21 @@ $ grep -l "Disentanglement convergence criteria not satisfied" \
 44
 ```
 
-（`wannier90.wout` 是 VASP 的 setup pass，15421 字节，没有 DIS 迭代，不要拿它判。）
+（`wannier90.wout` 是 VASP 的 setup pass，**没有 DIS 迭代表，不要拿它判**。它的字节数不是固定的：44 个 run 里实测有 15421 / 15581 / 15741 / 16061 四种，所以**别按大小识别**，按内容里有没有 `<-- DIS` 行识别。）
 
 ### 迭代需求外推（190→200 局部衰减率）
 
 | 类 | 数量 | 说明 |
 |---|---:|---|
-| 会收敛 | 35 | 中位 1001 次，最多 12263（`BCC-Al-Nb`） |
-| 已平台化 | 9 | 衰减率 ≥ 1，再给迭代也不收敛 |
+| 会收敛 | 35 | 中位 1001 次，最少 307（`SER-Al`），最多 12263（`BCC-Al-Nb`） |
+| 看起来已平台化 | 9 | 衰减率 ≥ 1（但只比 1 高 0.1–3%） |
 
 平台化的 9 个：`BCC-Al-Al`、`BCC-Co-Mn`、`BCC-Fe-Mn`、`BCC-Mn-Ni`、`BCC-Nb-Ti`、`FCC-Mn-Co`、`FCC-Mn-Fe`、`SER-Co`、`SER-V`。
+
+**这张表是 spin-1 单通道的，文档原先没说，2026-10-26 复核确认。** 三条必须一起写进报告：
+1. down 通道的外推差很多：`SER-Mn` 682→1923、`BCC-Mn-Mn` 894→7159、`BCC-Ti-Ti` 5247→637、`FCC-Mn-Ni` 3303→9189。**按 up/down 成对报，或报 min/max。**
+2. "平台化"的 9 个里，`BCC-Mn-Ni`（down 通道 q=0.971）和 `BCC-Nb-Ti`（q=0.9992–1.0009，跨 1）在两个自旋上都不稳；**只有 7 个是稳的**。
+3. 这是**外推，不是实测**，而且是按 190→200 的局部指数衰减率算的；真实衰减多半是次指数，所以上表是**乐观上界**。
 
 ### 窗口错位的直接证据
 
@@ -184,12 +199,14 @@ $ grep -l "Disentanglement convergence criteria not satisfied" \
 |---|---|---|
 | `tb2j_test/fe_bcc_wannier` | 9/16 | 3 步收敛（空态只有 7 个，解纠缠几乎无自由度） |
 | `tb2j_test/fe_bcc_wannier_4x4x4` | 9/16 | 71 步收敛 |
-| `tb2j_test/fe_bcc_wannier_8x8x8` | 9/16 | **200 步撞上限** |
+| `tb2j_test/fe_bcc_wannier_8x8x8` | 9/16 | **up 200 步撞上限；down 第 181 步收敛** |
 | `tb2j_test/SER-Co/W90` | 18/64 | **撞上限** |
 | `tb2j_test/BCC-Co-Ni/W90` | 18/64 | **撞上限** |
 | `tb2j_test/FCC-Fe-Mn/W90` | 36/64 | **撞上限** |
 
-也就是说：**同一个 Fe bcc 体系，k 网格从 4×4×4 换到 8×8×8 就从"收敛"翻成"不收敛"**；而 `num_wann/num_bands` 从 9/16 变成 18/64 之后，三个体系全部不收敛。警告一直在 `wannier90.{1,2}.wout` 里，但当时没有人读。
+也就是说：**同一个 Fe bcc 体系，k 网格从 4×4×4 换到 8×8×8，up 通道就从"收敛"翻成"不收敛"（down 通道仍收敛）**；而 `num_wann/num_bands` 从 9/16 变成 18/64 之后，三个体系全部不收敛。警告一直在 `wannier90.{1,2}.wout` 里，但当时没有人读。
+
+（**两个补正**：① 这两个目录的 `submit.sh` 里 `--ntasks` 也不同——4×4×4 是 4，8×8×8 是 16，所以严格说不是"只改 KPOINTS"；② `fe_bcc_wannier` 的"3 步收敛"是因为空态只有 7 个，解纠缠几乎没有自由度，不能当成"窗口对了"的证据。）
 
 ### 现成的真样例（给测试用）
 
@@ -210,9 +227,12 @@ $ grep -l "Disentanglement convergence criteria not satisfied" \
 - `dis_conv_window`：默认 3，即连续 3 步都小于容差才算收敛。
 - `dis_num_iter`：默认 200。
 - 判据代码：`src/disentangle.F90:2298`，`dis_converged = all(abs(history) .lt. dis_conv_tol)`。
-- 失败打印：`src/disentangle.F90:2041-2044`。
+- 失败打印：`src/disentangle.F90:2041-2045`（`2041` 是 `if (.not. dis_converged)`，`2042-2043` 是 Maximum-iterations 警告，`2044` 是 `not satisfied`，`2045` 是 `endif`）。
+- 比较是 `.lt.`（严格小于），Delta 正好等于容差**不算**收敛。
+- 判据外还套了一层 `if (iter .ge. dis_conv_window)`（`:2297`），所以前 `dis_conv_window-1` 步不可能判收敛。
+- 源码里有一套 **Gamma-only 重复实现**（`:2791` 的相对变化、`:2826-2830` 的失败打印、`:3075` 的判据），且那份失败打印**没有 `on_root` 保护**——standalone Gamma-only 并行跑时会每个 rank 打一遍。解析器要按"出现过就算"处理，别数次数。
 
 ### 已知的旁支风险（写进报告，不要顺手改）
 
 - `htvasp/tb2j/context.py:_bcc_context` 把 B2 的 (0,0,0) 映射到 sublattice 0、(½,½,½) 映射到 1，**对纯元素 B2（`BCC-Nb-Nb`）也这么做**，于是同核胞得到 `{Nb1:1, Nb2:0}` 两个"子晶格"、`sublattice_ratios [0.5,0.5]`。物理上纯元素只有一个子晶格。
-- 44 个 TB2J JSON 里 42 个的 `structure` 块是**未弛豫的模板胞**（`BCC-Nb-Nb`: `structure.lattice.a=2.8597` vs `cell[0][0]=3.3031`），而 em-tdb-v2 的 `read_tb2j_json` 读的正是 `structure`。
+- 44 个 TB2J JSON 里 42 个的 `structure` 块是**未弛豫的模板胞**（`BCC-Nb-Nb`: `structure.lattice.a=2.8597` vs `cell[0][0]=3.3031`，a 差 13.4%、体积差约 24%），而 em-tdb-v2 的 `read_tb2j_json`（`em-tdb-v2/src/emtdb_v2/magnetic/readers.py:611`）**只读 `structure`**，全库 grep `cell` 0 命中。两个例外（`BCC-Fe-Ni`、`SER-Al`）只是模板恰好等于弛豫值。
