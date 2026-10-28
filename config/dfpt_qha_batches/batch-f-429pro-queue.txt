@@ -1,0 +1,31 @@
+# Batch F -- queued on 429pro, 2026-10-28 23:15
+#
+# Only 429pro may run DFPT-QHA from now on (user decision 2026-10-28); 429e is
+# out.  One job at a time by construction: each asks for 48 of the node's 64
+# cores, so a second one cannot fit while 57504 (FCC-Zr-Ta-4) is still running.
+#
+#   58000  FCC-Cr-Nb-4   resume, 6/7 volumes   run_id dfpt-qha-726d42480a0a2a44839f
+#   58001  FCC-Ti-Zr-4   resume, 6/7 volumes   run_id dfpt-qha-56d75445a8d09d593c02
+#   58002  FCC-Ta-Nb-4   fresh, largest left   run_id dfpt-qha-70d4f82e7daa8589dd5f
+#
+# Resume must reproduce the original run id, because ntasks is part of
+# stable_run_id (main_dfpt_qha.py:415) and the store lives under the run id.
+# Both resume targets were submitted on 10-25, after the 10-20 pool rewrite, so
+# --ntasks 48 --nodelist 429pro regenerates their ids exactly; --memory and
+# --nodelist do not enter the run id.
+#
+# Ledger note: "Slurm accounting storage is disabled" on this cluster, so
+# reconcile_entry() cannot resolve a job that has left squeue and the entries
+# stuck at reconcile_required, which made submit_intent() refuse --resume.
+# scripts/reconcile_vanished_jobs.py cleared the two dead job ids (57502,
+# 57503) after confirming both were out of squeue and had written no artifact.
+#
+# Five older partial runs (BCC-Hf-Nb-2 6/7, FCC-Hf-Nb-4 5/7, FCC-Al-Nb-4 4/7,
+# FCC-Al-Zr-4 4/7, FCC-Al-Ta-4 5/7) are NOT listed here: the 10-20 pool rewrite
+# changed their endpoint_recipe and therefore their stable_run_id, and
+# submit_job() has no --run-id passthrough, so they cannot be pointed at their
+# archived stores yet.  Recovering them needs that passthrough.
+
+FCC-Cr-Nb-4
+FCC-Ti-Zr-4
+FCC-Ta-Nb-4
