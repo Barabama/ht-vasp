@@ -431,7 +431,17 @@ def _validate_job_output(job: Job, store: JobStore) -> bool:
     try:
         output = store.get_output(uuid=job.uuid, which=job.index, load=True)
         return output is not None
-    except Exception:
+    except Exception as exc:
+        # A blob_uuid pointer with no matching entry in the additional store is
+        # not "no output" -- it is a store that lost its blob file.  Before the
+        # fix in base.py the additional store was a MemoryStore, so every
+        # resume hit this and silently re-ran every DFPT volume.  Name the cause
+        # so the next occurrence is visible rather than a bare "incomplete".
+        log.warning(
+            f"Job {job.name} output could not be loaded ({exc!r}); if this is a "
+            "KeyError on a blob_uuid, the additional store is missing -- the "
+            "blobs were written to a process-local store, not to store-data.json."
+        )
         return False
 
 
