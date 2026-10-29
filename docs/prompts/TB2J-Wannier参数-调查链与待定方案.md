@@ -4,8 +4,8 @@
 > 目标仓库：`/nfs_hdd/2025/gaominliang/ht-vasp`。
 > 本文档最后一节「事实附录」是给**你**（派发人）核对用的，不要复制进去。
 
-> **关于本文档的路径**：这些提示词文件在 `feat-dfpt-qha` 分支的 `docs/prompts/` 下。
-> 如果你按提示切到了 `feat-tb2j`（或任何别的分支），那个目录可能不存在。
+> **关于本文档的路径**：这些提示词文件在 `master`（以及 `feat-dfpt-qha`）的 `docs/prompts/` 下。
+> 你在 `master` 上开的新分支会继承它们，不会消失。
 > **你手上粘贴的正文就是权威版本**；如果正文里引用了某个 `docs/prompts/*.md` 而你找不到，
 > 停下来向派发人索取，不要猜内容。
 
@@ -33,16 +33,24 @@
 
 ### 1. 分支
 
-当前在 `feat-dfpt-qha`。TB2J 的代码在 `feat-tb2j` 上（`master` 也有一份，因为 `feat-tb2j` 是 master 的祖先）。
+**2026-10-28 分支事实（与旧版本文档不同，以本节为准）：`master` 已经包含 PR #3 的全部内容，TB2J 代码就在 master 上。**
 
 ```bash
-git checkout feat-tb2j
-git merge master
+git branch -vv
+#   feat-dfpt-qha c6671c4 [origin/feat-dfpt-qha]   ← master 的祖先，已合并
+# * feat-tb2j-sqs 6002f2a
+#   master       6002f2a [origin/master]
 ```
 
-合并前确认：`git merge-base --is-ancestor feat-tb2j master` 为真（所以合并接近快进）；`git merge-tree` 报 0 冲突。
+- **不要 `git checkout feat-tb2j`。** 本地分支已删；远端 `origin/feat-tb2j` 落后 master **99** 个提交、领先 **0** 个，是 master 的真子集。checkout 会给你建 tracking 分支，`merge master` 变成 99 提交的大合并。
+- **不会再"切分支就丢 `htvasp/dfpt_qha/`"**——`master` 现在有 `htvasp/dfpt_qha/`、`main_dfpt_qha.py`、`main_spin_screen.py`、`htvasp/tb2j/context.py`、`htvasp/tb2j/magnetic_contract.py`。调查要用的 DFPT-QHA 代码与 `data/endpoints/` 数据都在同一个工作区里，**不需要跨分支搬任何东西**。
 
-**切分支时你会看到 `htvasp/dfpt_qha/`、`main_dfpt_qha.py`、`main_spin_screen.py` 从工作区消失**——`feat-tb2j` 和 `master` 都没有这些文件，只有 `feat-dfpt-qha` 有（它领先 master 93 个提交，不在 master 的祖先链上）。**这是分支拓扑，不是丢代码。** `git checkout feat-dfpt-qha` 它们就回来了。**如果你的调查需要用到 DFPT-QHA 的代码或数据，从 `data/endpoints/` 读（数据在文件系统上，与分支无关），不要去 `feat-dfpt-qha` 搬代码。**
+**你要做的：在当前 HEAD（`feat-tb2j-sqs` @ `6002f2a`，= master）上开一个只读调查分支。**
+
+```bash
+git checkout -b feat-tb2j-wannier-params
+./.conda/bin/python -m pytest tests/ -q   # 记基线（test_tb2j.py 的"12 passed"是假绿，见 #1 提示词）
+```
 
 ### 2. 发现链路（按时间顺序，每一步都有可复核的文件）
 
@@ -63,11 +71,11 @@ BCC-Ti-Ti   BMAGN = 0.0197 μB   TC(MFA) = 33.83 K
 
 同一个流水线的对照：
 
-| 端基 | max\|J_iso\| (meV) | 折合 k_B·T(300K) |
-|---|---:|---:|
-| BCC-Nb-Nb | 0.0347 | 0.0013 |
-| BCC-Ti-Ti | 0.7332 | 0.028 |
-| **BCC-Co-Fe**（同一流程，池外） | **23.33** | **0.90** |
+| 端基                                  | max\|J_iso\| (meV) | 折合 k_B·T(300K) |
+| ------------------------------------- | -----------------: | ----------------: |
+| BCC-Nb-Nb                             |             0.0347 |            0.0013 |
+| BCC-Ti-Ti                             |             0.7332 |             0.028 |
+| **BCC-Co-Fe**（同一流程，池外） |    **23.33** |    **0.90** |
 
 差 2–3 个数量级。**但这本身还不能定罪**——Nb/Ti 的磁矩确实很小。
 
@@ -75,11 +83,11 @@ BCC-Ti-Ti   BMAGN = 0.0197 μB   TC(MFA) = 33.83 K
 
 如果交换劈裂 ∝ 磁矩，那么 `max|H_up − H_dn| / |m|` 应该在各体系间大致相同。实测（从 `wannier90.{1,2}_hr.dat` 直接算）：
 
-| 端基 | max\|m\| (μB) | max\|dH\| (meV) | dH/\|m\| (meV/μB) |
-|---|---:|---:|---:|
-| BCC-Nb-Nb | 0.0073 | 2.334 | **320** |
-| BCC-Ti-Ti | 0.0198 | 14.314 | **723** |
-| BCC-Co-Fe | 2.8161 | 8.213 | **2.9** |
+| 端基      | max\|m\| (μB) | max\|dH\| (meV) | dH/\|m\| (meV/μB) |
+| --------- | -------------: | --------------: | -----------------: |
+| BCC-Nb-Nb |         0.0073 |           2.334 |      **320** |
+| BCC-Ti-Ti |         0.0198 |          14.314 |      **723** |
+| BCC-Co-Fe |         2.8161 |           8.213 |      **2.9** |
 
 **差 250 倍。** 这是第二个疑点，但同样不是定论——不同的态密度形状可以让这个比值不同。
 
@@ -94,11 +102,11 @@ make sure it is much smaller than the exchange values.
 
 把 `max|H_up − H_dn|` 当噪声、`max|J_iso|` 当信号：
 
-| 端基 | 噪声 (meV) | max\|J\| (meV) | J/噪声 |
-|---|---:|---:|---:|
-| BCC-Nb-Nb | 2.334 | 0.0347 | **0.015** |
-| BCC-Ti-Ti | 14.314 | 0.7332 | **0.051** |
-| BCC-Co-Fe | 8.213 | 23.33 | 2.84 |
+| 端基      | 噪声 (meV) | max\|J\| (meV) |          J/噪声 |
+| --------- | ---------: | -------------: | --------------: |
+| BCC-Nb-Nb |      2.334 |         0.0347 | **0.015** |
+| BCC-Ti-Ti |     14.314 |         0.7332 | **0.051** |
+| BCC-Co-Fe |      8.213 |          23.33 |            2.84 |
 
 **池内 2 个有 TC 的端基，J 分别只有噪声的 1/67 和 1/20。** 但注意：噪声和信号都来自同一个 `H_up − H_dn`，所以这个比值度量的是"J 有多大比例是 Wannier 拟合误差"，不是"J 是不是物理的"。
 
@@ -132,13 +140,13 @@ wannier90 官方文档（3.1.0 `doc/user_guide/parameters.tex`）：这些是**�
 
 实测 E_F 与窗口的关系（E_F 从各端基的 `2-w90_static/OUTCAR.gz` 读）：
 
-| 端基 | E_F (eV) | `dis_froz` 相对 E_F |
-|---|---:|---|
-| BCC-Ni-Ni | 4.53 | −14.5 … +5.5（跨过 E_F） |
-| SER-Co | 5.40 | −15.4 … +4.6 |
+| 端基                |        E_F (eV) | `dis_froz` 相对 E_F                      |
+| ------------------- | --------------: | ------------------------------------------ |
+| BCC-Ni-Ni           |            4.53 | −14.5 … +5.5（跨过 E_F）                 |
+| SER-Co              |            5.40 | −15.4 … +4.6                             |
 | **BCC-Nb-Nb** | **11.48** | **−21.5 … −1.5（全在 E_F 之下）** |
-| SER-Nb | 11.25 | −21.3 … −1.3 |
-| BCC-Al-Nb | 10.20 | −20.2 … −0.2 |
+| SER-Nb              |           11.25 | −21.3 … −1.3                            |
+| BCC-Al-Nb           |           10.20 | −20.2 … −0.2                            |
 
 对 `BCC-Nb-Nb`（band 跨 −42.9 … 71.2 eV）：
 
@@ -170,14 +178,14 @@ Fe bcc 的 **E_F ≈ 1.17 eV**，所以那个窗口对它恰好跨过 E_F（`dis
 
 `tb2j_test/` 里的实测：
 
-| 目录 | num_wann/num_bands | DIS 迭代 | 结果 |
-|---|---|---:|---|
-| `fe_bcc_wannier` | 9/16 | 3 | 收敛（空态只有 7 个，解纠缠几乎无自由度） |
-| `fe_bcc_wannier_4x4x4` | 9/16 | 71 | **收敛** |
-| `fe_bcc_wannier_8x8x8` | 9/16 | 200 / **181** | **up 撞上限；down 第 181 步收敛** |
-| `SER-Co/W90` | 18/64 | 200 | **撞上限** |
-| `BCC-Co-Ni/W90` | 18/64 | 200 | **撞上限** |
-| `FCC-Fe-Mn/W90` | 36/64 | 200 | **撞上限** |
+| 目录                     | num_wann/num_bands |            DIS 迭代 | 结果                                      |
+| ------------------------ | ------------------ | ------------------: | ----------------------------------------- |
+| `fe_bcc_wannier`       | 9/16               |                   3 | 收敛（空态只有 7 个，解纠缠几乎无自由度） |
+| `fe_bcc_wannier_4x4x4` | 9/16               |                  71 | **收敛**                            |
+| `fe_bcc_wannier_8x8x8` | 9/16               | 200 / **181** | **up 撞上限；down 第 181 步收敛**   |
+| `SER-Co/W90`           | 18/64              |                 200 | **撞上限**                          |
+| `BCC-Co-Ni/W90`        | 18/64              |                 200 | **撞上限**                          |
+| `FCC-Fe-Mn/W90`        | 36/64              |                 200 | **撞上限**                          |
 
 **同一个 Fe bcc，k 网格从 4×4×4 换到 8×8×8，up 通道就从收敛翻成不收敛（down 通道仍然收敛）。** 而 `num_wann/num_bands` 从 9/16 变成 18/64（空态从 7 个变成 46 个）之后，三个体系全部不收敛。
 
@@ -210,10 +218,10 @@ Wannier90 是以**库模式**跑在 VASP 里的，所以 VASP 的 SCF 收敛了�
 
 我把 44 个端基按 E_F 与 `dis_froz_max = 10 eV` 的关系分组，再按"冻结窗内有多少个 band"统计：
 
-| 分组 | 数量 | 冻结 band 数 / num_wann（中位） |
-|---|---:|---:|
-| E_F < 10（窗口跨过 E_F） | **41** | **0.65** |
-| E_F > 10（窗口整个在 E_F 之下） | **3** | 0.15 |
+| 分组                            |         数量 | 冻结 band 数 / num_wann（中位） |
+| ------------------------------- | -----------: | ------------------------------: |
+| E_F < 10（窗口跨过 E_F）        | **41** |                  **0.65** |
+| E_F > 10（窗口整个在 E_F 之下） |  **3** |                            0.15 |
 
 （分组数 41/3 已独立复核：从 44 个 `2-w90_static/OUTCAR.gz` 的 `E-fermi` 取最后一个值，> 10 eV 的**恰好**是 `BCC-Al-Nb 10.20`、`BCC-Nb-Nb 11.48`、`SER-Nb 11.25`，全部 E_F 范围 4.53–11.48 eV。**但"冻结 band 数/k 中位 0.65 / 0.15"这两个数没复现**，见下。）
 
@@ -232,21 +240,21 @@ Wannier90 是以**库模式**跑在 VASP 里的，所以 VASP 的 SCF 收敛了�
 
 > **但严格说不是"只改了一个变量"**：`submit.sh` 里 `--ntasks` 也不同（4×4×4 用 4，8×8×8 用 16）。而且 **8×8×8 的 down 通道其实是收敛的**（spin 2 在第 181 步满足判据，只有 spin 1 撞了 200 上限）。所以"k 点多→难收敛"这条证据**比文档原先写的更强也更窄**：它只在 up 通道成立，且并行度也变了。做判别实验时必须把 `ntasks` 一起钉死。
 
-| 目录 | k 点 | 收敛 |
-|---|---:|---|
-| `fe_bcc_wannier_4x4x4` | 64 | **是** |
-| `fe_bcc_wannier_8x8x8` | 512 | **up 否（200）** / down 是（181） |
-| `fe_bcc_wannier`（默认 8×8×8，但**这个 run 没跑完**——`wannier90.1.wout` 只有 166 行停在 DIS 表头，**连 `wannier90.2.wout` 都没有**，无 `*.hr.dat`、CHG/CHGCAR 为 0 字节、没有 TB2J 交接） | — | 不可判 |
+| 目录                                                                                                                                                                                                              | k 点 | 收敛                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---: | --------------------------------------- |
+| `fe_bcc_wannier_4x4x4`                                                                                                                                                                                          |   64 | **是**                            |
+| `fe_bcc_wannier_8x8x8`                                                                                                                                                                                          |  512 | **up 否（200）** / down 是（181） |
+| `fe_bcc_wannier`（默认 8×8×8，但**这个 run 没跑完**——`wannier90.1.wout` 只有 166 行停在 DIS 表头，**连 `wannier90.2.wout` 都没有**，无 `*.hr.dat`、CHG/CHGCAR 为 0 字节、没有 TB2J 交接） |   — | 不可判                                  |
 
 而 44 个归档 run **全部是 512 个 k 点**。
 
 同时 `num_bands − num_wann`（解纠缠的空态数）分布是：
 
 | num_wann / num_bands | 空态 | 端基数 |
-|---|---:|---:|
-| 9 / 32 | 23 | 5 |
-| 18 / 64 | 46 | 23 |
-| 36 / 64 | 28 | 16 |
+| -------------------- | ---: | -----: |
+| 9 / 32               |   23 |      5 |
+| 18 / 64              |   46 |     23 |
+| 36 / 64              |   28 |     16 |
 
 **所以你至少有三个候选原因，而派发人最初只强调了窗口。** 你的复核任务里，这一条优先级最高：**先判断 k 点数、空态数、窗口位置三者哪个是主因**，再谈改什么。这也直接决定了方案 A/D/E 值不值得做。
 
@@ -309,6 +317,7 @@ LWANNIER90_AUTO_WINDOW = .TRUE.
 > ### ⚠ 方案 D 现在**直接加这个标签是空操作**——这是本方案最大的坑，必须先解决
 >
 > `mlwf.F:300-311`：
+>
 > ```fortran
 > WANNIER90_WIN = ""
 > CALL PROCESS_INCAR(LOPEN, IU5, IU5, 'WANNIER90_WIN', WANNIER90_WIN, ...)   ! :300-301
@@ -317,17 +326,59 @@ LWANNIER90_AUTO_WINDOW = .TRUE.
 >    IF (LWIN_FOUND.AND.IWIN_SIZE>0) THEN
 >       WANNIER90_WIN_LEGACY_MODE = .TRUE.                                    ! :311
 > ```
+>
 > 而写 win 的两个调用点都被这个开关挡住：
+>
 > ```fortran
 > :596   IF (IO%IU6>=0.AND..NOT.WANNIER90_WIN_LEGACY_MODE) CALL MLWF_WANNIER90_WIN(P_MLWF)
 > :1046  IF (IO%IU6>=0.AND..NOT.WANNIER90_WIN_LEGACY_MODE) CALL MLWF_WANNIER90_WIN(MLWF,LSETUP=.TRUE.)
 > ```
+>
 > `ht-vasp` 现在正好踩中：`input_set.py:330` **预写** `wannier90.win`，INCAR 里**没有** `WANNIER90_WIN`
 > （`W90_INCAR_DEFAULTS` 只有 `LWANNIER90 / LWANNIER90_RUN / LWRITE_MMN_AMN / KPAR / LREAL / NSW / IBRION / NELM / LORBIT`；
 > 归档的 `2-w90_static/INCAR.gz` 里 `grep -i wannier` 只出 `LWANNIER90` 和 `LWANNIER90_RUN`）。
 > → **legacy mode 打开 → VASP 根本不写 win → `LWANNIER90_AUTO_WINDOW` 算完就丢掉了。**
 >
 > 要让方案 D 生效，必须**同时**改掉写入方式：要么不再预写 `wannier90.win`、改把整份 win 内容塞进 INCAR 的 `WANNIER90_WIN` 字符串；要么接受 legacy 模式并另找路径。**这一条会显著抬高方案 D 的成本，评估时不能只算"加一行 INCAR"。**
+
+**2026-10-28 补的三条源码事实（都在 `mlwf.F` 里，方案 D 评估要用）：**
+
+1. **win 会被写两次**。`MLWF_WANNIER90_SETUP:1046` 在 SCF 前写一次（此时 `DIS_FROZ_MAX` 还是 `:1022` 刚重置的 HUGE，所以没有 auto 值）；SCF 后 `:569` `ESTIMATE_AUTO_WINDOW` 设值，`:596` 再写一次，**最终落盘的是带 auto 值的版本**。所以不存在"先写的被后写的盖掉"的问题。
+2. **`wannier90.win` 之后会被复制成 `wannier90.1.win` / `wannier90.2.win`，wannier90.x 跑的是复制件**（`MLWF_WANNIER90_RUN:1892` 的 `COPYFILE`）。所以 auto 值**确实会进到真正被 wannier90 读的那个文件**——这一条排除了"D 写了但没生效"的怀疑（前提是 legacy mode 已关掉）。
+3. **`FILTER_WIN_FILE` 只会在 VASP 自己也算出同名值时才丢掉用户的行**。由于 `DIS_WIN_MIN/MAX`、`DIS_FROZ_MIN` 在 VASP 里**只被赋值成 HUGE、从不被算出来**（`:1021-1023` 之后只有 `:1812/:1818` 的读取判断），用户 `WANNIER90_WIN` 里的 `dis_win_*` 和 `dis_froz_min` 会被**原样保留**；只有 `dis_froz_max` 会被 auto 值替换。也就是说方案 D 的语义精确等于"只覆盖内窗上界"——和之前从源码推的一致。
+
+**2026-10-28 实测（BCC-Nb-Nb，E_F = 11.4766 eV，5 个变体，429e，每个约 3 min）**
+
+| 变体 | 磁盘上有 win | `WANNIER90_WIN` | `AUTO_WINDOW` | VASP 写了 win? | 写出的 `dis_froz_max` | 投影 | legacy 提示 |
+|---|---|---|---|---|---|---|---|
+| A（=现状） | 有（预写） | 无 | 无 | **否**，md5 不变 | 10（原文件没被碰） | 来自文件 | 有 |
+| B | 有（预写） | 无 | **有** | **否**，md5 与 A 逐字节相同 | 10（原文件没被碰） | 来自文件 | 有 |
+| **C** | 无 | **有** | **有** | **是** | **14.0246854（VASP 算的）** | `Nb: s,p,d` 保留 | 无 |
+| D | 无 | **有** | 无 | **是** | 10（用户值保留） | 保留 | 无 |
+| E | 无 | 无 | 有 | **是** | 14.0246854 | **丢失 → `use_bloch_phases = .true.`** | 有 |
+
+四条实测结论：
+
+1. **方案 D 在生产配置下确实是空操作**。A 与 B 落盘的 win md5 完全相同（`fdb21cd7…`），两个变体的 OUTCAR 都打出 legacy 提示各 1 次（每个自旋一次）。`LWANNIER90_AUTO_WINDOW` 算出的值被丢弃——这是**实测**，不再是源码推论。
+2. **换成 `WANNIER90_WIN` 后 D 完全按设计工作**（C）：legacy 关闭（提示 0 次），VASP 重写 win，`dis_froz_max` 被替换成 14.0246854，而 `dis_win_min/max`、`dis_froz_min`、`begin projections` 全部原样保留。
+3. **"干脆不预写 win" 不是可行的替代**（E）：VASP 会自行生成一份"barebones" win，但里面是 `use_bloch_phases = .true.` 且**没有投影** —— Wannier 基完全变了，这不是方案 D 想要的结果。
+4. 自动值 14.0246854 与离线从 `.eig` 算出的 14.0251 差 4e-4 eV，量级一致（`.eig` 只有 6 位小数）。
+
+**端到端确认（变体 F = C 但 `LWANNIER90_RUN = True`，让 wannier90 真的读这份 win）**
+
+- `wannier90.win` 里 `dis_froz_max = 14.0249794`；随后复制出的 `wannier90.1.win` / `wannier90.2.win`
+  **两份 md5 相同且都带这个值** → auto 值确实到达 wannier90.x 的输入。
+- `wannier90.{1,2}.wout` 头部：`Outer: -50.00000 to 50.00000`、**`Inner: -10.00000 to 14.02498`**
+  —— auto 窗是活的。
+- 结果：**仍然不收敛**（200 次撞上限），`Final Omega_I = 14.73875157 / 14.73873761`。
+
+对照基线（现状窗 `[-10, 10]`）的 Ω_I = 12.2939 —— auto 窗把散度从 12.29 抬到 **14.74**，
+和离线 Dpure 的预测（1000 次 14.39）方向一致。**所以"让 D 生效"和"让 D 收敛"是两件独立的事。**
+
+（顺带：F 用 24 ranks，VASP 把 NBANDS 从 64 向上取整到 72，auto 值随之从 14.0246854 变成
+14.0249794，差 3e-4 eV —— 说明这个量对 SCF 细节有 ~1e-4 相对量级的敏感性，报数时别写到小数点后五位。）
+
+**但要注意 C 的冻结窗实际是 `[-10, 14.02]`**，不是"从带底到 14.02"：用户 win 里的 `dis_froz_min = -10` 被保留，VASP 只覆盖上界。这个组合正是离线测过**不收敛**的那个（1000 次 `|Δ| = 5.65e-6`）。所以"让 D 生效"和"让 D 收敛"是两件事。
 
 **但先说清楚它解决的是什么问题。** 窗口错位只对 **E_F > `dis_froz_max` = 10 eV** 的体系成立，44 个里只有 **3 个**：
 
@@ -343,14 +394,14 @@ SER-Nb      E_F = 11.25
 
 实测它会给什么（从各端基的 `wannier90.1.eig` 直接算 `min_k E(band=NUM_WANN)`）：
 
-| 端基 | num_wann | auto `dis_froz_max` (eV) | 现在硬编码 |
-|---|---:|---:|---:|
-| SER-Mn | **9**（不是 18） | 6.70 | 10 |
-| BCC-Ti-Ti | 18 | 7.96 | 10 |
-| BCC-Nb-Nb | 18 | **14.03** | 10 |
-| BCC-Co-Fe | 18 | **15.85** | 10 |
-| SER-Al | 9 | **25.70** | 10 |
-| BCC-Al-Al | 18 | **25.92** | 10 |
+| 端基      |               num_wann | auto `dis_froz_max` (eV) | 现在硬编码 |
+| --------- | ---------------------: | -------------------------: | ---------: |
+| SER-Mn    | **9**（不是 18） |                       6.70 |         10 |
+| BCC-Ti-Ti |                     18 |                       7.96 |         10 |
+| BCC-Nb-Nb |                     18 |            **14.03** |         10 |
+| BCC-Co-Fe |                     18 |            **15.85** |         10 |
+| SER-Al    |                      9 |            **25.70** |         10 |
+| BCC-Al-Al |                     18 |            **25.92** |         10 |
 
 **44 个里 36 个会得到比 10 eV 更高的冻结上限**，8 个更低（2026-10-26 独立复算一致）。低于 10 eV 的 8 个：
 `SER-Mn 6.70`、`SER-Ti 7.23`、`SER-V 7.30`、`BCC-V-V 7.71`、`BCC-Ti-Ti 7.96`、`BCC-Mn-Mn 8.03`、`FCC-Mn-Mn 8.26`、`BCC-Ti-V 8.43`。
@@ -370,6 +421,37 @@ SER-Nb      E_F = 11.25
 - **支持**：`tb2j_test` 的单变量对照——同一 Fe bcc、同一窗口、同样 9/16，**64 kpts 收敛、512 kpts 不收敛**。而 44 个归档 run 全部是 512 个 k 点。
 - **反对/未知**：k 点数直接决定 `hr.dat` 的实空间插值质量，降到 4×4×4 可能让 J 的 R 空间收敛变差（TB2J 的 `--kmesh 9 9 9` 是另一层插值，两者要分开看）。而且"k 点少所以容易收敛"未必是好事——解纠缠在一个欠采样的流形上收敛，得到的 Wannier 函数可能物理上不对。
 - **必须做的判别**：同一个端基（`BCC-Nb-Nb`）在 4×4×4 / 6×6×6 / 8×8×8 三个 W90 k 网格下，比较 `wannier_converged`、`Final Omega_I`、`max|J_iso|`、`BMAGN`、`TC`。如果 4×4×4 收敛但 J 与 8×8×8 差很多，说明"收敛"是欠采样的假象。
+
+#### 方案 E 实测（2026-10-29，BCC-Nb-Nb，只改 KPOINTS，其余全部相同）
+
+`WANNIER90_WIN` 标签路径（新 `input_set.py`），32 ranks（NBANDS 保持 64），三个 k 网格：
+
+| W90 k 网格 | k 点 | 收敛 | 迭代 | `Final Omega_I` (s1 / s2) | 末步 \|Δ\| | E_F | max\|J\| | Σ\|J\| |
+|---|---:|---|---:|---|---:|---:|---:|---:|
+| 4×4×4 | 64 | **否** | 200 | 11.36487 / 11.36486 | 1.83e-5 | 11.3624 | **26.38 meV** | **1624.2 meV** |
+| 6×6×6 | 216 | **否** | 200 | 11.93796 / 11.93797 | 5.78e-5 | 11.4452 | **0.0000** | **0.000** |
+| 8×8×8 | 512 | **否** | 200 | **12.29390697 / 12.31226910** | 2.15e-4 | 11.4766 | 0.0026 meV | 0.119 meV |
+| 归档 8×8×8（legacy 路径） | 512 | 否 | 200 | 12.29390697 / 12.31226910 | 2.15e-4 | 11.4767 | 0.0347 meV | 1.0 meV |
+
+**三条结论：**
+
+1. **降 k 点不解决收敛。** 4×4×4 一样撞 200 次上限。`tb2j_test` 里 Fe bcc 的"64 kpts 收敛、512 kpts 不收敛"**不能外推到这里**。
+2. **8×8×8 那一行同时是代码改动的回归证明**：`WANNIER90_WIN` 路径给出的 Ω_I 与归档 legacy 路径**逐位相同**（12.29390697 / 12.31226910），E_F 也一致（11.4766 vs 11.4767）。所以换标签是行为等价的。
+3. **J 完全不可用**：三个网格给出 max|J| = 26.4 / 0.0000 / 0.0026 meV、Σ|J| = 1624 / 0 / 0.119 meV —— 跨三个数量级的随机跳变。
+
+**为什么 J 是这样，可以直接测出来：** BCC-Nb-Nb 的 SCF 在三个网格上都收敛到**非磁**（末态 `magnetization (x)` 每格点都是 0），所以 `H_up` 与 `H_dn` 本应完全相同。实际的两套 Wannier 哈密顿量之差：
+
+| k 网格 | hr.dat 行数 | max\|H_up−H_dn\| | p99 | 中位 |
+|---|---:|---:|---:|---:|
+| 4×4×4 | 40 500 | **17 789 meV** | 752 meV | 9.40 meV |
+| 6×6×6 | 111 132 | 18.6 meV | 0.252 meV | 0.0022 meV |
+| 8×8×8 | 236 196 | 284 meV | 2.76 meV | 0.059 meV |
+
+**J（0.003–26 meV）与这个非物理的 up/down 不对称同量级甚至更小。** 也就是说：J 是两次**独立且都未收敛**的解纠缠落在不同子空间所产生的伪信号，不是交换耦合。
+
+**这条实测把方案 E 的判别力也削掉了**：在非磁端基上，"收敛了没有"可以判（都没收敛），"J 变没变"判不了（J 本来就没有物理意义）。要真正判 E，必须换**磁性端基**（`BCC-Co-Fe` max|J|=23 meV、`SER-Co` 71 meV 那一档）。
+
+顺带：8×8×8 的 J（0.0026 meV）与归档（0.0347 meV）差 13×，尽管 Ω_I 逐位相同 —— 这再次说明该端基的 J 在 Wannier gauge 的复现误差之下。
 
 #### 方案 F：改 `num_wann` / `num_bands` 的比例
 
@@ -419,6 +501,7 @@ SER-Nb      E_F = 11.25
 
 -1. **方案 E（降 k 点数）和方案 D（auto window）哪个先测**：§2.11 的单变量对照把嫌疑指向 k 点数，但"降 k 点让解纠缠收敛"可能只是欠采样的假象。我（派发人）倾向**两个都测，用同一个端基**，因为它们成本都很低（一次 R3+W90 = 0.06–0.14 h）。
 0. **方案 D（`LWANNIER90_AUTO_WINDOW`）是不是首选**：它是 VASP 原生、不用两次 SCF、按体系自适应。但它只设 `dis_froz_max` 一个量，而且几乎没文档。要不要先只测它？
+
 1. **方案 A 的实现路径**：如果 `WANNIER90_WIN` 不能在 SCF 后覆盖，方案 A 就要两次 SCF，成本翻倍。这值得吗？还是接受方案 B 的部分收敛 + 显式标记？
 2. **9/44 平台化的那批怎么办**：如果提高迭代也救不了，它们的 J 要不要直接判为不可用？还是换窗口再试？
 3. **`dis_conv_tol` 能不能动**：我（派发人）倾向**不动**——它是唯一的物理外锚，放宽它等于放弃判据。如果你认为必须动，需要给出"Omega_I 的相对变化从 1e-8 收到 1e-10 时 J 变化小于 X%"的实测。
@@ -430,18 +513,18 @@ SER-Nb      E_F = 11.25
 
 ### 关键文件位置
 
-| 内容 | 路径 |
-|---|---|
-| `.win` 生成器 | `htvasp/tb2j/input_set.py:240-280`（`get_wannier90_win_string`），**`265-268`** 是四行窗口（`263-264` 是 `num_wann`/`num_bands`） |
-| VASP 自动窗口实现 | `/nfs_ssd/softwares/vasp/vasp.6.4.3/src/mlwf.F:884-909`（`ESTIMATE_AUTO_WINDOW`）、`:3325-3328`（`FILTER_WIN_FILE`） |
-| win 落盘 | `htvasp/tb2j/input_set.py:330`（`Path("wannier90.win").write_text(...)`） |
-| TB2J 调用 | **分支相关**：`feat-tb2j`/`master` 上 `run_wann2j` 在 `jobs.py:111`、`tb2j_solve` 在 `:263`（文件 328/330 行）；`feat-dfpt-qha` 上是 `:251` 和 `:486`（文件 558 行）。**按函数名 grep，不要按行号跳。** |
-| 收敛判据（wannier90 源码） | `/nfs_ssd/softwares/wannier90/wannier90-3.1.0/src/disentangle.F90:2298` |
-| 失败打印 | 同上 `:2041-2044` |
-| 参数文档 | `/nfs_ssd/softwares/wannier90/wannier90-3.1.0/doc/user_guide/parameters.tex:832-899` |
-| 原始脚本模板 | `tb2j_test/submit_tb2j.sh:204-219` |
-| 原始试验日志 | `tb2j_test/*/wannier90.{1,2}.wout` |
-| 归档结果 | `data/endmembers/*/tb2jflow/2-w90_static/`、`3-tb2j_solve/` |
+| 内容                       | 路径                                                                                                                                                                                                                                                     |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.win` 生成器            | `htvasp/tb2j/input_set.py:240-280`（`get_wannier90_win_string`），**`265-268`** 是四行窗口（`263-264` 是 `num_wann`/`num_bands`）                                                                                                      |
+| VASP 自动窗口实现          | `/nfs_ssd/softwares/vasp/vasp.6.4.3/src/mlwf.F:884-909`（`ESTIMATE_AUTO_WINDOW`）、`:3325-3328`（`FILTER_WIN_FILE`）                                                                                                                             |
+| win 落盘                   | `htvasp/tb2j/input_set.py:330`（`Path("wannier90.win").write_text(...)`）                                                                                                                                                                            |
+| TB2J 调用                  | 在 `master` / `feat-tb2j-sqs` 上（558 行）：`run_wann2j` 在 `jobs.py:251`、`tb2j_solve` 在 `:486`。（旧文档写的 `:111`/`:263` 是 `origin/feat-tb2j` 那个 328 行旧版的编号，PR #3 之后已作废。）**按函数名 grep，不要按行号跳。** |
+| 收敛判据（wannier90 源码） | `/nfs_ssd/softwares/wannier90/wannier90-3.1.0/src/disentangle.F90:2298`                                                                                                                                                                                |
+| 失败打印                   | 同上 `:2041-2044`                                                                                                                                                                                                                                      |
+| 参数文档                   | `/nfs_ssd/softwares/wannier90/wannier90-3.1.0/doc/user_guide/parameters.tex:832-899`                                                                                                                                                                   |
+| 原始脚本模板               | `tb2j_test/submit_tb2j.sh:204-219`                                                                                                                                                                                                                     |
+| 原始试验日志               | `tb2j_test/*/wannier90.{1,2}.wout`                                                                                                                                                                                                                     |
+| 归档结果                   | `data/endmembers/*/tb2jflow/2-w90_static/`、`3-tb2j_solve/`                                                                                                                                                                                          |
 
 ### 迭代需求外推的原始表（190→200 局部衰减率）
 

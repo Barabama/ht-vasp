@@ -4,8 +4,7 @@
 > 目标仓库：`/nfs_hdd/2025/gaominliang/ht-vasp`。
 > 本文档最后一节「事实附录」是给**你**（派发人）核对用的，不要复制进去。
 
-> **关于本文档的路径**：这些提示词文件在 `feat-dfpt-qha` 分支的 `docs/prompts/` 下。
-> 如果你按提示切到了 `feat-tb2j`（或任何别的分支），那个目录可能不存在。
+> **关于本文档的路径**：`docs/prompts/` 现在在 `master` 上（PR #3 已合入），你从 master 开的分支会继承它。
 > **你手上粘贴的正文就是权威版本**；如果正文里引用了某个 `docs/prompts/*.md` 而你找不到，
 > 停下来向派发人索取，不要猜内容。
 
@@ -29,7 +28,9 @@
 
 ### 1. 分支与环境
 
-当前在 `feat-dfpt-qha`。**这个分支是对的，不要切走**——`main_spin_screen.py` 和 `htvasp/dfpt_qha/` 只在这个分支上（`master` 和 `feat-tb2j` 都没有）。
+当前在 `feat-dfpt-qha`。**这个分支可以用，不要切走**——`main_spin_screen.py` 和 `htvasp/dfpt_qha/` 都在这里。
+
+（**2026-10-28 更新**：PR #3 合入后 `master` **也有**这两样东西了，从 `master` 开分支同样可行。仍然成立的是：**不要在 `origin/feat-tb2j` 上工作**——那是 master 的落后子集，没有 spin screen 的代码。）
 
 ```bash
 git branch --show-current          # 应该是 feat-dfpt-qha
@@ -109,8 +110,8 @@ B5070 是另一台机器、另一个用户、只有密码登录，**不能 `ssh 
 | 429pro | 64 | **128 GB** | **不许用**；32 核作业并发 2 个时发生过 21 次内核 OOM 杀 vasp_std |
 
 - 两个节点都在 `partCPU`，**没有独立的分区可选**。`--nodelist 429e` 是投到 `partCPU` 再钉节点。
-- **429e 当前状态**：`57507 FCC-Ti-Ta-4-dfpt-qha`（mcmf429）持 32 核 / 64 GB，11:29 起跑、`TimeLimit=4-04:00`（`EndTime=2026-10-30T15:29`），日志显示已跑到 **DFPT volume 6/7**；另有一个 partGPU 作业占 8 核。`CPUAlloc = 40/48`，只剩 **8 核**空闲，`FreeMem` ≈ 122 GB。
-- **你的作业会排在 57507 后面 pending，这是预期行为，不是投错机器。** `ntasks <= 8` 时 backfill 有机会立刻挤进去；`ntasks > 8` 要等 57507 释放。两种都合法，自己权衡等待 vs 并发，但**不要因为 pending 就换节点**。
+- **429e 当前状态（2026-10-28 13:11）**：`57507 FCC-Ti-Ta-4-dfpt-qha` 已于 **10-27 04:00 结束**（7/7 volume 全部验证通过，但 7 个体积都非简谐 → 该端基被判 `finite_q_soft_mode`，不进生产 TDB）。现在 429e 上只有两个 4 核小作业，`CPUAlloc = 8/48`，**空闲 40 核**，`FreeMem` ≈ 128 GB。**`ntasks=32` 可以直接跑，不用排队。**
+- 只要钉在 429e，作业 pending 就是预期行为，**不要因为 pending 就换节点**。现在 429e 有 40 核空闲，`ntasks<=32` 的作业应该立刻起跑；如果被 pending，先看 `scontrol show job <id>` 的 `Reason`，再决定缩 `ntasks`。
 - `SlurmJobManager.get_cpu_config()` 支持 `nodelist`、`memory`、`time_limit`、`ntasks` 全部作为关键字参数；**`submit_screen()` 目前没有把 `nodelist` 传下去**（它写死 `memory="96G"`、`time_limit="24:00:00"`）。**你必须改这个函数把 `nodelist="429e"` 传下去**，否则作业会落到 429pro。提交后立刻用 `scontrol show job <jobid> | grep ReqNodeList` 核验真的是 `429e`。
 
 **成本（实测，不是外推）：**

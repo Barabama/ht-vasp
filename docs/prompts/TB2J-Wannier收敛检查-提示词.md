@@ -1,11 +1,11 @@
 # 提示词：把 Wannier90 收敛检查做进 TB2J 流程
 
 > **用法**：把下面「提示词正文」整段复制给一个新的 AI 会话。
-> 目标仓库：`/nfs_hdd/2025/gaominliang/ht-vasp`，分支 `feat-tb2j`。
+> 目标仓库：`/nfs_hdd/2025/gaominliang/ht-vasp`，基分支 `master`（2026-10-28 起 `feat-tb2j` 已并入 master 并从本地删除）。
 > 本文档最后一节「事实附录」是给**你**（派发人）核对用的，不要复制进去。
 
-> **关于本文档的路径**：这些提示词文件在 `feat-dfpt-qha` 分支的 `docs/prompts/` 下。
-> 如果你按提示切到了 `feat-tb2j`（或任何别的分支），那个目录可能不存在。
+> **关于本文档的路径**：这些提示词文件在 `master`（以及 `feat-dfpt-qha`）的 `docs/prompts/` 下。
+> 你在 `master` 上开的新分支会继承它们，不会消失。
 > **你手上粘贴的正文就是权威版本**；如果正文里引用了某个 `docs/prompts/*.md` 而你找不到，
 > 停下来向派发人索取，不要猜内容。
 
@@ -29,19 +29,28 @@
 
 ### 1. 分支
 
-当前在 `feat-dfpt-qha`。你的工作在 **`feat-tb2j`** 上：
+**2026-10-28 分支事实（已实测，与旧版本文档不同，以本节为准）：**
 
 ```bash
-git checkout feat-tb2j
-git merge master          # 见下方"合并前必须确认"
+git branch -vv
+#   feat-dfpt-qha c6671c4 [origin/feat-dfpt-qha]
+# * feat-tb2j-sqs 6002f2a            ← 就在这，= master
+#   master       6002f2a [origin/master]
+git log -1 --format='%h %s'          # 6002f2a Merge pull request #3
 ```
 
-**合并前必须确认的事**（不要跳过）：
+- **`master` 已经包含 PR #3 的全部内容**：`htvasp/tb2j/{context,magnetic_contract}.py`、`htvasp/dfpt_qha/`、`htvasp/sqs/`、`main_dfpt_qha.py`、`main_spin_screen.py`、`main_sqs.py`、`main_w90.py`、`docs/prompts/`。**不要再按旧文档去找 `feat-tb2j`。**
+- **本地 `feat-tb2j` 分支已经不存在**（`git rev-parse feat-tb2j` → `fatal: Needed a single revision`）。远端还有 `origin/feat-tb2j`，但它**落后 master 99 个提交、领先 0 个**，内容上是 master 的真子集。**绝对不要 `git checkout feat-tb2j`**——git 会给你建一个 tracking 分支，然后 `git merge master` 变成一次 99 提交的大合并，白做还可能冲突。
+- `feat-dfpt-qha` 现在是 **master 的祖先**（已合并），tip 是 `c6671c4`，内容与 master 一致。
 
-- `feat-tb2j` 是 `master` 的**祖先**（`git merge-base --is-ancestor feat-tb2j master` 为真），所以 `master` 领先它 16 个提交，合并是快进或接近快进。
-- 但 `feat-dfpt-qha`（你刚离开的分支）**不在** `master` 的祖先链上，它有 93 个提交是 master 没有的，其中包括 `htvasp/dfpt_qha/`、`main_dfpt_qha.py`、`main_spin_screen.py`、`htvasp/tb2j/magnetic_contract.py`、`htvasp/tb2j/context.py`。
-- 也就是说：**`feat-tb2j` 合并 `master` 之后，仓库里不会有 DFPT-QHA 和 spin screen 的代码。** 这是预期状态——你的任务不需要它们。但如果你发现某个改动需要 `htvasp/dfpt_qha/`，**停下来报告**，不要自己跨分支搬文件。
-- 合并后跑一次 `./.conda/bin/python -m pytest tests/ -q`，记下基线（哪些通过、哪些本来就失败）。`tests/test_nscf.py::test_flow_makers` 已知失败，与本任务无关。
+**你要做的：从当前 HEAD（`feat-tb2j-sqs` @ `6002f2a`，= master）直接开一个工作分支。**
+
+```bash
+git checkout -b feat-tb2j-wannier-gate     # 名字自取，前缀用 feat(tb2j): 风格
+./.conda/bin/python -m pytest tests/ -q    # 先记基线
+```
+
+基线预期：`tests/test_tb2j.py` 会显示 12 passed，**但那是假绿**（见 §3 第 4 条）；`tests/test_nscf.py::test_flow_makers` 已知失败，与本任务无关。
 
 ### 2. 问题是什么
 
@@ -136,17 +145,21 @@ dis_froz_max = 10
 
 ## 事实附录（派发人核对用，不要复制）
 
-### 分支拓扑（2026-10-26 实测）
+### 分支拓扑（2026-10-28 实测）
 
 ```
-master            ← feat-tb2j 是它的祖先（落后 16 个提交）
-                  ← feat-dfpt-qha 不是它的祖先（feat-dfpt-qha 领先 93 个）
-feat-tb2j         ← 只有 5 个 tb2j 文件：__init__/input_set/jobs/maker/task_doc
-feat-dfpt-qha     ← 多了 context.py 与 magnetic_contract.py，以及整个 dfpt_qha/
-origin/master     ← 本地 master 领先 7 个（其中 3 个是 SQS 的 add+revert，净效果只剩 0108ef7）
+master 6002f2a    ← 含 PR #3 全部：tb2j（7 文件，含 context/magnetic_contract）、
+                     dfpt_qha/、sqs/、main_dfpt_qha.py、main_spin_screen.py、
+                     main_sqs.py、main_w90.py、docs/prompts/
+feat-tb2j-sqs     ← 与 master 同点（6002f2a）
+feat-dfpt-qha     ← master 的祖先（已合并），tip c6671c4
+origin/feat-tb2j  ← 落后 master 99 个提交、领先 0 个；本地分支已删
+origin/master     ← 与本地 master 同点
 ```
 
-`feat-tb2j` 合并 `master` 是安全的（`git merge-tree` 报 0 冲突）。**切到 `feat-tb2j` 时你会看到 `htvasp/dfpt_qha/`、`main_dfpt_qha.py`、`main_spin_screen.py` 从工作区消失**——只有 `feat-dfpt-qha` 有这些文件。这是分支拓扑的事实，不是丢代码；`git checkout feat-dfpt-qha` 就回来。
+（旧版本这里写的是"master 落后/领先 16 个"、"feat-tb2j 只有 5 个文件"、"feat-dfpt-qha 领先 93 个"——那些数字在 PR #3 合入后就全部作废了。）
+
+**这段话在 PR #3 之后已经作废，保留在此只为说明为什么旧文档会那么写：** 旧文档说"切到 `feat-tb2j` 会丢掉 `htvasp/dfpt_qha/`"，那是因为当年的 `feat-tb2j` 是 master 的祖先、不含 PR #3 的内容。现在 `master` 自身就有全部代码，`feat-tb2j` 反而是它的落后子集。**你不需要切任何分支来拿 DFPT-QHA 或 spin screen 的代码。**
 
 ### 44/44 没收敛的证据
 

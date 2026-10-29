@@ -4,29 +4,38 @@
 
 | # | 文件 | 目标分支 | 能自己决定什么 | 必须先问的 |
 |---|---|---|---|---|
-| 1 | [TB2J-Wannier收敛检查-提示词.md](TB2J-Wannier收敛检查-提示词.md) | `feat-tb2j` | 检查函数怎么写、门放在哪、要不要 raise | 不改窗口参数、不重跑 |
-| 2 | [TB2J-Wannier参数-调查链与待定方案.md](TB2J-Wannier参数-调查链与待定方案.md) | `feat-tb2j` | 只读复核 + 设计实验 | **改任何参数前必须书面批准**；每阶段结束停下来 |
-| 3 | [spin-screen-补跑-提示词.md](spin-screen-补跑-提示词.md) | `feat-dfpt-qha` | `ntasks`/`memory`/`time_limit`/并发 | **节点固定 429e（`--nodelist=429e`），禁止 429pro**；不改判定阈值、不写回 `pool_recipes.json` |
-| 4 | [ISIF8方案-科学审查-提示词.md](ISIF8方案-科学审查-提示词.md) | `feat-dfpt-qha` | 判定标签、替代方案、要不要反对 | **只读**；不改代码/数据，不跑 VASP，不 commit |
+| 1 | [TB2J-Wannier收敛检查-提示词.md](TB2J-Wannier收敛检查-提示词.md) | 从 `master` 开新分支 | 检查函数怎么写、门放在哪、要不要 raise | 不改窗口参数、不重跑 |
+| 2 | [TB2J-Wannier参数-调查链与待定方案.md](TB2J-Wannier参数-调查链与待定方案.md) | 从 `master` 开新分支 | 只读复核 + 设计实验 | **改任何参数前必须书面批准**；每阶段结束停下来 |
+| 3 | [spin-screen-补跑-提示词.md](spin-screen-补跑-提示词.md) | `feat-dfpt-qha`（或 `master`） | `ntasks`/`memory`/`time_limit`/并发 | **节点固定 429e（`--nodelist=429e`），禁止 429pro**；不改判定阈值、不写回 `pool_recipes.json` |
+| 4 | [ISIF8方案-科学审查-提示词.md](ISIF8方案-科学审查-提示词.md) | `feat-dfpt-qha`（或 `master`） | 判定标签、替代方案、要不要反对 | **只读**；不改代码/数据，不跑 VASP，不 commit |
 
 ## 为什么是这三份，为什么这个顺序
 
 **#1 和 #2 不冲突，但 #2 依赖 #1 的产物。** #1 只做检查（不改参数），所以它能立刻做、立刻合入；做完之后，"这个 run 有没有收敛"从"要人肉 grep wout"变成"JSON 里一个字段"。#2 要做的参数实验，判据就是 #1 加的那个字段。
 
-**#3 与 #1/#2 完全独立**：它在 `feat-dfpt-qha` 上，不需要 TB2J 的代码；#1/#2 在 `feat-tb2j` 上，不需要 DFPT-QHA 的代码。两者可以并行派发。
+**#3 与 #1/#2 完全独立**：改的是 `main_spin_screen.py`，不碰 TB2J；#1/#2 改 `htvasp/tb2j/`，不碰 spin screen。**PR #3 之后三份都在同一个 `master` 上**，可以并行派发、各开各的分支，互不影响。
 
 **#4 是审查，不是执行。** 它审的是"ISIF=3 → ISIF=8"这份**还没执行**的论证，唯一交付物是判定表和替代方案。它和 #1/#2/#3 都不冲突，但**必须在改 `htvasp/sqs/maker.py` 之前跑完**——改了就变成事后追认。
 
-## 分支事实（2026-10-26 实测）
+## 分支事实（2026-10-28 实测 —— 这一段彻底取代了 10-26 的版本）
+
+PR #3 已合入，**`master` 现在是唯一的集成分支，包含全部代码**：
 
 ```
-master          ← feat-tb2j 是它的祖先（master 领先 16 个提交）
-                ← feat-dfpt-qha 不是它的祖先（feat-dfpt-qha 领先 93 个）
-feat-tb2j       ← 5 个 tb2j 文件；无 dfpt_qha/、无 main_spin_screen.py
-feat-dfpt-qha   ← 有 dfpt_qha/、main_spin_screen.py、magnetic_contract.py、context.py
+master 6002f2a    ← htvasp/tb2j/（7 文件：__init__/input_set/jobs/maker/task_doc/context/magnetic_contract）
+                     htvasp/dfpt_qha/ · htvasp/sqs/ · main_dfpt_qha.py
+                     main_spin_screen.py · main_sqs.py · main_w90.py · docs/prompts/
+feat-tb2j-sqs     ← 与 master 同点（6002f2a），当前 HEAD
+feat-dfpt-qha     ← master 的祖先（已合并），tip c6671c4
+origin/feat-tb2j  ← 落后 master 99 个提交、领先 0 个；**本地 feat-tb2j 已被删除**
+origin/master     ← 与本地 master 同点
 ```
 
-`feat-tb2j` 合并 `master` 是安全的（`git merge-tree` 报 0 冲突）。合并后 `htvasp/dfpt_qha/` 和 `main_spin_screen.py` **不在工作区**——这是拓扑事实，不是丢代码。**派发 #3 的 agent 不要切到 `feat-tb2j`；派发 #1/#2 的 agent 不要切到 `feat-dfpt-qha`。**
+三条推论，直接影响派发：
+
+1. **`git checkout feat-tb2j` 现在是错的指令。** 本地没有这个分支；远端那个是 master 的真子集，"merge master" 会变成一次 99 提交的大合并。两份 TB2J 提示词的 §1 已改成"从 `master` 开新分支"。
+2. **"切分支会丢 `htvasp/dfpt_qha/`" 不再成立**——master 有它。所以 #1/#2 与 #3 现在可以在同一个工作区里读全部代码，不再需要"从 `data/endpoints/` 读、不要跨分支搬"的规避。
+3. `docs/prompts/` 现在有 **4 份**提示词（+1 个名单 +README），不是 2 份；`ISIF8方案-科学审查-提示词.md` 是第 4 份（`c6671c4`）。
 
 ## 派发人 2026-10-26 追加的硬约束（已写进 #3）
 
@@ -37,16 +46,16 @@ squeue 57507   partCPU  FCC-Ti-T  mcmf429  R  8:53:08  1  429e
 你的这些任务排在这个 job 它后面，要在 nodelist 429e 提交，不要提交到 429pro
 ```
 
-实测（2026-10-26 21:52）：
+实测（2026-10-28 13:11 更新）：
 
 | 事实 | 值 |
 |---|---|
-| `57507 FCC-Ti-Ta-4-dfpt-qha` | 429e，`NumCPUs=32`，`TimeLimit=4-04:00`，11:29 起跑，日志已到 DFPT volume 6/7 |
-| 429e | 48 核，`CPUAlloc=40` → **只剩 8 核**；192 GB，`FreeMem` ≈ 122 GB |
-| 429pro | 64 核，`CPUAlloc=57` → 只剩 7 核；128 GB；57502 占 48 核，57503/57504 还排队 |
+| `57507 FCC-Ti-Ta-4-dfpt-qha` | **已完成**（2026-10-27 04:00 结束，7/7 volume 验证通过；但 `qha_applicability=finite_q_soft_mode`、7 个体积全部非简谐 → 该端基**不可进生产 TDB**） |
+| 429e | 48 核，`CPUAlloc=8` → **空闲 40 核**；192 GB，`FreeMem` ≈ 128 GB。上面只剩一个 4 核 + 一个 4 核的小作业 |
+| 429pro | 64 核，`57504 FCC-Zr-Ta-4` 占 48 核正在跑；`fx-dpgen-test` 已跑 6 天。**仍然不许投** |
 | `submit_screen()` | **不传 `nodelist`** → 不改就会落到 429pro |
 
-代价要说清楚：`ntasks=32` 的作业钉在 429e 上会一直 pending 到 57507 释放（EndTime 2026-10-30T15:29，实际应在 volume 7/7 之后几小时内结束）；`ntasks<=8` 可以 backfill 立刻进去。
+**`--nodelist=429e` 这条约束不变**，但 2026-10-26 那个"只剩 8 核、必须排队等 57507"的代价现在没有了：429e 空出 40 核，`ntasks=32` 的作业可以直接跑。这是派发 #3 的窗口期。
 
 ## 2026-10-26 复核：这批提示词改了哪些
 
