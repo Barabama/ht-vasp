@@ -40,7 +40,14 @@ def parse_chk(path: Path) -> dict:
     o_num_bands, _ = recs[1]
     num_bands = struct.unpack("<i", b[o_num_bands:o_num_bands + 4])[0]
     o_real, _ = recs[4]
-    real = struct.unpack("<9d", b[o_real:o_real + 72])
+    # The .chk stores real_lattice in Fortran column-major order
+    # (``((real_lattice(i,j), i=1,3), j=1,3)``), so the 9 doubles are
+    # (a1_x, a2_x, a3_x, a1_y, ...).  Reading them row-major silently
+    # transposes the cell: for a cubic cell that is invisible, for HCP/FCC it
+    # makes wannier90 rebuild a different k-mesh neighbourhood and abort with
+    # "mmn has not the right number of nearest neighbours".
+    real_col = struct.unpack("<9d", b[o_real:o_real + 72])
+    real = [real_col[r + 3 * c] for r in range(3) for c in range(3)]
     o_mp, _ = recs[7]
     mp_grid = struct.unpack("<3i", b[o_mp:o_mp + 12])
     o_kpt, n_kpt = recs[8]
@@ -110,6 +117,22 @@ def parse_poscar(path: Path) -> tuple[list[str], list[list[float]]]:
     return species, coords
 
 
+def _check_cell_matches_poscar(real_lattice: list[list[float]], poscar: Path, seed: str) -> None:
+    """Abort if the .chk cell disagrees with the POSCAR the run used."""
+
+    if not poscar.exists():
+        return
+    lines = poscar.read_text().splitlines()
+    scale = float(lines[1].split()[0])
+    pos = [[float(x) * scale for x in lines[i].split()[:3]] for i in (2, 3, 4)]
+    worst = max(abs(a - b) for ra, rb in zip(real_lattice, pos) for a, b in zip(ra, rb))
+    if worst > 1e-4:
+        raise SystemExit(
+            f"{seed}.chk cell disagrees with POSCAR by {worst:.2e} Angstrom; "
+            "refusing to replay on a possibly-corrupted checkpoint"
+        )
+
+
 def build_win(chk: dict, num_wann: int, projections: str, overrides: dict,
               species: list[str] | None = None,
               fracs: list[list[float]] | None = None) -> str:
@@ -152,7 +175,19 @@ def main() -> int:
         shutil.rmtree(work)
     work.mkdir(parents=True, exist_ok=True)
 
-    for ext in ("mmn", "amn", "eig", "chk"):
+    # Only .mmn/.amn/.eig are inputs, and wannier90 treats them as read-only, so
+    # symlinking them is safe.
+    #
+    # The .chk is deliberately NOT provided.  wannier90 opens it with
+    # STATUS='REPLACE' and writes its own state back at the end of every run, so
+    # a symlink writes straight through into the archive -- that is how five
+    # archived .chk files were overwritten on 2026-10-28.  It is also
+    # unnecessary: the disentanglement starts from the projections in .amn, and
+    # replaying without a .chk reproduces the archived Omega_I exactly
+    # (SER-Ni 4.88224762, BCC-Nb-Nb 12.29390697, BCC-Al-Al 12.23976667).
+    # The cell and k-mesh that used to be read from .chk now come from the
+    # POSCAR and a regenerated Gamma-centred mp_grid.
+    for ext in ("mmn", "amn", "eig"):
         p = src / f"{seed}.{ext}"
         if not p.exists():
             raise SystemExit(f"missing {p}")
@@ -161,6 +196,11 @@ def main() -> int:
             os.symlink(p, link)
 
     chk = parse_chk(src / f"{seed}.chk")
+    # The .chk supplies the k-point ORDER (wannier90 matches .mmn row by row),
+    # so it has to be read.  Cross-check its cell against the POSCAR: the .chk
+    # is a file wannier90 rewrites, and a stale or corrupted one would silently
+    # produce a different k-mesh neighbourhood.
+    _check_cell_matches_poscar(chk["real_lattice"], src / "POSCAR", seed)
 
     num_wann = args.num_wann
     if num_wann is None:
