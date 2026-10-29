@@ -197,6 +197,10 @@ def test_win_string_content():
         "Ni projection": "Ni: s,p,d" in win,
         "write_hr": "write_hr = .true." in win,
         "write_xyz": "write_xyz = .true." in win,
+        # Pool sweep: 200 / 1e-10 (wannier90 defaults) converge nothing;
+        # 2000 / 1e-6 converge 39/44 endpoints.
+        "dis_num_iter": "dis_num_iter = 2000" in win,
+        "dis_conv_tol": "dis_conv_tol = 1e-06" in win,
     }
     for label, ok in checks.items():
         print(f"  ✓ {label}: {'OK' if ok else 'MISSING'}")
@@ -268,6 +272,11 @@ def test_get_input_set_uses_wannier90_win_tag():
                 "Co: s,p,d",
                 "write_hr = .true.",
                 "write_xyz = .true.",
+                # Disentanglement budget must be explicit: the wannier90
+                # defaults (200 / 1e-10) converge 0 of the 88 archived
+                # channels, 2000 / 1e-6 converges 81.
+                "dis_num_iter = 2000",
+                "dis_conv_tol = 1e-06",
             ):
                 assert needle in body, f"WANNIER90_WIN body missing {needle!r}"
             print(f"  ok: WANNIER90_WIN carries {len(body.splitlines())} lines "

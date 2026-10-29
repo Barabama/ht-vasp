@@ -86,6 +86,14 @@ class Tb2jInputSetGenerator(VaspInputGenerator):
     # `kpoints` property (generates the KPOINTS file via kpoints_updates). A
     # dataclass field with that name would shadow it with a plain tuple.
     kpoints_grid: tuple = (8, 8, 8)
+    # Disentanglement budget.  wannier90's defaults are dis_num_iter=200 and
+    # dis_conv_tol=1e-10, and 200 is not enough for these cells: all 44 archived
+    # endpoints hit the cap at 200.  An offline replay sweep over the pool
+    # (44 endpoints x 2 spins, scripts/w90/w90sweep.py) showed 2000 / 1e-6
+    # converges 81/88 channels and 39/44 endpoints, with a median of only 192
+    # iterations -- so 2000 is headroom, not the typical cost.
+    dis_num_iter: int = 2000
+    dis_conv_tol: float = 1e-6
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -252,6 +260,9 @@ class Tb2jInputSetGenerator(VaspInputGenerator):
         """Generate the ``wannier90.win`` content.
 
         Template validated on SER-Co / BCC-Co-Ni / FCC-Fe-Mn (submit_tb2j.sh).
+        ``dis_num_iter`` / ``dis_conv_tol`` are always written explicitly: they
+        used to be left at wannier90's defaults (200 / 1e-10), which no endpoint
+        in the pool converges under.
 
         Args:
             structure: Structure used for projection order and num_wann derivation.
@@ -273,6 +284,8 @@ class Tb2jInputSetGenerator(VaspInputGenerator):
             "dis_win_max = 50",
             "dis_froz_min = -10",
             "dis_froz_max = 10",
+            f"dis_num_iter = {self.dis_num_iter}",
+            f"dis_conv_tol = {self.dis_conv_tol:g}",
             "begin projections",
         ]
         lines.extend(f"{el}: s,p,d" for el in elements)
