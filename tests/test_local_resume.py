@@ -155,3 +155,190 @@ def test_resume_from_without_a_store_is_refused(tmp_path):
         _Probe().run_flow(name="endpoint", structure=None, flow_dir=tmp_path / "s",
                           store_dir=tmp_path / "d", resume=True,
                           resume_from=empty)
+
+
+# --------------------------------------------------------------------------
+# the additional store must survive the process boundary
+# --------------------------------------------------------------------------
+
+def test_blob_output_survives_into_a_second_process(tmp_path, monkeypatch):
+    """A resume must be able to load outputs whose blobs were offloaded.
+
+    atomate2's ``@vasp_job`` passes ``data=_DATA_OBJECTS``, so a VASP TaskDoc is
+    stored as a ``blob_uuid`` pointer into the "data" additional store rather
+    than inline.  While that store was a ``MemoryStore`` it died with the
+    process, so the *next* process -- which is what ``--resume`` is -- saw a
+    pointer with no target, ``get_output(load=True)`` raised KeyError, and
+    ``_validate_job_output`` read that as "incomplete output, will re-execute".
+
+    The consequence is not cosmetic: FCC-Cr-Nb-4 re-ran six completed DFPT
+    volumes on 2026-10-29 (about 17 h of VASP) and the flow then landed in the
+    same place anyway.  This test pins the fix by doing the resume in a second
+    ``Worker``, which builds a brand-new JobStore exactly as a new process does.
+    """
+    from jobflow import Response
+
+    calls = {"n": 0}
+
+    @job(data=["blob"])
+    def offloaded():
+        calls["n"] += 1
+        # The key must be present and match the job's ``data=`` selector for
+        # jobflow to move it into the additional store.
+        return {"blob": {"force_constants": [[[0.1, 0.2]]]}, "small": 7}
+
+    class _BlobProbe(Worker):
+        def __init__(self):
+            super().__init__(worker_name="blob-probe")
+
+        def _make_flow(self, structure, prev_dir=None):
+            return Flow([offloaded()], name="blob-probe")
+
+    flow_root = tmp_path / "scratch"
+    store_dir = tmp_path / "store"
+    _BlobProbe().run_flow(name="endpoint", structure=None, flow_dir=flow_root,
+                          store_dir=store_dir, resume=False, flow_dir_name="run-1")
+    assert calls["n"] == 1
+
+    # The blob must live beside store.json, not only in the writer's RAM.
+    assert (store_dir / "store-data.json").is_file(), (
+        "the additional store was not persisted; a resume cannot resolve its blobs"
+    )
+
+    # A second Worker is a second JobStore, i.e. what a new process sees.
+    _BlobProbe().run_flow(name="endpoint", structure=None, flow_dir=flow_root,
+                          store_dir=store_dir, resume=True, flow_dir_name="run-1")
+    assert calls["n"] == 1, "the completed job was re-executed: its blob was lost"
+
+
+def test_missing_blob_store_is_reported_not_silently_rebuilt(tmp_path, caplog):
+    """Losing the blob file must say so, not masquerade as an unfinished job."""
+    import logging
+
+    from maggma.stores import JSONStore
+
+    from htvasp.utils.local import _validate_job_output
+
+    @job(data=["blob"])
+    def carries_blob():
+        return {"blob": {"payload": [1, 2, 3]}}
+
+    def open_store():
+        # A fresh pair of stores each time, the way a resume opens them.
+        return JobStore(
+            JSONStore(str(tmp_path / "store.json"), read_only=False),
+            additional_stores={
+                "data": JSONStore(str(tmp_path / "store-data.json"), read_only=False)
+            },
+        )
+
+    target = carries_blob()
+    writer = open_store()
+    writer.connect()
+    writer.update(
+        {"uuid": target.uuid, "index": target.index,
+         "output": {"blob": {"payload": [1, 2, 3]}}},
+        key=["uuid", "index"],
+        save={"data": ["blob"]},
+    )
+    assert (tmp_path / "store-data.json").is_file()
+    # Now delete the blob file: the document still points at it.
+    (tmp_path / "store-data.json").unlink()
+
+    reader = open_store()
+    reader.connect()
+    with caplog.at_level(logging.WARNING):
+        assert _validate_job_output(target, reader) is False
+    assert "additional store is missing" in caplog.text
+
+
+
+# --------------------------------------------------------------------------
+# the store contract, applied to a real DFPT flow
+# --------------------------------------------------------------------------
+
+def _interrupted_dfpt_run(tmp_path):
+    """Run a two-volume flow, then put its store where a SIGTERM leaves it.
+
+    The flow is deliberately shaped like the DFPT one: a parent that expands
+    into a sub-flow of one VASP-like job per volume, where the VASP job carries
+    ``data=["force_constants"]`` so jobflow offloads that key to the additional
+    store.  Volume 1 finishes, volume 2 raises -- which is what a wall-clock
+    kill looks like from the store's point of view.
+    """
+    import store_contract
+
+    state = {"done": [], "fail": True}
+
+    # Distinct job names are essential, not cosmetic: resume matches stored jobs
+    # by ``(name, index)``, and every job here has index 1.  Two jobs both named
+    # ``vasp_like`` would be indistinguishable and the second would be skipped
+    # along with the first.  The real flow names them "DFPT volume 1/7" etc.
+    def _volume_job(label):
+        @job(name=label, data=["force_constants"])
+        def vasp_like():
+            if label == "volume 2" and state["fail"]:
+                raise RuntimeError("simulated wall-clock kill")
+            state["done"].append(label)
+            return {"force_constants": [[[0.1, 0.2], [0.3, 0.4]]], "label": label}
+
+        return vasp_like()
+
+    @job
+    def spawn():
+        jobs = [_volume_job(label) for label in ("volume 1", "volume 2")]
+        return Response(replace=Flow(jobs, output=jobs[-1].output, name="volumes"))
+
+    class _DfptProbe(Worker):
+        def __init__(self):
+            super().__init__(worker_name="dfpt-probe")
+
+        def _make_flow(self, structure, prev_dir=None):
+            return Flow([spawn()], name="dfpt-probe")
+
+    flow_root = tmp_path / "scratch"
+    store_dir = tmp_path / "store"
+    _DfptProbe().run_flow(name="endpoint", structure=None, flow_dir=flow_root,
+                          store_dir=store_dir, resume=False, flow_dir_name="run-1")
+    return _DfptProbe, flow_root, store_dir, state, store_contract
+
+
+def test_a_finished_volume_is_readable_by_a_fresh_process(tmp_path):
+    """The exact assertion that was missing when FCC-Cr-Nb-4 re-ran six volumes.
+
+    ``_validate_job_output`` asks the store for a job's output with
+    ``load=True``.  If the blob that output points at was never written to
+    disk, that call raises and the volume is re-computed.  Here volume 1
+    finished before the interruption, so its output *must* load from the store
+    directory alone -- no help from the process that wrote it.
+    """
+    _probe, _flow_root, store_dir, state, store_contract = _interrupted_dfpt_run(tmp_path)
+    assert state["done"] == ["volume 1"]
+
+    store_contract.assert_store_resumable(store_dir)
+
+
+def test_resuming_does_not_recompute_a_volume_whose_blob_is_on_disk(tmp_path):
+    """End-to-end: the volume that finished must not run again."""
+    probe, flow_root, store_dir, state, store_contract = _interrupted_dfpt_run(tmp_path)
+    state["fail"] = False
+    state["done"] = []
+
+    probe().run_flow(name="endpoint", structure=None, flow_dir=flow_root,
+                     store_dir=store_dir, resume=True, flow_dir_name="run-1")
+
+    assert state["done"] == ["volume 2"], (
+        f"expected only the unfinished volume to run, got {state['done']}"
+    )
+    store_contract.assert_store_resumable(store_dir)
+
+
+def test_the_contract_fails_loudly_when_the_blob_store_is_absent(tmp_path):
+    """A store with dangling pointers must be rejected, not read as unfinished."""
+    import pytest
+
+    _probe, _flow_root, store_dir, _state, store_contract = _interrupted_dfpt_run(tmp_path)
+    (store_dir / store_contract.BLOBS_NAME).unlink()
+
+    with pytest.raises(AssertionError, match="do not resolve"):
+        store_contract.assert_store_resumable(store_dir)

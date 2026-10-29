@@ -17,7 +17,7 @@ warnings.filterwarnings(
 )
 
 from jobflow import Flow, JobStore
-from maggma.stores import JSONStore, MemoryStore
+from maggma.stores import JSONStore
 from maggma.core import Store
 from pymatgen.core import Structure
 
@@ -176,10 +176,31 @@ class Worker:
             log.info(f"Resuming from {store_dir}, copying to {flow_dir}")
             shutil.copytree(store_dir, flow_dir, dirs_exist_ok=True)
 
-        # Initialize store
+        # Initialize store.
+        #
+        # The "data" additional store holds the offloaded blobs -- atomate2's
+        # ``@vasp_job`` passes ``data=_DATA_OBJECTS``, so the VASP outputs
+        # (force_constants, bandstructure, DOS, CHGCAR ...) are replaced in the
+        # document by a ``blob_uuid`` pointer and written here instead.  It MUST
+        # be file-backed: a MemoryStore lives only as long as this process, and
+        # the next process -- which is exactly what ``--resume`` is -- reopens
+        # store.json, finds a blob_uuid whose target it has never seen, and
+        # ``get_output(load=True)`` raises KeyError.  ``_validate_job_output``
+        # swallows that as "incomplete output", so every DFPT volume gets
+        # silently re-run from scratch.  That is what happened to FCC-Cr-Nb-4 on
+        # 2026-10-29: six volumes were re-computed although their TaskDocs were
+        # already in the store.
+        #
+        # Keeping the blob file inside flow_dir means the ``finally`` block below
+        # moves it into store_dir along with everything else, and the resume
+        # branch above copies it back.
         self.store = JobStore(
             JSONStore(str(flow_dir.joinpath("store.json")), read_only=False),
-            additional_stores={"data": MemoryStore()},
+            additional_stores={
+                "data": JSONStore(
+                    str(flow_dir.joinpath("store-data.json")), read_only=False
+                )
+            },
         )
 
         log.info(f"Running flow in {flow_dir}")
