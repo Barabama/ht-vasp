@@ -396,6 +396,7 @@ def _submission_plan(
     resume_from: Path | None = None,
     nodelist: str | None = None,
     memory: str = "96G",
+    run_id: str | None = None,
 ) -> dict:
     structure, recipe = load_endpoint(name)
     moments, _ = site_moments(name, structure)
@@ -430,7 +431,21 @@ def _submission_plan(
     # a new run id and discard the store every time a job moves between nodes.
     if nodelist:
         run_payload["nodelist"] = nodelist
-    run_id = new_run_id("dfpt-qha") if rerun else stable_run_id("dfpt-qha", run_payload)
+    if run_id is not None:
+        # An explicit id exists to point a job back at a store that was archived
+        # under a different id -- e.g. before a pool rewrite changed
+        # ``endpoint_recipe`` and therefore ``stable_run_id``, while the volumes
+        # already on disk stayed valid.  ``_prepare_resume`` matches stored jobs
+        # by (name, index), so such a run really does skip its finished volumes.
+        # It never overrides the settings that produced those volumes: the job
+        # still runs with today's recipe, which is why this is a bookkeeping
+        # escape hatch and not a way to change physics.
+        if rerun:
+            raise ValueError("--run-id and --rerun are mutually exclusive")
+        if Path(run_id).name != run_id or not run_id.strip():
+            raise ValueError(f"Invalid run_id: {run_id!r}")
+    else:
+        run_id = new_run_id("dfpt-qha") if rerun else stable_run_id("dfpt-qha", run_payload)
     run_root, result_path, ledger_path = _stage_paths(name, "dfpt-qha", run_id)
     command = (
         f"{shlex.quote(str(root_dir / '.conda' / 'bin' / 'python'))} "
@@ -694,12 +709,13 @@ def submit_job(
     resume_from: Path | None = None,
     nodelist: str | None = None,
     memory: str = "96G",
+    run_id: str | None = None,
 ):
     plan = _submission_plan(
         name, manager, rerun=rerun,
         number_of_frames=number_of_frames, mesh=mesh, ntasks=ntasks,
         ncore=ncore, kpar=kpar, resume_from=resume_from, nodelist=nodelist,
-        memory=memory,
+        memory=memory, run_id=run_id,
     )
     if dry_run:
         _print_submission_plan(plan)
@@ -848,6 +864,9 @@ if __name__ == "__main__":
             parser.error("--slurm needs -n/--name")
         if args.rerun and args.resume:
             parser.error("--rerun and --resume are mutually exclusive")
+        if args.run_id and (args.rerun or not args.resume):
+            parser.error("--run-id with --slurm needs --resume: it exists to point "
+                         "a resume back at an archived store")
         submit_job(
             args.name, SlurmJobManager(), rerun=args.rerun, resume=args.resume,
             dry_run=args.dry_run,
@@ -855,7 +874,7 @@ if __name__ == "__main__":
             mesh=tuple(args.mesh) if args.mesh else None,
             ntasks=args.ntasks, ncore=args.ncore, kpar=args.kpar,
             resume_from=args.resume_from, nodelist=args.nodelist,
-            memory=args.memory,
+            memory=args.memory, run_id=args.run_id,
         )
     elif args.dry_run or args.flow_graph:
         run_tick(
