@@ -70,6 +70,7 @@ def run_locally_custom(
     allow_external_references: bool = False,
     raise_immediately: bool = False,
     resume: bool = True,
+    _status: dict | None = None,
 ) -> dict[str, dict[int, Response]]:
     """Run a Job or Flow locally with sequential directory naming and resume support.
 
@@ -87,6 +88,12 @@ def run_locally_custom(
         allow_external_references: If False, all references must be from jobs in the same flow.
         raise_immediately: If True, raise an exception immediately if a job fails.
         resume: Whether to resume from previously completed jobs by name matching.
+        _status: Private. A dict the caller passes to learn whether the run
+            failed, used to propagate a nested sub-flow's failure to its parent.
+            ``ensure_success=False`` is right for the nested call -- the parent
+            decides what to do -- but the fact that a volume raised still has to
+            reach the parent, or ``ensure_success`` on the outer call would
+            report success for a flow that lost a volume.
 
     Returns:
         The responses of the jobs, keyed by job uuid and index.
@@ -111,6 +118,14 @@ def run_locally_custom(
     errored: set[str] = set()
     responses: dict[str, dict[int, jobflow.Response]] = defaultdict(dict)
     stop_jobflow = False
+    # A job that failed, or that was skipped because an ancestor failed, yields
+    # no response.  Tracking that is the whole point of ``ensure_success``: a
+    # run where one volume raised must not report success just because no job
+    # asked to stop the flow.  jobflow's own ``run_locally`` does exactly this
+    # (``encountered_bad_response``); the fork had dropped it, so an endpoint
+    # whose volume 3 died at VasprunXMLValidator finished "successfully" with
+    # collect/classify/thermal/analyze silently skipped and no result stored.
+    encountered_bad_response = False
     prefix = 1
     counter: dict[str, int] = {}
 
@@ -126,7 +141,7 @@ def run_locally_custom(
         job_dir.mkdir(parents=True, exist_ok=True)
 
         with cd(job_dir):
-            response, stop_jobflow = _run_job(
+            response, stop_jobflow, diversion_failed = _run_job(
                 job, parents, store, completed_uuids,
                 stopped_parents, errored, raise_immediately, responses, root_dir,
                 resume=resume,
@@ -134,13 +149,35 @@ def run_locally_custom(
 
         if response is not None:
             response.job_dir = job_dir
+        elif job.uuid in errored:
+            # ``response is None`` covers two very different outcomes, and only
+            # one of them is a failure:
+            #
+            # * the job raised, or an ancestor did (it is in ``errored``);
+            # * a ``stop_children`` ancestor halted the branch on purpose (the
+            #   job is in ``stopped_parents``).  DFPT-QHA uses that to say "this
+            #   volume was rejected", and ``DfptQhaWorker.get_result`` reports
+            #   the rejection as the endpoint's result -- so it must not be
+            #   turned into an exception.
+            #
+            # jobflow's own runner conflates them; this flow cannot.
+            encountered_bad_response = True
+
+        if diversion_failed:
+            # A nested sub-flow lost a job.  Its own ``ensure_success`` is off
+            # (the parent decides), so the fact has to surface here or the
+            # parent would report success for a flow that lost a volume.
+            encountered_bad_response = True
 
         if stop_jobflow:
             break
 
     log.info("Finished executing jobs locally")
 
-    if ensure_success and stop_jobflow:
+    if _status is not None:
+        _status["encountered_bad_response"] = encountered_bad_response
+
+    if ensure_success and (stop_jobflow or encountered_bad_response):
         raise RuntimeError("Flow did not finish running successfully")
 
     return dict(responses)
@@ -157,7 +194,7 @@ def _run_job(
     responses: dict[str, dict[int, jobflow.Response]],
     root_dir: Path | None = None,
     resume: bool = True,
-) -> tuple[Response | None, bool]:
+) -> tuple[Response | None, bool, bool]:
     """Run a single job with all checks and error handling.
 
     Args:
@@ -173,21 +210,26 @@ def _run_job(
         resume: Whether diversion sub-flows may reuse completed jobs.
 
     Returns:
-        Tuple of (response, should_stop_jobflow).
+        Tuple of (response, should_stop_jobflow, diversion_failed).
+        ``diversion_failed`` is True when a nested sub-flow lost a job; the
+        caller has to fold that into its own success verdict because the nested
+        call runs with ``ensure_success=False``.
     """
     log.info(f"Starting job - {job.name} ({job.uuid})")
+
+    diversion_failed = False
 
     # Check if parent stopped
     if set(parents).intersection(stopped_parents):
         log.info(f"{job.name} is a child of a job with stop_children=True, skipping...")
         stopped_parents.add(job.uuid)
-        return None, False
+        return None, False, False
 
     # Check if parent errored
     if set(parents).intersection(errored):
         if job.config.on_missing_references == OnMissing.ERROR:
             errored.add(job.uuid)
-            return None, False
+            return None, False, False
 
     # Resume: skip completed jobs
     if job.uuid in completed_uuids:
@@ -196,7 +238,7 @@ def _run_job(
             if response is not None:
                 responses[job.uuid][job.index] = response
                 log.info(f"Skipped completed job: {job.name}")
-                return response, False
+                return response, False, False
 
         log.warning(f"Cannot skip {job.name}: dependencies incomplete, will re-execute")
         completed_uuids.discard(job.uuid)
@@ -208,7 +250,7 @@ def _run_job(
         response = _execute_job_safe(job, store, errored)
 
     if response is None:
-        return None, False
+        return None, False, False
 
     responses[job.uuid][job.index] = response
 
@@ -219,7 +261,7 @@ def _run_job(
         stopped_parents.add(job.uuid)
 
     if response.stop_jobflow:
-        return None, True
+        return None, True, False
 
     # Handle diversions — run sub-flows recursively
     for diversion_type, diversion in (("replace", response.replace), ("detour", response.detour), ("addition", response.addition)):
@@ -236,6 +278,12 @@ def _run_job(
             # only _prepare_resume can map them back by name.  The sub-flow's
             # directory numbering restarts at 1 exactly as it did on the first
             # run, so the restored dir_names point at the same directories.
+            #
+            # ``ensure_success=False`` because the parent decides; ``_status``
+            # because it still has to be told.  A volume that raises inside the
+            # sub-flow returns None here and would otherwise leave the parent
+            # looking successful -- the DFPT-QHA flow is exactly this shape.
+            sub_status: dict = {}
             sub_responses = run_locally_custom(
                 diversion,
                 log_fmt=False,
@@ -245,7 +293,10 @@ def _run_job(
                 allow_external_references=True,
                 raise_immediately=raise_immediately,
                 resume=resume,
+                _status=sub_status,
             )
+            if sub_status.get("encountered_bad_response"):
+                diversion_failed = True
 
             # Merge sub-responses into parent responses
             for uuid, idx_responses in sub_responses.items():
@@ -276,7 +327,7 @@ def _run_job(
 
         log.warning(f"Unknown diversion type for {job.name}: {type(diversion)}")
 
-    return response, False
+    return response, False, diversion_failed
 
 
 def _prepare_resume(flow: Flow, store: JobStore, root_dir: Path) -> set[str]:
