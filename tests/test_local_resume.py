@@ -298,8 +298,13 @@ def _interrupted_dfpt_run(tmp_path):
 
     flow_root = tmp_path / "scratch"
     store_dir = tmp_path / "store"
+    # ``ensure_success=False`` because the interruption is the setup, not the
+    # assertion: this helper produces the half-finished store that the resume
+    # tests then read.  With the default it would raise, which is the fix for
+    # Bug B doing its job (see the dedicated tests further down).
     _DfptProbe().run_flow(name="endpoint", structure=None, flow_dir=flow_root,
-                          store_dir=store_dir, resume=False, flow_dir_name="run-1")
+                          store_dir=store_dir, resume=False, flow_dir_name="run-1",
+                          ensure_success=False)
     return _DfptProbe, flow_root, store_dir, state, store_contract
 
 
@@ -342,3 +347,92 @@ def test_the_contract_fails_loudly_when_the_blob_store_is_absent(tmp_path):
 
     with pytest.raises(AssertionError, match="do not resolve"):
         store_contract.assert_store_resumable(store_dir)
+
+
+# --------------------------------------------------------------------------
+# a failed job must not read as a finished flow
+# --------------------------------------------------------------------------
+
+def _failure_probe(tmp_path, *, fail_child: bool, stop_children: bool):
+    """A parent expanding into two children, one of which fails or is rejected.
+
+    ``stop_children`` selects the two meanings a ``None`` response can have:
+    a real failure (``False``) and a deliberate rejection (``True``).
+    """
+    from jobflow import Response
+
+    @job(name="volume 1")
+    def volume_1():
+        return {"ok": True}
+
+    @job(name="volume 2", stop_children_kwargs=None)
+    def volume_2():
+        if stop_children:
+            return Response(output={"ok": False}, stop_children=True)
+        raise RuntimeError("vasprun.xml truncated")
+
+    @job(name="gather")
+    def gather(a, b):
+        return {"ok": True}
+
+    @job(name="spawn")
+    def spawn():
+        a = volume_1()
+        b = volume_2()
+        g = gather(a.output, b.output)
+        return Response(replace=Flow([a, b, g], output=g.output, name="sub"))
+
+    class _Probe(Worker):
+        def __init__(self):
+            super().__init__(worker_name="probe")
+
+        def _make_flow(self, structure, prev_dir=None):
+            return Flow([spawn()], name="probe")
+
+    flow_root = tmp_path / "scratch"
+    store_dir = tmp_path / "store"
+    return _Probe(), flow_root, store_dir
+
+
+def test_a_raised_job_makes_the_flow_unsuccessful(tmp_path):
+    """The defect: a raised volume left ``ensure_success`` reporting success.
+
+    On 2026-10-29 FCC-Cr-Nb-4 recomputed six volumes, one of them raised at
+    VasprunXMLValidator, every downstream job was skipped, and the run still
+    ended with ``no result was stored`` instead of an error -- because the
+    fork's success check looked only at ``stop_jobflow``.
+    """
+    import pytest
+
+    probe, flow_root, store_dir = _failure_probe(
+        tmp_path, fail_child=True, stop_children=False
+    )
+    with pytest.raises(RuntimeError, match="did not finish running successfully"):
+        probe.run_flow(name="endpoint", structure=None, flow_dir=flow_root,
+                       store_dir=store_dir, resume=False, flow_dir_name="run-1")
+
+
+def test_a_rejected_volume_is_a_result_not_a_failure(tmp_path):
+    """A ``stop_children`` rejection must still finish successfully.
+
+    ``validate_dfpt_task_doc`` answers a rejected volume with
+    ``stop_children=True`` and ``ok=False``; ``DfptQhaWorker.get_result`` then
+    reports that verdict as the endpoint's result.  Turning it into an
+    exception would discard the only record of why the endpoint stopped.
+    """
+    probe, flow_root, store_dir = _failure_probe(
+        tmp_path, fail_child=False, stop_children=True
+    )
+    # No exception: the flow ended by decision, not by error.
+    probe.run_flow(name="endpoint", structure=None, flow_dir=flow_root,
+                   store_dir=store_dir, resume=False, flow_dir_name="run-1")
+
+
+def test_ensure_success_false_still_returns_responses_after_a_failure(tmp_path):
+    """A caller that opted out of ``ensure_success`` keeps the partial result."""
+    probe, flow_root, store_dir = _failure_probe(
+        tmp_path, fail_child=True, stop_children=False
+    )
+    probe.run_flow(name="endpoint", structure=None, flow_dir=flow_root,
+                   store_dir=store_dir, resume=False, flow_dir_name="run-1",
+                   ensure_success=False)
