@@ -29,8 +29,9 @@ class Tb2jMaker(Maker):
 
     Args:
         name: Maker name.
-        input_set_generator: Tb2jInputSetGenerator instance (writes wannier90.win
-            and the Wannier90-interface INCAR keys).
+        input_set_generator: Tb2jInputSetGenerator instance (sends the
+            wannier90.win body through the WANNIER90_WIN INCAR tag plus the
+            Wannier90-interface INCAR keys).
         run_vasp_kwargs: VASP execution parameters for the W90 SCF step.
         elements: Magnetic elements passed to TB2J --elements. Defaults to the
             generator's ``elements`` if not given here.

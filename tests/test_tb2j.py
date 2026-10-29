@@ -214,9 +214,17 @@ def test_win_string_content():
     return True
 
 
-def test_get_input_set_side_effect():
-    """Test get_input_set(): writes wannier90.win and merges the INCAR."""
-    print_header("get_input_set() side effect")
+def test_get_input_set_uses_wannier90_win_tag():
+    """get_input_set() must ship the win body via the WANNIER90_WIN INCAR tag.
+
+    Writing ``wannier90.win`` to disk instead puts the VASP interface in legacy
+    mode (VASP 6.4.3 ``mlwf.F:308-311``: no tag *and* a non-empty win on disk),
+    which disables VASP's own win writer and therefore also
+    ``LWANNIER90_AUTO_WINDOW``.  2026-10-28 probe on BCC-Nb-Nb: the legacy
+    configuration left the win byte-identical, the tag configuration rewrote it
+    with VASP's auto ``dis_froz_max``.
+    """
+    print_header("get_input_set() -> WANNIER90_WIN tag")
 
     struct = get_test_structure()
     gen = Tb2jInputSetGenerator(
@@ -230,19 +238,41 @@ def test_get_input_set_side_effect():
             os.chdir(td)
             vis = gen.get_input_set(struct)
 
-            # Side effect: wannier90.win written to the job directory (cwd).
-            win_path = Path("wannier90.win")
-            if not win_path.exists():
-                print("✗ wannier90.win was not written to cwd")
-                return False
-            win = win_path.read_text(encoding="utf-8")
-            print(f"✓ wannier90.win written to {win_path.resolve()}")
-            if "num_wann = 18" not in win or "begin projections" not in win:
-                print("✗ wannier90.win content incorrect")
-                return False
-            print("✓ wannier90.win content has num_wann + projections")
+            # No file may be written: its mere presence triggers legacy mode.
+            assert not Path("wannier90.win").exists(), (
+                "get_input_set() wrote wannier90.win; that triggers VASP's "
+                "legacy mode and disables LWANNIER90_AUTO_WINDOW"
+            )
+            print("  ok: no wannier90.win written to cwd")
 
             incar = vis.incar
+            win = incar.get("WANNIER90_WIN")
+            assert win is not None, "INCAR has no WANNIER90_WIN tag"
+            # VASP reads the tag as one quoted multi-line string, so the quotes
+            # must be part of the value pymatgen writes.
+            assert win.startswith('"') and win.endswith('"'), (
+                f"WANNIER90_WIN must be quoted for VASP's PROCESS_INCAR: {win[:40]!r}"
+            )
+            body = win[1:-1]
+            assert "\n" in body, "WANNIER90_WIN must span multiple lines"
+            for needle in (
+                "num_wann = 18",
+                "num_bands = 64",
+                "dis_win_min",
+                "dis_win_max",
+                "dis_froz_min",
+                "dis_froz_max",
+                "begin projections",
+                "end projections",
+                "Fe: s,p,d",
+                "Co: s,p,d",
+                "write_hr = .true.",
+                "write_xyz = .true.",
+            ):
+                assert needle in body, f"WANNIER90_WIN body missing {needle!r}"
+            print(f"  ok: WANNIER90_WIN carries {len(body.splitlines())} lines "
+                  f"with projections + dis_* windows")
+
             w90_checks = {
                 "NUM_WANN": incar.get("NUM_WANN") == 18,
                 # NBANDS = ceil((18+20)/32)*32 = 64 (NPAR=ntasks=32)
@@ -256,25 +286,15 @@ def test_get_input_set_side_effect():
                 "IBRION": incar.get("IBRION") == -1,
                 "NELM": incar.get("NELM") == 200,
                 "LORBIT": incar.get("LORBIT") == 11,
-                "user ENCUT": incar.get("ENCUT") == 520,
             }
-            all_ok = True
             for label, ok in w90_checks.items():
-                val = incar.get(label.split()[-1])
-                print(f"  ✓ {label}: {val}" if ok else f"  ✗ {label}: {val}")
-                all_ok = all_ok and ok
-            if not all_ok:
-                print("✗ Wannier90-interface INCAR merge incorrect")
-                return False
-            print("✓ W90 INCAR keys merged (W90 defaults + user ENCUT=520)")
+                assert ok, f"W90 INCAR key {label} = {incar.get(label)!r}"
+            assert incar.get("ENCUT") == 520, "user ENCUT override lost"
+            print("  ok: W90 INCAR keys merged (W90 defaults + user ENCUT=520)")
 
-            if vis.get("POTCAR") is None:
-                print("✗ POTCAR missing from input set")
-                return False
-            if vis.get("KPOINTS") is None:
-                print("✗ KPOINTS missing from input set")
-                return False
-            print("✓ POTCAR and KPOINTS present")
+            assert vis.get("POTCAR") is not None, "POTCAR missing from input set"
+            assert vis.get("KPOINTS") is not None, "KPOINTS missing from input set"
+            print("  ok: POTCAR and KPOINTS present")
     finally:
         os.chdir(cwd_backup)
 

@@ -5,7 +5,8 @@ TB2J magnetic exchange calculation components (collinear Wannier90-based).
 
 Main components:
 - Tb2jInputSetGenerator: Input set generator (inherits VaspInputGenerator),
-  writes wannier90.win + Wannier90-interface INCAR keys
+  sends the wannier90.win body via the WANNIER90_WIN INCAR tag plus the
+  Wannier90-interface INCAR keys
 - Tb2jMaker: atomate2-style Maker composing W90 SCF -> TB2J solve
 - Tb2jResult: Output schema (parsed J pairs, tensors, summary)
 - tb2j_solve: Job function running ``python -m TB2J.scripts.wann2J``

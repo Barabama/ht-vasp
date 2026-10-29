@@ -45,10 +45,17 @@ class Tb2jInputSetGenerator(VaspInputGenerator):
 
     Inherits from :class:`VaspInputGenerator` for atomate2 compatibility. The
     ``get_input_set`` override injects the Wannier90-interface INCAR keys
-    (LWANNIER90, KPAR=1, NUM_WANN, NBANDS, ...) and, as a side effect, writes a
-    ``wannier90.win`` file into the job directory so VASP's Wannier90 interface
+    (LWANNIER90, KPAR=1, NUM_WANN, NBANDS, ...) and passes the ``wannier90.win``
+    body through the INCAR ``WANNIER90_WIN`` tag so VASP's Wannier90 interface
     picks up the explicit orbital projections (VASP's auto-generated win lacks
     ``begin projections`` and fails with "No projection mode").
+
+    The tag, not a pre-written ``wannier90.win`` file, on purpose: a non-empty
+    ``wannier90.win`` on disk with no ``WANNIER90_WIN`` tag puts the interface in
+    *legacy mode* (VASP 6.4.3 ``mlwf.F:308-311``), which disables VASP's own win
+    writer and with it ``LWANNIER90_AUTO_WINDOW``.  With the tag present VASP
+    writes the win itself, keeps our ``dis_win_*`` / ``dis_froz_min`` /
+    projections, and may override ``dis_froz_max``.
 
     Args:
         elements: Magnetic elements used for the TB2J ``--elements`` flag and,
@@ -288,8 +295,9 @@ class Tb2jInputSetGenerator(VaspInputGenerator):
         """Get the VASP input set for an SCF + Wannier90 calculation.
 
         Merges the Wannier90-interface INCAR defaults with ``user_incar_settings``
-        (user settings win) and writes ``wannier90.win`` as a side effect into the
-        current working directory (the job's run directory).
+        (user settings win) and carries the ``wannier90.win`` body in the INCAR
+        ``WANNIER90_WIN`` tag.  No file is written here: VASP generates
+        ``wannier90.win`` itself once the tag is present (see class docstring).
 
         Args:
             structure: Input structure.
@@ -306,11 +314,16 @@ class Tb2jInputSetGenerator(VaspInputGenerator):
         structure = self._symmetrize_structure(structure)
         num_wann = self.get_num_wann(structure)
 
+        win_string = self.get_wannier90_win_string(structure=structure, num_wann=num_wann)
         merged_incar = {
             **W90_INCAR_DEFAULTS,
             **self.user_incar_settings,
             "NUM_WANN": num_wann,
             "NBANDS": self.get_num_bands(num_wann),
+            # Quoted: VASP reads everything between the quotes as one multi-line
+            # string (PROCESS_INCAR).  num_wann / num_bands lines are filtered
+            # out again by VASP's FILTER_WIN_FILE, which writes its own.
+            "WANNIER90_WIN": '"' + win_string.rstrip("\n") + '"',
         }
         original = self.user_incar_settings
         self.user_incar_settings = merged_incar
@@ -324,12 +337,8 @@ class Tb2jInputSetGenerator(VaspInputGenerator):
             # restore so repeated calls always recompute NUM_WANN / NBANDS
             self.user_incar_settings = original
 
-        # Side effect: pre-write wannier90.win with explicit projections so VASP's
-        # Wannier90 interface does not fail with "No projection mode".
-        win_string = self.get_wannier90_win_string(structure=structure, num_wann=num_wann)
-        Path("wannier90.win").write_text(win_string, encoding="utf-8")
         log.debug(
-            f"Wrote wannier90.win (num_wann={num_wann}, "
+            f"wannier90.win body sent via WANNIER90_WIN (num_wann={num_wann}, "
             f"num_bands={self.get_num_bands(num_wann)}, "
             f"projections={self._projection_elements(structure)})"
         )
